@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronRight, Keyboard, X } from "lucide-react";
+import { ChevronRight, Keyboard, X } from "./settings-symbols";
+import { SettingsRowIcon } from "./settings-row-icon";
 import { DEFAULT_STUDY_SHORTCUTS, STUDY_SHORTCUT_LABELS, shortcutLabel, validShortcutKey, type StudyShortcutAction, type StudyShortcuts } from "../study-shortcuts";
 import styles from "./StudyShortcutSettings.module.css";
 
@@ -21,6 +22,7 @@ export function StudyShortcutSettings({ value, onChange }: { value: StudyShortcu
   function close() { setOpen(false); setRecording(null); setMessage(""); }
   return <div data-settings-search="Custom study keys" data-search-keywords="Anki keyboard shortcuts progress replay audio correct incorrect">
     <button ref={trigger} type="button" className={styles.entry} onClick={() => setOpen(true)} aria-haspopup="dialog">
+      <SettingsRowIcon setting="shortcuts" />
       <span><strong>Custom study keys</strong><small>Choose shortcuts for revealing, grading, audio, and more.</small></span><ChevronRight size={18} aria-hidden />
     </button>
     {open ? <dialog ref={dialog} className={styles.dialog} aria-labelledby={title} onCancel={(event) => { event.preventDefault(); if (recording) { setRecording(null); setMessage("Key change canceled."); } else close(); }} onClick={(event) => { if (event.target === event.currentTarget) close(); }}>

@@ -1,6 +1,7 @@
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+
 import { router } from "expo-router";
 import { useSettingsStore } from "../../../utils/store";
 import { useTheme } from "../../../utils/theme";

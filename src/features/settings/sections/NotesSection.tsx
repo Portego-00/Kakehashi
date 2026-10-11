@@ -1,5 +1,9 @@
+import { SettingsRowIcon } from "../../../ui/settings/settings-row-icon";
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Switch, Text, View } from "react-native";
 
 import { useSettingsStore } from "../../../utils/store";
@@ -16,7 +20,7 @@ export function NotesSection() {
   const { theme, updateSectionOffset } = useSettingsControllerContext();
 
   return (
-    <View
+    <SettingsSectionSurface
       style={[
         styles.section,
         {
@@ -37,22 +41,16 @@ export function NotesSection() {
         Notes
       </Text>
 
-      <View
-        style={[styles.settingItem, { borderBottomColor: "transparent" }]}
-      >
-        <Ionicons
-          name="create-outline"
-          size={24}
-          color={theme.primary}
-          style={styles.settingIcon}
-        />
+      <View style={[styles.settingItem, { borderBottomColor: "transparent" }]}>
+
+        <SettingsRowIcon setting="advanced-note" color={theme.primary} />
         <View style={styles.settingTextContainer}>
-          <Text style={[styles.settingText, { color: theme.textColor }]}>
-            Advanced note editor
-          </Text>
-          <Text
-            style={[styles.settingSubtext, { color: theme.textSecondary }]}
+          <SettingsLabel
+            style={[styles.settingText, { color: theme.textColor }]}
           >
+            Advanced note editor
+          </SettingsLabel>
+          <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
             Use formatting and subject links in study notes. Existing formatted
             notes keep the advanced editor.
           </Text>
@@ -65,6 +63,6 @@ export function NotesSection() {
           thumbColor="#f4f3f4"
         />
       </View>
-    </View>
+    </SettingsSectionSurface>
   );
 }

@@ -1,5 +1,8 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import {
   ActivityIndicator,
   Text,
@@ -36,7 +39,7 @@ export function UserProfileSection() {
   return (
     <>
       {/* User Profile Section */}
-      <View
+      <SettingsSectionSurface
         style={[
           styles.section,
           {
@@ -71,9 +74,11 @@ export function UserProfileSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Gravatar Email
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -133,9 +138,11 @@ export function UserProfileSection() {
             />
             <View style={styles.settingTextContainer}>
               <View style={styles.settingHeadingRow}>
-                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                <SettingsLabel
+                  style={[styles.settingText, { color: theme.textColor }]}
+                >
                   JPDB API Key
-                </Text>
+                </SettingsLabel>
                 <TouchableOpacity
                   style={styles.settingInfoButton}
                   onPress={handleJpdbApiKeyInfoPress}
@@ -233,16 +240,39 @@ export function UserProfileSection() {
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Open notebooks"
-          style={[styles.settingItem, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }]}
+          style={[
+            styles.settingItem,
+            {
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderTopColor: theme.border,
+            },
+          ]}
           onPress={() => router.push("/notebook-workspace")}
           activeOpacity={0.75}
         >
-          <Ionicons name="document-text-outline" size={22} color={theme.primary} style={styles.settingIcon} />
+          <Ionicons
+            name="document-text-outline"
+            size={22}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>Notebooks</Text>
-            <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Your study notes and vocabulary, shared with the web</Text>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
+              Notebooks
+            </SettingsLabel>
+            <Text
+              style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            >
+              Your study notes and vocabulary, shared with the web
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={theme.textSecondary}
+          />
         </TouchableOpacity>
 
         {isPortegoUser && (
@@ -264,9 +294,11 @@ export function UserProfileSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 URL Reader
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -280,7 +312,7 @@ export function UserProfileSection() {
             />
           </TouchableOpacity>
         )}
-      </View>
+      </SettingsSectionSurface>
     </>
   );
 }

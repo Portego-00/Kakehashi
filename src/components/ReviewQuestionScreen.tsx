@@ -1044,6 +1044,7 @@ export default function ReviewQuestionScreen({
     reviewMultipleChoiceEnabled,
     ankiCardMode,
     ankiGroupQuestions,
+    ankiAskIncorrectPart,
     ankiCardModeScope,
     ankiHideAnswerCompletely,
     ankiButtonlessMode,
@@ -1177,6 +1178,12 @@ export default function ReviewQuestionScreen({
     "correct" | "incorrect" | "close" | null
   >(null);
   const [ankiAnswerRevealed, setAnkiAnswerRevealed] = useState(false);
+  const [ankiWrongOptionsVisible, setAnkiWrongOptionsVisible] = useState(false);
+  useEffect(() => {
+    if (ankiAskIncorrectPart !== true || !effectiveAnkiGroupQuestions) {
+      setAnkiWrongOptionsVisible(false);
+    }
+  }, [ankiAskIncorrectPart, effectiveAnkiGroupQuestions]);
   const [ankiRevealQuestionKey, setAnkiRevealQuestionKey] = useState<string | null>(
     null,
   );
@@ -1772,7 +1779,7 @@ export default function ReviewQuestionScreen({
     hasContextHint && (contextHintDisplayMode === "visible" || showContextHint);
   const useContentSizedAnkiCard =
     effectiveAnkiCardMode &&
-    (!isCurrentQuestionAnkiRevealed || !effectiveAnkiButtonlessMode);
+    (ankiWrongOptionsVisible || !isCurrentQuestionAnkiRevealed || !effectiveAnkiButtonlessMode);
   const shouldShowReviewItemMetadataInLayout =
     subjectJLPTLevel !== null ||
     (shouldShowReviewItemMetadata && !isContextHintVisible);
@@ -2317,6 +2324,7 @@ export default function ReviewQuestionScreen({
     setAnkiAnswerRevealed(false);
     setAnkiRevealQuestionKey(null);
     setIsPausedOnWrong(false);
+    setAnkiWrongOptionsVisible(false);
     setIsPausedOnCloseAnswer(false);
     setIsPausedOnCorrect(false);
     setPausedDetailsSheetVisible(false);
@@ -4601,7 +4609,18 @@ export default function ReviewQuestionScreen({
     );
   };
 
-  const handleAnkiAnswerButton = (isCorrect: boolean) => {
+  const handleAnkiWrongButton = () => {
+    if (ankiAskIncorrectPart === true && !isLessonFlow && effectiveAnkiGroupQuestions && (subject.data.readings?.length ?? 0) > 0) {
+      setAnkiWrongOptionsVisible(true);
+    } else {
+      handleAnkiAnswerButton(false);
+    }
+  };
+
+  const handleAnkiAnswerButton = (
+    isCorrect: boolean,
+    incorrectParts: "meaning" | "reading" | "both" = "both",
+  ) => {
     if (
       !tryStartQuestionSubmission(
         reviewSubmissionGuardRef.current,
@@ -4613,6 +4632,7 @@ export default function ReviewQuestionScreen({
 
     // Restore the initial font once an answer is submitted.
     setJitaiFontCycleIndex(0);
+    setAnkiWrongOptionsVisible(false);
 
     const characters =
       subject.data.characters ||
@@ -4668,9 +4688,10 @@ export default function ReviewQuestionScreen({
           effectiveAnkiGroupQuestions &&
           (item.subject.data.readings?.length ?? 0) > 0
         ) {
-          // Mark both meaning and reading as incorrect
-          emitAnswer("meaning", false, true, true);
-          emitAnswer("reading", false, true, true);
+          const meaningCorrect = incorrectParts === "reading";
+          const readingCorrect = incorrectParts === "meaning";
+          emitAnswer("meaning", meaningCorrect, !meaningCorrect, true);
+          emitAnswer("reading", readingCorrect, !readingCorrect, true);
         } else {
           // Single question type
           emitAnswer(questionType, false, false, false);
@@ -4750,7 +4771,7 @@ export default function ReviewQuestionScreen({
         handleAnkiRevealAnswer();
         break;
       case "markIncorrect":
-        handleAnkiAnswerButton(false);
+        handleAnkiWrongButton();
         break;
       case "markCorrect":
         handleAnkiAnswerButton(true);
@@ -4841,7 +4862,8 @@ export default function ReviewQuestionScreen({
     // necessarily relative to the review pane.
     const { left, width: hitAreaWidth } = buttonlessGestureBoundsRef.current;
     const isLeftHalfTap = event.nativeEvent.pageX < left + hitAreaWidth / 2;
-    handleAnkiAnswerButton(!isLeftHalfTap);
+    if (isLeftHalfTap) handleAnkiWrongButton();
+    else handleAnkiAnswerButton(true);
   };
 
   const canToggleJitaiFont =
@@ -5934,6 +5956,7 @@ export default function ReviewQuestionScreen({
           }}
           onStartShouldSetResponder={() =>
             effectiveAnkiCardMode &&
+            !ankiWrongOptionsVisible &&
             (!isCurrentQuestionAnkiRevealed || effectiveAnkiButtonlessMode) &&
             !navigatingToDetail &&
             !pendingAnkiSubmitCallbackRef.current
@@ -5954,7 +5977,7 @@ export default function ReviewQuestionScreen({
                 : undefined
           }
           accessibilityHint={
-            effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed
+            effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed && !ankiWrongOptionsVisible
               ? "Tap a kanji card for its details. Elsewhere, tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
               : undefined
           }
@@ -5966,6 +5989,7 @@ export default function ReviewQuestionScreen({
           style={[
             styles.reviewInteractionPane,
             useContentSizedAnkiCard && styles.ankiContentSizedPane,
+            ankiWrongOptionsVisible && styles.ankiWrongChoicePane,
             shouldShowPausedSubjectDetails &&
               styles.reviewInteractionPaneWithDetails,
           ]}
@@ -5975,6 +5999,7 @@ export default function ReviewQuestionScreen({
           key={currentQuestionKey}
           style={[
             styles.characterScrollView,
+            ankiWrongOptionsVisible && { display: "none" },
             useContentSizedAnkiCard && styles.ankiContentSizedPrompt,
             useContentSizedAnkiCard && isContextHintVisible && styles.ankiContextHintPrompt,
             hideTypedAnswerInput && !isPausedOnAnswer && { minHeight: Math.max(110, windowHeight * 0.17) },
@@ -6137,7 +6162,7 @@ export default function ReviewQuestionScreen({
             style={[
               styles.ankiCardContainer,
               useContentSizedAnkiCard && styles.ankiContentSizedCard,
-              effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed &&
+              effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed && !ankiWrongOptionsVisible &&
                 styles.ankiButtonlessNaturalHeight,
             ]}
           >
@@ -6145,14 +6170,16 @@ export default function ReviewQuestionScreen({
               style={[
                 styles.ankiAnswerContainer,
                 useContentSizedAnkiCard && styles.ankiContentSizedCard,
-                effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed &&
+                effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed && !ankiWrongOptionsVisible &&
                   styles.ankiButtonlessNaturalHeight,
               ]}
               onPress={
                 !isCurrentQuestionAnkiRevealed ? handleAnkiRevealAnswer : undefined
               }
               activeOpacity={1}
-              disabled={isCurrentQuestionAnkiRevealed}
+              accessible={!isCurrentQuestionAnkiRevealed}
+              accessibilityRole={isCurrentQuestionAnkiRevealed ? undefined : "button"}
+              accessibilityLabel={isCurrentQuestionAnkiRevealed ? undefined : "Reveal answer"}
             >
             {((shouldShowSrsProgressionCard && !shouldUseCompactSrsProgressionCard) ||
               showAnkiSkipChip ||
@@ -6271,6 +6298,7 @@ export default function ReviewQuestionScreen({
               <Text
                 style={[
                   styles.bannerText,
+                  ankiWrongOptionsVisible && fontStyles.japaneseText,
                   effectiveAnkiGroupQuestions
                     ? styles.bannerTextGrouped
                     : questionType === "meaning"
@@ -6283,10 +6311,10 @@ export default function ReviewQuestionScreen({
                     },
                 ]}
               >
-                {getSubjectTypeLabel()}{" "}
+                {ankiWrongOptionsVisible ? (subject.data.characters || subject.data.meanings?.[0]?.meaning || "") : <>{getSubjectTypeLabel()}{" "}
                 <Text style={styles.bannerTextBold}>
                   {groupedQuestionDisplayLabel}
-                </Text>
+                </Text></>}
               </Text>
             </View>
 
@@ -6294,11 +6322,12 @@ export default function ReviewQuestionScreen({
               style={[
                 styles.ankiContentContainer,
                 ankiContainerStyle,
-                effectiveAnkiButtonlessMode && styles.ankiButtonlessNaturalHeight,
+                effectiveAnkiButtonlessMode && !ankiWrongOptionsVisible && styles.ankiButtonlessNaturalHeight,
                 theme.isDark && { backgroundColor: "#000000" },
               ]}
             >
               {/* Answer display area */}
+              {!ankiWrongOptionsVisible ? (
               <ScrollView
                 key={currentQuestionKey}
                 style={[
@@ -6485,8 +6514,9 @@ export default function ReviewQuestionScreen({
                   </View>
                 )}
               </ScrollView>
+              ) : null}
 
-              {showAnkiReplayButton && (
+              {showAnkiReplayButton && !ankiWrongOptionsVisible && (
                 <View style={styles.ankiReplaySection}>
                   <TouchableOpacity
                     style={[
@@ -6519,7 +6549,48 @@ export default function ReviewQuestionScreen({
               )}
 
               {/* Buttons (animated in when revealed) */}
-              {isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode && (
+              {isCurrentQuestionAnkiRevealed && ankiWrongOptionsVisible && (
+                <View style={[styles.ankiWrongOptionsContainer, { maxHeight: windowHeight * 0.65 }]} accessibilityViewIsModal>
+                <ScrollView
+                  style={styles.ankiWrongOptionsScroll}
+                  contentContainerStyle={styles.ankiWrongOptionsContent}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled
+                  bounces={false}
+                >
+                  <Text accessibilityRole="header" accessibilityLabel={`What was incorrect for ${subject.data.characters || subject.data.meanings?.[0]?.meaning || "this card"}?`} style={[styles.ankiWrongTitle, { color: theme.textColor }]}>What was incorrect?</Text>
+                  <View style={styles.ankiWrongRows}>
+                    {([
+                      { part: "meaning", label: "Meaning", icon: "book-outline" },
+                      { part: "reading", label: "Reading", icon: "volume-medium-outline" },
+                      { part: "both", label: "Both", icon: "layers-outline" },
+                    ] as const).map(({ part, label, icon }) => (
+                      <TouchableOpacity
+                        key={part}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${part === "both" ? "Both" : part === "meaning" ? "Meaning" : "Reading"} wrong`}
+                        style={[styles.ankiWrongOptionRow, styles.ankiButtonWrong, theme.isDark && { backgroundColor: "#3D1F1F", borderColor: "#5C2B2B" }]}
+                        onPress={() => handleAnkiAnswerButton(false, part)}
+                      >
+                        <Ionicons name={icon} size={22} color={theme.isDark ? "#FF8A80" : "#B91C1C"} accessible={false} accessibilityElementsHidden importantForAccessibility="no" />
+                        <Text style={[styles.ankiWrongOptionText, { color: theme.isDark ? "#FF8A80" : "#B91C1C" }]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel mistake selection"
+                    onPress={() => setAnkiWrongOptionsVisible(false)}
+                    style={styles.ankiWrongCancel}
+                  >
+                    <Text style={{ color: theme.textSecondary, fontSize: 14 }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode && !ankiWrongOptionsVisible && (
                 <Animated.View
                   style={[styles.ankiButtonSection, ankiButtonSectionStyle]}
                 >
@@ -6529,7 +6600,9 @@ export default function ReviewQuestionScreen({
                       styles.ankiButtonWrong,
                       theme.isDark && { backgroundColor: "#3D1F1F", borderColor: "#5C2B2B" },
                     ]}
-                    onPress={() => handleAnkiAnswerButton(false)}
+                    onPress={handleAnkiWrongButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Wrong"
                     activeOpacity={0.7}
                   >
                     <View style={styles.ankiButtonIconContainer}>
@@ -6547,6 +6620,8 @@ export default function ReviewQuestionScreen({
                       theme.isDark && { backgroundColor: "#1A2F3D", borderColor: "#254559" },
                     ]}
                     onPress={handleAnkiDetailsButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Details"
                     activeOpacity={0.7}
                   >
                     <View style={styles.ankiButtonIconContainer}>
@@ -6569,6 +6644,8 @@ export default function ReviewQuestionScreen({
                         theme.isDark && { backgroundColor: "#2A2E35", borderColor: "#3A4250" },
                       ]}
                       onPress={handleAnkiSkipButton}
+                      accessibilityRole="button"
+                      accessibilityLabel="Skip"
                       activeOpacity={0.7}
                     >
                       <View style={styles.ankiButtonIconContainer}>
@@ -6596,6 +6673,8 @@ export default function ReviewQuestionScreen({
                       theme.isDark && { backgroundColor: "#1F3D1F", borderColor: "#2B5C2B" },
                     ]}
                     onPress={() => handleAnkiAnswerButton(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Correct"
                     activeOpacity={0.7}
                   >
                     <View style={styles.ankiButtonIconContainer}>
@@ -8257,21 +8336,54 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   ankiWrongOptionsContainer: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 1,
     width: "100%",
-    marginTop: 10,
+  },
+  ankiWrongChoicePane: {
+    justifyContent: "center",
+  },
+  ankiWrongOptionsScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  ankiWrongOptionsContent: {
+    padding: 16,
+    gap: 8,
   },
   ankiWrongTitle: {
-    textAlign: "center",
+    textAlign: "left",
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  ankiWrongGrid: {
+  ankiWrongRows: {
+    gap: 8,
+  },
+  ankiWrongOptionRow: {
+    minHeight: 48,
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 10,
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  ankiWrongOptionText: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  ankiWrongCancel: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   ankiButtonOption: {
     flex: 1,

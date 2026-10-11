@@ -567,6 +567,7 @@ type SettingsState = {
   ankiDroidExportEnabled: boolean;
   ankiCardMode: boolean;
   ankiGroupQuestions: boolean;
+  ankiAskIncorrectPart: boolean;
   ankiCardModeScope: "both" | "meaning" | "reading";
   ankiHideAnswerCompletely: boolean;
   ankiShowOtherAcceptedAnswersAndUserSynonyms: boolean;
@@ -770,6 +771,7 @@ type SettingsState = {
   setAnkiDroidExportEnabled: (enabled: boolean) => void;
   setAnkiCardMode: (ankiMode: boolean) => void;
   setAnkiGroupQuestions: (group: boolean) => void;
+  setAnkiAskIncorrectPart: (enabled: boolean) => void;
   setAnkiCardModeScope: (scope: "both" | "meaning" | "reading") => void;
   setAnkiHideAnswerCompletely: (hide: boolean) => void;
   setAnkiShowOtherAcceptedAnswersAndUserSynonyms: (show: boolean) => void;
@@ -953,6 +955,7 @@ export const useSettingsStore = create<SettingsState>()(
       ankiDroidExportEnabled: false,
       ankiCardMode: false, // Default to disabled (traditional WaniKani mode)
       ankiGroupQuestions: false, // Default to disabled (show questions separately)
+      ankiAskIncorrectPart: false, // Wrong grades both grouped answers unless the chooser is enabled
       ankiCardModeScope: "both", // Default to Anki behavior for both meaning and reading
       ankiHideAnswerCompletely: false, // Default to false - keep blurred reveal style
       ankiShowOtherAcceptedAnswersAndUserSynonyms: false, // Default to false - only show primary answer on Anki cards
@@ -1187,6 +1190,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAnkiDroidExportEnabled: (enabled) => set({ ankiDroidExportEnabled: enabled }),
       setAnkiCardMode: (ankiMode) => set({ ankiCardMode: ankiMode }),
       setAnkiGroupQuestions: (group) => set({ ankiGroupQuestions: group }),
+      setAnkiAskIncorrectPart: (enabled) => set({ ankiAskIncorrectPart: enabled }),
       setAnkiCardModeScope: (scope) => set({ ankiCardModeScope: scope }),
       setAnkiHideAnswerCompletely: (hide) =>
         set({ ankiHideAnswerCompletely: hide }),
@@ -1491,6 +1495,7 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...currentState,
           ...persisted,
+          ankiAskIncorrectPart: persisted.ankiAskIncorrectPart === true,
           reviewPresetsEnabled: persisted.reviewPresetsEnabled === true,
           reviewPresets: normalizeReviewPresets(persisted.reviewPresets),
         };

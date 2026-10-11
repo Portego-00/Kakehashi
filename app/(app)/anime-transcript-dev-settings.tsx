@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
+
 import Slider from "@react-native-community/slider";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";

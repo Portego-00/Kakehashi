@@ -1,5 +1,6 @@
+import {SettingsIcon as Ionicons} from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";

@@ -292,3 +292,124 @@
 .searchResults button:hover { background: var(--color-paper-2); }
 .searchResults button > span { color: var(--color-muted); font-size: var(--text-sm); }
 .searchResults button > .searchResultSection { font-size: var(--text-xs); }
+
+/* Settings redesign · original Kakehashi artwork · focused categories and progressive disclosure. */
+.page { max-width: 82rem; gap: var(--space-lg); }
+.settingsLead { margin-block-start: var(--space-2xs); color: var(--color-muted); font-size: var(--text-sm); }
+.organizedSettings { display: grid; grid-template-columns: 15.5rem minmax(0,1fr); align-items: start; gap: var(--space-xl); }
+.categoryNavigation { position: sticky; inset-block-start: calc(var(--banner-height) + var(--space-md)); }
+.categoryGroup { display: grid; gap: var(--space-2xs); margin-block-end: var(--space-lg); }
+.categoryGroup > p { padding: var(--space-xs) var(--space-sm); font-size: var(--text-xs); color: var(--color-muted); }
+.categoryLink { display: flex; align-items: center; gap: var(--space-sm); width: 100%; min-height: 4.5rem; padding: var(--space-sm); border: 1px solid transparent; border-radius: var(--radius-md); text-align: start; background: transparent; color: var(--color-ink-2); cursor: pointer; }
+.categoryLink > svg { flex: 0 0 auto; color: var(--color-accent); }
+.categoryLink span { min-width: 0; display: grid; gap: var(--space-2xs); }
+.categoryLink strong { font-size: var(--text-sm); font-weight: 600; }
+.categoryLink small { color: var(--color-muted); font-size: var(--text-xs); }
+.categoryLink[aria-current="page"] { border-color: color-mix(in oklch,var(--color-accent) 45%,var(--color-rule-2)); background: color-mix(in oklch,var(--color-accent) 8%,var(--color-surface)); color: var(--color-ink); }
+.categoryPicker { display: none; }
+.categoryMain { min-width: 0; }
+.searchContent > [hidden] { display: none !important; }
+.categoryMain .settingsSection { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-lg); padding-block-start: 0; border-block-start: 0; margin-block-end: var(--space-xl); }
+.categoryMain .sectionIntro { align-items: center; gap: var(--space-md); }
+.categoryMain .sectionIntro > svg { width: 38px; height: 38px; margin: 0; color: var(--color-accent); }
+.categoryMain .sectionIntro h2 { font-size: var(--text-2xl); font-weight: 650; }
+.categoryMain .sectionIntro p { margin-block-start: var(--space-2xs); }
+.categoryMain .preferenceCard, .categoryMain .optionCard { border: var(--rule-thin) solid var(--color-rule-2); border-radius: var(--radius-card); }
+.categoryMain .toggleRow, .categoryMain .selectRow { min-height: 5rem; padding: var(--space-md) var(--space-lg); }
+.categoryMain .toggleRow small, .categoryMain .selectRow small { max-width: 58ch; line-height: 1.5; }
+.categoryMain .toggleRow > span > svg { width: 24px; height: 24px; color: var(--color-accent); }
+.categoryMain .toggleRow > span { gap: var(--space-md); }
+.answerModeWorkspace { display: grid; gap: var(--space-md); }
+.choiceField { display: grid; gap: var(--space-sm); }
+.choiceField h3 { font-size: var(--text-sm); font-weight: 600; }
+.choiceCards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-sm); }
+.choiceCard { position: relative; display: grid; gap: var(--space-md); align-content: start; min-height: 11rem; min-width: 0; padding: var(--space-lg); border: 1.5px solid var(--color-rule-2); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-ink-2); text-align: start; cursor: pointer; }
+.choiceCard[aria-checked="true"] { border-color: var(--color-accent); background: color-mix(in oklch,var(--color-accent) 8%,var(--color-surface)); color: var(--color-ink); }
+.choiceArt { width: 84px; height: 76px; }
+.choiceCards[data-choice-count="2"] { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.choiceArt[data-review-sketch] { width: min(100%,160px); height: auto; aspect-ratio: 10 / 7; }
+.choiceCards[data-review-modes] .choiceCard { min-height: 12rem; padding-block-start: var(--space-xl); }
+.choiceCard > span { display: grid; gap: var(--space-2xs); min-width: 0; }
+.choiceCard strong { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
+.choiceCard small { font-size: var(--text-xs); color: var(--color-muted); }
+.choiceCheck { position: absolute; inset-block-start: var(--space-md); inset-inline-end: var(--space-md); color: var(--color-accent); }
+.compactChoices .choiceCard { min-height: 7rem; padding: var(--space-md); gap: var(--space-sm); }
+.compactChoices .choiceArt { width: 56px; height: 48px; }
+.compactChoices .choiceArt[data-review-sketch] { width: min(100%,120px); height: auto; }
+.modeExplanation { color: var(--color-muted); font-size: var(--text-xs); }
+.disclosureStack { display: grid; gap: var(--space-sm); }
+.settingsDisclosure { min-width: 0; border: var(--rule-thin) solid var(--color-rule-2); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-ink); overflow: clip; }
+.settingsDisclosure summary { display: flex; gap: var(--space-md); align-items: center; list-style: none; min-height: 5.5rem; padding: var(--space-lg); cursor: pointer; }
+.settingsDisclosure summary::-webkit-details-marker { display: none; }
+.settingsDisclosure summary > svg:first-child { color: var(--color-accent); flex-shrink: 0; }
+.settingsDisclosure summary > span { flex: 1; min-width: 0; display: grid; gap: var(--space-2xs); }
+.settingsDisclosure summary strong { font-size: var(--text-sm); font-weight: 600; }
+.settingsDisclosure summary small { color: var(--color-muted); font-size: var(--text-xs); }
+.disclosureChevron { color: var(--color-muted); }
+.settingsDisclosure[open] .disclosureChevron { transform: rotate(90deg); }
+.disclosureContent { border-block-start: var(--rule-thin) solid var(--color-rule-2); }
+.disclosureContent > * + * { border-block-start: var(--rule-thin) solid var(--color-rule-2); }
+.categoryMain .themeOptions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); padding: var(--space-md); gap: var(--space-sm); }
+.categoryMain .themeOptions button { display: grid; grid-template-columns: minmax(0,1fr); gap: var(--space-sm); position: relative; padding: var(--space-md); border: var(--rule-thin) solid var(--color-rule-2); border-radius: var(--radius-md); }
+.categoryMain .themeOptions button > svg { position: absolute; inset-block-start: var(--space-sm); inset-inline-end: var(--space-sm); color: var(--color-accent); }
+.categoryMain .themeOptions button[aria-checked="true"] { border-color: var(--color-accent); background: color-mix(in oklch,var(--color-accent) 8%,var(--color-surface)); }
+.categoryMain .themeSwatch { display: grid; place-items: center; width: 100%; height: 5rem; }
+.themeSwatch > svg { width: 84px; height: 76px; }
+.categoryMain .rowOptions { grid-template-columns: repeat(2,minmax(0,1fr)); padding: var(--space-md); gap: var(--space-sm); }
+.categoryMain .rowOptions button { border: var(--rule-thin) solid var(--color-rule-2); border-radius: var(--radius-md); }
+.categoryMain .rowOptions button[aria-checked="true"] { border-color: var(--color-accent); }
+.categoryLink:focus-visible, .choiceCard:focus-visible, .settingsDisclosure summary:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
+.choiceCard:active, .categoryLink:active { opacity: .8; }
+@media (hover:hover) { .choiceCard:hover, .categoryLink:hover, .settingsDisclosure summary:hover { background: var(--color-paper-2); } }
+@media (max-width:60rem) { .organizedSettings { gap: var(--space-lg); grid-template-columns: 13rem minmax(0,1fr); } .choiceCard { padding: var(--space-md); } .choiceCard strong { font-size: var(--text-xs); } }
+@media (max-width:48rem) {
+ .organizedSettings { grid-template-columns: minmax(0,1fr); gap: var(--space-lg); }
+ .categoryNavigation { position: static; }
+ .categoryGroup { display: none; }
+ .categoryPicker { display: grid; gap: var(--space-xs); color: var(--color-muted); font-size: var(--text-xs); }
+ .categoryPicker select { width: 100%; min-height: 3rem; padding-inline: var(--space-md); border: var(--rule-thin) solid var(--color-rule-2); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); font-size: var(--text-base); }
+ .categoryMain .sectionIntro h2 { font-size: var(--text-xl); }
+ .categoryMain .toggleRow, .categoryMain .selectRow { padding: var(--space-md); }
+ .choiceCard { min-height: 9.5rem; padding: var(--space-sm); gap: var(--space-sm); }
+ .choiceArt { width: 64px; height: 60px; }
+ .choiceCards { gap: var(--space-xs); }
+ .choiceCard strong { font-size: 11px; }
+ .choiceCard small { font-size: 11px; }
+ .choiceCards[data-review-modes] { grid-template-columns: minmax(0,1fr); }
+ .choiceCards[data-review-modes] .choiceCard { grid-template-columns: 108px minmax(0,1fr) 16px; align-items: center; min-height: 6.5rem; padding: var(--space-md); gap: var(--space-md); }
+ .choiceCards[data-review-modes] .choiceArt { width: 108px; height: auto; }
+ .choiceCards[data-review-modes] .choiceCard strong { font-size: var(--text-sm); white-space: normal; }
+ .choiceCards[data-review-modes] .choiceCard small { font-size: var(--text-xs); }
+ .choiceCards[data-review-modes] .choiceCheck { position: static; }
+ .settingsDisclosure summary { padding: var(--space-md); }
+ .categoryMain .themeOptions { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .settingsHeader { gap: var(--space-md); }
+}
+@media (max-width:22rem) { .choiceCard { padding: var(--space-xs); } .choiceCard strong { font-size: 10px; } .choiceCard small { font-size: 10px; } .choiceArt { width: 54px; height: 54px; } }
+@media (max-width:22rem) { .choiceCards[data-review-modes] .choiceCard { grid-template-columns: 88px minmax(0,1fr) 16px; padding: var(--space-sm); gap: var(--space-sm); } .choiceCards[data-review-modes] .choiceArt { width: 88px; } }
+
+.readerRecognition { padding: var(--space-md) var(--space-lg); }
+.previewSwitcher { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); margin-block-end: var(--space-md); font-size: var(--text-xs); color: var(--color-muted); }
+.previewSwitcher button { appearance: none; background: transparent; border: 0; font: inherit; padding: var(--space-2xs) var(--space-xs); color: var(--color-muted); border-block-end: 2px solid transparent; cursor: pointer; }
+.previewSwitcher button[aria-pressed="true"] { color: var(--color-accent); border-block-end-color: var(--color-accent); }
+.previewSwitcher button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.choiceArt[data-screen-preview] { width: min(100%, 160px); height: auto; aspect-ratio: 10 / 7; }
+.compactChoices .choiceArt[data-screen-preview] { width: min(100%, 120px); height: auto; }
+
+.categoryMain .sectionIntro h2 { font-weight: 700; line-height: 1.2; }
+.settingsDisclosure summary { background: var(--color-paper-2); }
+.settingsDisclosure summary strong { font-size: var(--text-base); font-weight: 700; }
+
+/* Preference icons share one compact column across toggles and form fields. */
+.rowIcon { flex: 0 0 20px; color: var(--color-accent); }
+.toggleRow > span { flex: 1; min-width: 0; }
+.selectRow > span.preferenceLabel,
+.profileLabel { display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
+.preferenceLabel > span,
+.profileLabel > span { display: grid; min-width: 0; }
+.categoryMain .toggleRow > span > .rowIcon,
+.categoryMain .selectRow .rowIcon,
+.categoryMain .profileLabel .rowIcon { width: 20px; height: 20px; flex: 0 0 20px; }
+.categoryMain .toggleRow > span { gap: var(--space-sm); }
+
+.downloadRow > span.preferenceLabel { display: flex; align-items: center; gap: var(--space-sm); }

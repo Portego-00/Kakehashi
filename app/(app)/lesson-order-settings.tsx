@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
+
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import React, { useEffect, useMemo } from "react";
@@ -101,14 +102,14 @@ interface LessonTypeOption {
   value: LessonTypeOrderSetting;
   label: string;
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
 }
 
 interface TypeOrderRow {
   key: LessonTypeOrderSetting;
   label: string;
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
 }
 
 const LESSON_TYPE_OPTIONS: readonly LessonTypeOption[] = [
@@ -378,13 +379,13 @@ export default function LessonOrderSettings() {
       <View
         style={[
           styles.header,
-          { backgroundColor: theme.headerBackground },
+          { backgroundColor: theme.backgroundColor },
         ]}
       >
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={theme.headerText} />
+          <Ionicons name="arrow-back" size={24} color={theme.textColor} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.headerText }]}>Lesson Order</Text>
+        <Text style={[styles.title, { color: theme.textColor }]}>Lesson Order</Text>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>

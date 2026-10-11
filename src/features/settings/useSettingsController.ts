@@ -1,3 +1,4 @@
+import { createSettingsScrollGuard } from "./settings-scroll-guard";
 import { Ionicons } from "@expo/vector-icons";
 import { File, Paths } from "expo-file-system";
 import * as Notifications from "expo-notifications";
@@ -347,7 +348,7 @@ const SCROLL_TO_SECTION_KEY_MAP: Record<string, SettingsSectionKey> = {
   jpdb: "profile",
 };
 
-function resolveSectionKeyFromScrollParam(
+export function resolveSectionKeyFromScrollParam(
   scrollToParam: string | undefined,
 ): SettingsSectionKey | null {
   if (!scrollToParam) {
@@ -682,6 +683,8 @@ export function useSettingsController() {
   const showBunproSurvey = !bunproSurveyCompleted;
   const canAccessApiDebugTools = __DEV__ || isPortegoUser;
   const scrollViewRef = useRef<ScrollView>(null);
+  const [sectionScrollGuard] = useState(createSettingsScrollGuard);
+  useEffect(() => () => sectionScrollGuard.endNavigation(), [sectionScrollGuard]);
   const sectionChipScrollViewRef = useRef<ScrollView>(null);
   const showMusicPlaybackSection = !isSongsHiddenForEmail;
   const showWidgetsSection = Platform.OS === "ios" || Platform.OS === "android";
@@ -829,24 +832,23 @@ export function useSettingsController() {
     [],
   );
   const scrollToSection = useCallback(
-    (sectionKey: SettingsSectionKey, animated: boolean) => {
+    (sectionKey: SettingsSectionKey, animated: boolean, measuredTarget?: number) => {
       setSelectedSectionKey(sectionKey);
-      const targetY = sectionOffsets[sectionKey];
-      if (typeof targetY !== "number") {
+      const offset = sectionOffsets[sectionKey];
+      const targetY = measuredTarget ?? (typeof offset === "number" ? Math.max(0, offset - 8) : undefined);
+      if (targetY === undefined) {
         setPendingSectionScrollRequest({ key: sectionKey, animated });
         return;
       }
-
+      sectionScrollGuard.beginNavigation();
       setPendingSectionScrollRequest(null);
-      scrollViewRef.current?.scrollTo({
-        y: Math.max(0, targetY - 8),
-        animated,
-      });
+      scrollViewRef.current?.scrollTo({ y: targetY, animated });
     },
-    [sectionOffsets],
+    [sectionOffsets, sectionScrollGuard],
   );
   const handleSettingsScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (sectionScrollGuard.shouldIgnoreScroll()) return;
       const visibleSections = sectionChips
         .map((chip) => {
           const offset = sectionOffsets[chip.key];
@@ -883,7 +885,15 @@ export function useSettingsController() {
         current === activeSectionKey ? current : activeSectionKey,
       );
     },
-    [sectionChips, sectionOffsets],
+    [sectionChips, sectionOffsets, sectionScrollGuard],
+  );
+  const handleSettingsScrollBeginDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      sectionScrollGuard.endNavigation();
+      setPendingSectionScrollRequest(null);
+      handleSettingsScroll(event);
+    },
+    [handleSettingsScroll, sectionScrollGuard],
   );
   const availableLevelAnalyticsLevels = useMemo(
     () =>
@@ -942,12 +952,13 @@ export function useSettingsController() {
       return;
     }
 
+    sectionScrollGuard.beginNavigation();
     scrollViewRef.current?.scrollTo({
       y: Math.max(0, targetY - 8),
       animated: pendingSectionScrollRequest.animated,
     });
     setPendingSectionScrollRequest(null);
-  }, [pendingSectionScrollRequest, sectionOffsets]);
+  }, [pendingSectionScrollRequest, sectionOffsets, sectionScrollGuard]);
 
   useEffect(() => {
     if (sectionChipBarWidth <= 0) {
@@ -2922,6 +2933,7 @@ export function useSettingsController() {
     handleSaveJpdbApiKey,
     handleSaveReminderTime,
     handleSettingsScroll,
+    handleSettingsScrollBeginDrag,
     handleShowApiDetails,
     handleShowApiSummary,
     handleShowApiTimelineSummary,

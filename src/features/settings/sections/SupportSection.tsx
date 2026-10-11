@@ -1,6 +1,12 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import {
+  SettingsIcon as Ionicons,
+  SettingsIcon as MaterialCommunityIcons,
+} from "../../../ui/settings/settings-icon";
 import React from "react";
 import GitHubMark from "../../../components/GitHubMark";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+
 import { Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
@@ -24,7 +30,7 @@ export function SupportSection() {
   return (
     <>
       {/* Support Section */}
-      <View
+      <SettingsSectionSurface
         style={[
           styles.section,
           {
@@ -50,15 +56,17 @@ export function SupportSection() {
           onPress={() => router.push("/issues")}
         >
           <Ionicons
-            name="people-circle"
+            name="chat"
             size={24}
             color={theme.primary}
             style={styles.settingIcon}
           />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Issues & Feedback
-            </Text>
+            </SettingsLabel>
 
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
@@ -85,9 +93,11 @@ export function SupportSection() {
             />
           </View>
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Open Source
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -119,9 +129,11 @@ export function SupportSection() {
             style={styles.settingIcon}
           />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Rate App
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -144,13 +156,15 @@ export function SupportSection() {
           <MaterialCommunityIcons
             name="patreon"
             size={24}
-            color="#f96854"
+            color={theme.textColor}
             style={styles.settingIcon}
           />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Patreon
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -183,9 +197,11 @@ export function SupportSection() {
             style={styles.settingIcon}
           />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               What&apos;s New
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -216,15 +232,17 @@ export function SupportSection() {
             onPress={() => setShowBunproSurveyModal(true)}
           >
             <Ionicons
-              name="chatbubble-ellipses-outline"
+              name="survey"
               size={24}
               color={theme.primary}
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Bunpro Survey
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -251,9 +269,11 @@ export function SupportSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Tip Developer
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -267,7 +287,7 @@ export function SupportSection() {
             />
           </TouchableOpacity>
         )}
-      </View>
+      </SettingsSectionSurface>
     </>
   );
 }

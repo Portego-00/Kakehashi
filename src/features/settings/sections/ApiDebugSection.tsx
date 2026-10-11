@@ -1,5 +1,8 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
@@ -23,7 +26,7 @@ export function ApiDebugSection() {
     <>
       {/* API Debug Section - Dev and Portego */}
       {canAccessApiDebugTools && (
-        <View
+        <SettingsSectionSurface
           style={[
             styles.section,
             {
@@ -55,9 +58,11 @@ export function ApiDebugSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Show API Timeline Summary
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -82,9 +87,11 @@ export function ApiDebugSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Export API Timeline JSON
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -109,9 +116,11 @@ export function ApiDebugSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Show API Summary
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -136,9 +145,11 @@ export function ApiDebugSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Show API Details
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -163,9 +174,11 @@ export function ApiDebugSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Clear API Timeline
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -195,9 +208,11 @@ export function ApiDebugSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Clear API Debug History
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -223,9 +238,11 @@ export function ApiDebugSection() {
                 style={styles.settingIcon}
               />
               <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: "#ff3b30" }]}>
+                <SettingsLabel
+                  style={[styles.settingText, { color: "#ff3b30" }]}
+                >
                   Clear All Data & Logout
-                </Text>
+                </SettingsLabel>
                 <Text
                   style={[
                     styles.settingSubtext,
@@ -243,7 +260,7 @@ export function ApiDebugSection() {
               />
             </TouchableOpacity>
           )}
-        </View>
+        </SettingsSectionSurface>
       )}
     </>
   );

@@ -1,5 +1,6 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
+import type ReviewQuestionScreen from '../../src/components/ReviewQuestionScreen';
 import CustomReviewScreen from '../(app)/custom-review';
 import {
   getAllAssignmentsCached,
@@ -10,6 +11,7 @@ import { getAllSubjects } from '../../src/utils/cache';
 import { useAuthStore, useSettingsStore } from '../../src/utils/store';
 
 const mockUseLocalSearchParams = jest.fn();
+let mockReviewProps: React.ComponentProps<typeof ReviewQuestionScreen>;
 
 jest.mock('expo-router', () => ({
   router: {
@@ -72,17 +74,14 @@ jest.mock('../../src/components/ReviewQuestionScreen', () => {
   const React = jest.requireActual('react');
   const { Text, TouchableOpacity, View } = jest.requireActual('react-native');
 
-  return function MockReviewQuestionScreen({
+  return function MockReviewQuestionScreen(props: React.ComponentProps<typeof ReviewQuestionScreen>) {
+    mockReviewProps = props;
+    const {
     isWrapUpAvailable,
     isWrapUpMode,
     remainingSubjectsCount,
     onWrapUp,
-  }: {
-    isWrapUpAvailable?: boolean;
-    isWrapUpMode?: boolean;
-    remainingSubjectsCount?: number;
-    onWrapUp?: () => void;
-  }) {
+    } = props;
     return (
       <View>
         {isWrapUpMode ? (
@@ -179,5 +178,34 @@ describe('CustomReview Screen', () => {
     await waitFor(() => {
       expect(getByText('Wrap Up (12 left)')).toBeTruthy();
     });
+  });
+
+  it.each([[false, true], [true, false], [false, false]])('retries a grouped practice mistake (%s/%s) once (#111)', async (meaningCorrect, readingCorrect) => {
+    (useSettingsStore as unknown as jest.Mock).mockReturnValue({
+      ankiCardMode: true, ankiGroupQuestions: true, ankiCardModeScope: 'both',
+      customReviewOrder: 'lowestLevelFirst', backToBackQuestions: false,
+    });
+    const subject = { id: 1001, object: 'vocabulary', data: { level: 1, characters: '先日',
+      meanings: [{ meaning: 'the other day', primary: true }], readings: [{ reading: 'せんじつ', primary: true }],
+    } };
+    mockUseLocalSearchParams.mockReturnValue({ subjectIds: '1001', resume: 'false' });
+    (getAllSubjects as jest.Mock).mockResolvedValue([subject]);
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [{ id: 12, data: { subject_id: 1001, srs_stage: 1 } }] });
+    const screen = render(<CustomReviewScreen />);
+    await waitFor(() => expect(mockReviewProps?.item.subject.id).toBe(1001));
+    const first = mockReviewProps;
+    act(() => {
+      first.onAnswer(first.item, 'meaning', meaningCorrect, !meaningCorrect, true);
+      first.onAnswer(first.item, 'reading', readingCorrect, !readingCorrect, true);
+    });
+    expect(screen.queryByText('Custom review results')).toBeNull();
+    expect(mockReviewProps.currentItem).toBe(1);
+    expect(mockReviewProps.correctAnswersCount).toBe(0);
+    const retry = mockReviewProps;
+    act(() => {
+      retry.onAnswer(retry.item, 'meaning', true, false, true);
+      retry.onAnswer(retry.item, 'reading', true, false, true);
+    });
+    await screen.findByText('Custom review results');
   });
 });

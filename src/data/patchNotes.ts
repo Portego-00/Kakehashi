@@ -56,6 +56,19 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.5.1",
+    date: "2026-10-10",
+    changes: [
+      {
+        type: "design",
+        title: "Settings Screen Revamp",
+        description:
+          "Refreshed mobile and web settings with clearer sections, new icons, visual choices, quick navigation, and search.",
+        link: { route: "/settings", label: "Open Settings" },
+      },
+    ],
+  },
+  {
     version: "1.5.0",
     date: "2026-10-09",
     changes: [

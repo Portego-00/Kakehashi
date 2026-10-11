@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
+
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -554,7 +555,7 @@ export default function ImmersionKitSettings() {
         style={[
           styles.header,
           {
-            backgroundColor: theme.headerBackground,
+            backgroundColor: theme.backgroundColor,
             paddingTop: insets.top,
           },
         ]}
@@ -563,9 +564,9 @@ export default function ImmersionKitSettings() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.headerText} />
+          <Ionicons name="arrow-back" size={24} color={theme.textColor} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.headerText }]}>
+        <Text style={[styles.title, { color: theme.textColor }]}>
           Immersion Kit Anime
         </Text>
         <View style={styles.headerSpacer} />

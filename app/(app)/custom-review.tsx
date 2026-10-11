@@ -133,6 +133,7 @@ export default function CustomReviewScreen() {
   // Wrap up mode state
   const [isWrapUpMode, setIsWrapUpMode] = useState(false);
   const wrapUpDeferredQuestionsRef = useRef<ReviewQueueQuestion[]>([]);
+  const groupedMeaningResultRef = useRef(new Map<number, boolean>());
   const [studyMaterialsMap, setStudyMaterialsMap] = useState<Map<number, { meaning_synonyms?: string[] }>>(new Map());
   const [sessionUsesAnkiGrouping, setSessionUsesAnkiGrouping] = useState(
     effectiveAnkiGrouping,
@@ -742,13 +743,20 @@ export default function CustomReviewScreen() {
 
     if (itemIndex === -1) return;
 
+    if (isGroupedAnswer && questionType === "meaning") {
+      groupedMeaningResultRef.current.set(item.id, isCorrect);
+    }
+    const groupedCorrect = isCorrect && groupedMeaningResultRef.current.get(item.id) === true;
+    if (isGroupedAnswer && questionType === "reading") {
+      groupedMeaningResultRef.current.delete(item.id);
+    }
     // For accuracy calculation: count every answer submission
     // For grouped answers (Anki mode with meaning+reading), only count once
-    if (!isGroupedAnswer || questionType === "meaning") {
+    if (!isGroupedAnswer || questionType === "reading") {
       setProgress((prev) => ({
         ...prev,
         answeredCount: prev.answeredCount + 1,
-        correctAnswersCount: isCorrect
+        correctAnswersCount: (isGroupedAnswer ? groupedCorrect : isCorrect)
           ? prev.correctAnswersCount + 1
           : prev.correctAnswersCount,
       }));
@@ -791,7 +799,7 @@ export default function CustomReviewScreen() {
 
       // Move to the next question right away (optimistic UI)
       // For grouped answers, only move after both answers are processed (on the reading call)
-      if (!isGroupedAnswer || questionType === "reading") {
+      if (!isGroupedAnswer || (questionType === "reading" && groupedCorrect)) {
         moveToNextQuestion();
       }
     } else {
@@ -805,7 +813,10 @@ export default function CustomReviewScreen() {
       }
 
       // Requeue the question
-      requeueQuestion({ type: questionType, itemId: item.id });
+      if (!isGroupedAnswer) requeueQuestion({ type: questionType, itemId: item.id });
+    }
+    if (isGroupedAnswer && questionType === "reading" && !groupedCorrect) {
+      requeueQuestion({ type: "meaning", itemId: item.id });
     }
 
     // Check if item is complete
@@ -813,7 +824,7 @@ export default function CustomReviewScreen() {
     const hasNoReading = !updatedItems[itemIndex].subject.data.readings ||
       updatedItems[itemIndex].subject.data.readings.length === 0;
 
-    const isItemComplete = updatedItems[itemIndex].meaningDone &&
+    const isItemComplete = (!isGroupedAnswer || (questionType === "reading" && groupedCorrect)) && updatedItems[itemIndex].meaningDone &&
       (updatedItems[itemIndex].readingDone || isRadical || hasNoReading);
 
     if (isItemComplete && !updatedItems[itemIndex].progressCounted) {

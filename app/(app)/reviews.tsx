@@ -134,6 +134,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
   const pendingSubmissionCountRef = useRef(0);
   const hasShownReviewPermissionWarningRef = useRef(false);
   const answerInFlightKeysRef = useRef(new Set<string>());
+  const groupedMeaningResultRef = useRef(new Map<number, boolean>());
   const skippedItemIdsRef = useRef<number[]>([]);
   const wrapUpDeferredQuestionsRef = useRef<ReviewQueueQuestion[]>([]);
   const {
@@ -2207,6 +2208,13 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
       releaseAnswerGuard();
       return;
     }
+    if (isGroupedAnswer && questionType === "meaning") {
+      groupedMeaningResultRef.current.set(item.id, isCorrect);
+    }
+    const groupedCorrect = isCorrect && groupedMeaningResultRef.current.get(item.id) === true;
+    if (isGroupedAnswer && questionType === "reading") {
+      groupedMeaningResultRef.current.delete(item.id);
+    }
     mixedRef.current?.reportSaving?.(true);
     if (!isGroupedAnswer || questionType === "reading") {
       mixedRef.current?.onAnswer({
@@ -2217,23 +2225,23 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
         title: item.subject.data.characters || item.subject.data.slug || "WaniKani",
         subjectId: item.subject.id,
         subjectType: item.subject.object,
-        correct: isCorrect && (!isGroupedAnswer || (updatedItems[itemIndex].meaningIncorrect === 0 && updatedItems[itemIndex].readingIncorrect === 0)),
+        correct: isGroupedAnswer ? groupedCorrect : isCorrect,
       });
     }
     const shouldAdvanceAfterAnswer =
-      isCorrect && (!isGroupedAnswer || questionType === "reading");
+      isGroupedAnswer ? questionType === "reading" && groupedCorrect : isCorrect;
     skippedItemIdsRef.current = skippedItemIdsRef.current.filter(
       (itemId) => itemId !== item.id,
     );
 
     // For accuracy calculation: count every answer submission
     // For grouped answers (Anki mode with meaning+reading), only count once
-    if (!isGroupedAnswer || questionType === "meaning") {
+    if (!isGroupedAnswer || questionType === "reading") {
       setProgress((prev) => ({
         ...prev,
         answeredCount: prev.answeredCount + 1,
         // If correct, also increment correct count
-        correctAnswersCount: isCorrect
+        correctAnswersCount: (isGroupedAnswer ? groupedCorrect : isCorrect)
           ? prev.correctAnswersCount
             ? prev.correctAnswersCount + 1
             : 1
@@ -2303,7 +2311,12 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
       };
 
       // Add this question back to the queue and move to next question
-      requeueQuestion(newQuestion);
+      if (!isGroupedAnswer) requeueQuestion(newQuestion);
+    }
+    // A grouped card is one queue occurrence. Wait for both grades before
+    // requeueing so a correct reading cannot advance past a wrong meaning.
+    if (isGroupedAnswer && questionType === "reading" && !groupedCorrect) {
+      requeueQuestion({ type: "meaning", itemId: item.id });
     }
 
     // Check if this item is now completely done (meaning and reading if applicable)
@@ -2318,6 +2331,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     // - For radicals and vocab without reading: meaning is done
     // - For everything else: both meaning and reading are done
     const isItemComplete =
+      (!isGroupedAnswer || (questionType === "reading" && groupedCorrect)) &&
       updatedItems[itemIndex].meaningDone &&
       (updatedItems[itemIndex].readingDone ||
         isRadical ||

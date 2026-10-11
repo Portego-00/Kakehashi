@@ -1,4 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
+import { SettingsChoiceCards } from "../../src/ui/settings/settings-choice-cards";
+import { SettingsFoldout } from "../../src/ui/settings/settings-foldout";
+import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
+
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
@@ -32,6 +35,8 @@ export default function AnkiSettingsScreen() {
     setAnkiCardModeScope,
     ankiGroupQuestions,
     setAnkiGroupQuestions,
+    ankiAskIncorrectPart,
+    setAnkiAskIncorrectPart,
     ankiHideAnswerCompletely,
     setAnkiHideAnswerCompletely,
     ankiButtonlessMode,
@@ -58,25 +63,30 @@ export default function AnkiSettingsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       <StatusBar style={theme.statusBarStyle} />
 
       <View
         style={[
           styles.header,
           {
-            backgroundColor: theme.headerBackground,
+            backgroundColor: theme.backgroundColor,
           },
         ]}
       >
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={theme.headerText} />
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={24} color={theme.textColor} />
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
-          <Text style={[styles.title, { color: theme.headerText }]}>
+          <Text style={[styles.title, { color: theme.textColor }]}>
             Anki Settings
           </Text>
-          <Text style={[styles.subtitle, { color: theme.headerText }]}>
+          <Text style={[styles.subtitle, { color: theme.textColor }]}>
             Fine-tune reveal and answer behavior
           </Text>
         </View>
@@ -98,56 +108,21 @@ export default function AnkiSettingsScreen() {
           <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
             Card Behavior
           </Text>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
-            <Ionicons
-              name="funnel-outline"
-              size={20}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                Anki Applies To
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
-              >
-                Choose which review question types use Anki cards.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.scopeSelector}>
-            {ANKI_SCOPE_OPTIONS.map((option) => {
-              const isSelected = ankiCardModeScope === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.scopeButton,
-                    {
-                      borderColor: theme.border,
-                      backgroundColor: isSelected ? theme.primary : "transparent",
-                    },
-                  ]}
-                  onPress={() => handleScopeChange(option.value)}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.scopeButtonText,
-                      { color: isSelected ? "#FFFFFF" : theme.textColor },
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+          <SettingsChoiceCards
+            label="Anki applies to"
+            compact
+            value={ankiCardModeScope}
+            theme={theme}
+            options={[
+              { value: "both", label: "Both", art: "both" },
+              { value: "meaning", label: "Meanings", art: "meaning" },
+              { value: "reading", label: "Readings", art: "reading" },
+            ]}
+            onChange={handleScopeChange}
+          />
+          <View
+            style={[styles.settingRow, { borderBottomColor: theme.border }]}
+          >
             <Ionicons
               name="git-merge-outline"
               size={20}
@@ -165,10 +140,7 @@ export default function AnkiSettingsScreen() {
               </Text>
               {ankiCardModeScope !== "both" && (
                 <Text
-                  style={[
-                    styles.inlineHint,
-                    { color: theme.textSecondary },
-                  ]}
+                  style={[styles.inlineHint, { color: theme.textSecondary }]}
                 >
                   Only available when &quot;Both&quot; is selected.
                 </Text>
@@ -182,8 +154,27 @@ export default function AnkiSettingsScreen() {
               disabled={ankiCardModeScope !== "both"}
             />
           </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+          {ankiGroupQuestions && ankiCardModeScope === "both" ? (
+            <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+              <Ionicons name="help-circle-outline" size={20} color={theme.primary} style={styles.settingIcon} />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>Ask which part was wrong</Text>
+                <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
+                  Choose meaning, reading, or both in grouped reviews. Off marks both wrong.
+                </Text>
+              </View>
+              <Switch
+                accessibilityLabel="Ask which part was wrong"
+                value={ankiAskIncorrectPart}
+                onValueChange={setAnkiAskIncorrectPart}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
+            </View>
+          ) : null}
+          <View
+            style={[styles.settingRow, { borderBottomColor: theme.border }]}
+          >
             <Ionicons
               name="eye-off-outline"
               size={20}
@@ -208,8 +199,9 @@ export default function AnkiSettingsScreen() {
               thumbColor="#f4f3f4"
             />
           </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+          <View
+            style={[styles.settingRow, { borderBottomColor: theme.border }]}
+          >
             <Ionicons
               name="hand-left-outline"
               size={20}
@@ -223,8 +215,8 @@ export default function AnkiSettingsScreen() {
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
-                After reveal: tap left for incorrect, tap right for correct, swipe
-                up for details, and swipe down to skip.
+                After reveal: tap left for incorrect, tap right for correct,
+                swipe up for details, and swipe down to skip.
               </Text>
             </View>
             <Switch
@@ -234,164 +226,193 @@ export default function AnkiSettingsScreen() {
               thumbColor="#f4f3f4"
             />
           </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
-            <Ionicons
-              name="volume-high-outline"
-              size={20}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                Show Replay Button
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
-              >
-                After revealing an Anki card, show a Replay button to play
-                vocabulary audio again when available.
-              </Text>
+          <SettingsFoldout
+            theme={theme}
+            title="After revealing the card"
+            description="Audio, alternate answers, composition and pitch"
+            icon="cards"
+          >
+            <View
+              style={[styles.settingRow, { borderBottomColor: theme.border }]}
+            >
+              <Ionicons
+                name="volume-high-outline"
+                size={20}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Show Replay Button
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  After revealing an Anki card, show a Replay button to play
+                  vocabulary audio again when available.
+                </Text>
+              </View>
+              <Switch
+                value={ankiShowReplayAudioButton}
+                onValueChange={setAnkiShowReplayAudioButton}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
             </View>
-            <Switch
-              value={ankiShowReplayAudioButton}
-              onValueChange={setAnkiShowReplayAudioButton}
-              trackColor={{ false: "#767577", true: theme.primary }}
-              thumbColor="#f4f3f4"
-            />
-          </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
-            <Ionicons
-              name="list-outline"
-              size={20}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                Show Other Accepted Answers
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
-              >
-                In Anki cards, also show non-primary accepted answers and your
-                user synonyms after reveal.
-              </Text>
+            <View
+              style={[styles.settingRow, { borderBottomColor: theme.border }]}
+            >
+              <Ionicons
+                name="list-outline"
+                size={20}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Show Other Accepted Answers
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  In Anki cards, also show non-primary accepted answers and your
+                  user synonyms after reveal.
+                </Text>
+              </View>
+              <Switch
+                value={ankiShowOtherAcceptedAnswersAndUserSynonyms}
+                onValueChange={setAnkiShowOtherAcceptedAnswersAndUserSynonyms}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
             </View>
-            <Switch
-              value={ankiShowOtherAcceptedAnswersAndUserSynonyms}
-              onValueChange={setAnkiShowOtherAcceptedAnswersAndUserSynonyms}
-              trackColor={{ false: "#767577", true: theme.primary }}
-              thumbColor="#f4f3f4"
-            />
-          </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
-            <Ionicons
-              name="grid-outline"
-              size={20}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                Show Kanji Composition
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
-              >
-                After revealing a vocabulary card, show its kanji and their
-                meanings.
-              </Text>
+            <View
+              style={[styles.settingRow, { borderBottomColor: theme.border }]}
+            >
+              <Ionicons
+                name="grid-outline"
+                size={20}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Show Kanji Composition
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  After revealing a vocabulary card, show its kanji and their
+                  meanings.
+                </Text>
+              </View>
+              <Switch
+                accessibilityLabel="Show Kanji Composition"
+                value={ankiShowKanjiComposition}
+                onValueChange={setAnkiShowKanjiComposition}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
             </View>
-            <Switch
-              accessibilityLabel="Show Kanji Composition"
-              value={ankiShowKanjiComposition}
-              onValueChange={setAnkiShowKanjiComposition}
-              trackColor={{ false: "#767577", true: theme.primary }}
-              thumbColor="#f4f3f4"
-            />
-          </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
-            <Ionicons
-              name="text-outline"
-              size={20}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                Show Pitch Accent Number
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
-              >
-                In Anki cards, show compact pitch accent notation after reveal
-                when WaniKani pitch data is available.
-              </Text>
+            <View
+              style={[styles.settingRow, { borderBottomColor: theme.border }]}
+            >
+              <Ionicons
+                name="text-outline"
+                size={20}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Show Pitch Accent Number
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  In Anki cards, show compact pitch accent notation after reveal
+                  when WaniKani pitch data is available.
+                </Text>
+              </View>
+              <Switch
+                value={ankiShowPitchAccentNumbers}
+                onValueChange={setAnkiShowPitchAccentNumbers}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
             </View>
-            <Switch
-              value={ankiShowPitchAccentNumbers}
-              onValueChange={setAnkiShowPitchAccentNumbers}
-              trackColor={{ false: "#767577", true: theme.primary }}
-              thumbColor="#f4f3f4"
-            />
-          </View>
-
-          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
-            <Ionicons
-              name="pulse-outline"
-              size={20}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                Show Pitch Accent Graph
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
-              >
-                In Anki cards, also show a compact pitch accent graph after
-                reveal when WaniKani pitch data is available.
-              </Text>
+            <View
+              style={[styles.settingRow, { borderBottomColor: theme.border }]}
+            >
+              <Ionicons
+                name="pulse-outline"
+                size={20}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Show Pitch Accent Graph
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  In Anki cards, also show a compact pitch accent graph after
+                  reveal when WaniKani pitch data is available.
+                </Text>
+              </View>
+              <Switch
+                value={ankiShowPitchAccentGraph}
+                onValueChange={setAnkiShowPitchAccentGraph}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
             </View>
-            <Switch
-              value={ankiShowPitchAccentGraph}
-              onValueChange={setAnkiShowPitchAccentGraph}
-              trackColor={{ false: "#767577", true: theme.primary }}
-              thumbColor="#f4f3f4"
-            />
-          </View>
-
-          <View style={[styles.settingRow, styles.settingRowLast]}>
-            <Ionicons
-              name="library-outline"
-              size={20}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                Show Part of Speech
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
-              >
-                In Anki cards, show WaniKani part-of-speech info (including
-                transitive/intransitive, godan/ichidan/irregular, and
-                na/no adjectives) when available.
-              </Text>
+            <View style={[styles.settingRow, styles.settingRowLast]}>
+              <Ionicons
+                name="library-outline"
+                size={20}
+                color={theme.primary}
+                style={styles.settingIcon}
+              />
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Show Part of Speech
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  In Anki cards, show WaniKani part-of-speech info (including
+                  transitive/intransitive, godan/ichidan/irregular, and na/no
+                  adjectives) when available.
+                </Text>
+              </View>
+              <Switch
+                value={ankiShowWaniKaniGrammarTags}
+                onValueChange={setAnkiShowWaniKaniGrammarTags}
+                trackColor={{ false: "#767577", true: theme.primary }}
+                thumbColor="#f4f3f4"
+              />
             </View>
-            <Switch
-              value={ankiShowWaniKaniGrammarTags}
-              onValueChange={setAnkiShowWaniKaniGrammarTags}
-              trackColor={{ false: "#767577", true: theme.primary }}
-              thumbColor="#f4f3f4"
-            />
-          </View>
+          </SettingsFoldout>
         </View>
 
         {Platform.OS === "android" && (
@@ -409,20 +430,33 @@ export default function AnkiSettingsScreen() {
               External Export
             </Text>
             <Text
-              style={[
-                styles.exportDescription,
-                { color: theme.textSecondary },
-              ]}
+              style={[styles.exportDescription, { color: theme.textSecondary }]}
             >
               Send vocabulary context sentences directly to your AnkiDroid
               collection.
             </Text>
-            <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <View
+              style={[styles.settingRow, { borderBottomColor: theme.border }]}
+            >
               <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: theme.textColor }]}>Enable Anki export</Text>
-                <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Show Anki export buttons beside context sentences.</Text>
+                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                  Enable Anki export
+                </Text>
+                <Text
+                  style={[
+                    styles.settingSubtext,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Show Anki export buttons beside context sentences.
+                </Text>
               </View>
-              <Switch accessibilityLabel="Enable Anki export" value={ankiDroidExportEnabled} onValueChange={setAnkiDroidExportEnabled} trackColor={{ true: theme.primary }} />
+              <Switch
+                accessibilityLabel="Enable Anki export"
+                value={ankiDroidExportEnabled}
+                onValueChange={setAnkiDroidExportEnabled}
+                trackColor={{ true: theme.primary }}
+              />
             </View>
             {ankiDroidExportEnabled && <AnkiDroidExportSettingsButton />}
           </View>

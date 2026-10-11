@@ -1,10 +1,12 @@
 import React from "react";
-import { cleanup, fireEvent, render } from "@testing-library/react-native";
+import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
 import {
   StudyPacePlanner,
   StudyPacePlannerSetting,
 } from "../study-pace-planner";
-import { goalStorageKey } from "../model";
+import { goalStorageKey, parseGoalState } from "../model";
+import { router } from "expo-router";
+jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
 const mockData = new Map<string, string>();
 const mockAuth = { userData: { id: 500, username: "Portego" } };
 const mockSettings = {
@@ -151,4 +153,52 @@ it("waits for the catalog before initializing linked controls", () => {
   expect(screen.queryByLabelText("Days per level")).toBeNull();
   screen.rerender(<StudyPacePlanner {...props} />);
   expect(screen.getByLabelText("Days per level").props.value).toBe(7);
+});
+
+it("keeps the applied plan and goal date after reopening four days later (#112)", () => {
+  const screen = render(<StudyPacePlanner {...props} />);
+  fireEvent.press(screen.getByLabelText("Plan your pace"));
+  fireEvent.press(screen.getByText("Apply daily plan →"));
+  fireEvent.press(screen.getByText("Use date for my goal"));
+  const deadline = screen.getByText("Oct 25");
+  expect(deadline).toBeTruthy();
+  fireEvent.press(screen.getByLabelText("Plan your pace"));
+  act(() => jest.setSystemTime(new Date("2026-10-08T12:00:00")));
+  fireEvent.press(screen.getByLabelText("Plan your pace"));
+  expect(screen.getByText("Oct 25")).toBeTruthy();
+  expect(screen.getByText("Plan applied ✓")).toBeTruthy();
+  expect(screen.getByText("Goal date updated")).toBeTruthy();
+});
+
+it("opens a custom level/date goal from the planner (#112)", () => {
+  const screen = render(<StudyPacePlanner {...props} />);
+  fireEvent.press(screen.getByLabelText("Plan your pace"));
+  fireEvent.press(screen.getByText("Set a level goal"));
+  expect(router.push).toHaveBeenCalledWith("/(app)/level-goal");
+});
+
+it("accounts for days already spent on the current level (#112)", () => {
+  jest.setSystemTime(new Date("2026-10-09T12:00:00"));
+  const screen = render(<StudyPacePlanner {...props} currentLevel={8}
+    subjects={subjects.map(subject => ({ ...subject, data: { level: 8 } }))}
+    progressions={[{ data: { level: 8, unlocked_at: "2026-10-03T12:00:00" } }]} />);
+  fireEvent.press(screen.getByLabelText("Plan your pace"));
+  fireEvent.press(screen.getByText("A week"));
+  expect(screen.getByText("Oct 17")).toBeTruthy();
+  fireEvent.press(screen.getByText("Apply daily plan →"));
+  const saved = JSON.parse(mockData.get(goalStorageKey(String(mockAuth.userData.id)))!);
+  expect(saved.studyPlanAnchor).toEqual({ level: 8, date: "2026-10-03" });
+  expect(parseGoalState(JSON.stringify(saved)).studyPlanAnchor).toEqual(saved.studyPlanAnchor);
+});
+
+it("uses the level start when progression data arrives after opening (#112)", () => {
+  jest.setSystemTime(new Date("2026-10-09T12:00:00"));
+  const levelProps = { ...props, currentLevel: 8,
+    subjects: subjects.map(subject => ({ ...subject, data: { level: 8 } })),
+  };
+  const screen = render(<StudyPacePlanner {...levelProps} />);
+  fireEvent.press(screen.getByLabelText("Plan your pace"));
+  screen.rerender(<StudyPacePlanner {...levelProps}
+    progressions={[{ data: { level: 8, unlocked_at: "2026-10-03T12:00:00" } }]} />);
+  expect(screen.getByText("Oct 17")).toBeTruthy();
 });

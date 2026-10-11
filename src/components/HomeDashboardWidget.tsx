@@ -538,6 +538,7 @@ export default function HomeDashboardWidget({
               currentLevel={dashboardData.currentLevel}
               subjects={dashboardData.subjects ?? []}
               assignments={dashboardData.assignments ?? []}
+              progressions={dashboardData.levelProgressions ?? []}
               paused={isOnVacation}
               loading={
                 dashboardData.dataLoadingState

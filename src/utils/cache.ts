@@ -67,6 +67,7 @@ interface LastModifiedCache {
 
 // In-memory cache for fast subject lookups
 let subjectsMemoryCache: Map<number, any> | null = null;
+let subjectsMemoryList: any[] | null = null;
 let memoryCacheTimestamp: number = 0;
 let subjectsMemoryLoadPromise: Promise<void> | null = null;
 let lastMemoryLoadAttemptAt: number = 0;
@@ -503,14 +504,11 @@ async function loadSubjectsIntoMemory(): Promise<void> {
 
     try {
       // Try to get any cached data (fresh or stale) from permanent storage
-      let cached = await getSubjectsFromPermanentStorage();
-      if (!cached) {
-        // If no fresh cache, try stale cache from permanent storage
-        cached = await getSubjectsFromPermanentStorage({ ignoreTTL: true });
-      }
+      const cached = await getSubjectsFromPermanentStorage({ ignoreTTL: true });
 
       if (!(cached && cached.data && Array.isArray(cached.data))) {
         subjectsMemoryCache = null;
+        subjectsMemoryList = null;
         memoryCacheTimestamp = 0;
         return;
       }
@@ -527,11 +525,13 @@ async function loadSubjectsIntoMemory(): Promise<void> {
           ),
         ]);
         subjectsMemoryCache = null;
+        subjectsMemoryList = null;
         memoryCacheTimestamp = 0;
         return;
       }
 
       subjectsMemoryCache = new Map();
+      subjectsMemoryList = cached.data;
 
       cached.data.forEach(subject => {
         if (subject && subject.id) {
@@ -830,7 +830,7 @@ export async function getSubjectById(id: number): Promise<any | null> {
     if (!subjectsMemoryCache || Date.now() - memoryCacheTimestamp > CACHE_TTL) {
       const now = Date.now();
       if (
-        !lastMemoryLoadHadData &&
+        !subjectsMemoryLoadPromise && !lastMemoryLoadHadData &&
         now - lastMemoryLoadAttemptAt < MEMORY_CACHE_RELOAD_BACKOFF_MS
       ) {
         return null;
@@ -848,8 +848,16 @@ export async function getSubjectById(id: number): Promise<any | null> {
 // Get all subjects (for search functionality)
 export async function getAllSubjects(): Promise<any[]> {
   try {
-    const cached = await getSubjectsFromPermanentStorage({ ignoreTTL: true });
-    return cached?.data || [];
+    // Detail panels and review helpers share the same decoded catalog as ID
+    // lookups. MMKV reads decode the whole catalog synchronously on the JS thread.
+    if (!subjectsMemoryList || Date.now() - memoryCacheTimestamp > CACHE_TTL) {
+      if (!subjectsMemoryLoadPromise && !lastMemoryLoadHadData &&
+          Date.now() - lastMemoryLoadAttemptAt < MEMORY_CACHE_RELOAD_BACKOFF_MS) {
+        return [];
+      }
+      await loadSubjectsIntoMemory();
+    }
+    return subjectsMemoryList ?? [];
   } catch (error) {
     return [];
   }
@@ -911,7 +919,9 @@ export async function clearCache(): Promise<void> {
 
     // Clear memory cache
     subjectsMemoryCache = null;
+    subjectsMemoryList = null;
     memoryCacheTimestamp = 0;
+    lastMemoryLoadAttemptAt = 0;
   } catch (error) {
     // Silent failure for cache clearing
   }
@@ -980,6 +990,7 @@ export async function repairSubjectsCache(
   // Clear memory cache if repair cleared the cache
   if (result.action === 'cleared' || result.action === 'failed') {
     subjectsMemoryCache = null;
+    subjectsMemoryList = null;
     memoryCacheTimestamp = 0;
   }
 

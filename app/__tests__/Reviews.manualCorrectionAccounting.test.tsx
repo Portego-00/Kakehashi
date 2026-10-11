@@ -1136,6 +1136,31 @@ describe("review parent manual-correction accounting", () => {
     screen.unmount();
   });
 
+  it.each([
+    [false, true, 1, 0],
+    [true, false, 0, 1],
+    [false, false, 1, 1],
+  ])("persists grouped Anki mistake counts independently (%s/%s) (#111)", async (meaningCorrect, readingCorrect, meaningIncorrectCount, readingIncorrectCount) => {
+    mockAnkiCardMode = true;
+    mockAnkiGroupQuestions = true;
+    const screen = render(<ReviewScreen />);
+    await screen.findByTestId("accounting-question");
+    const first = currentQuestion();
+    await act(async () => {
+      first.onAnswer(first.item, "meaning", meaningCorrect, !meaningCorrect, true);
+      first.onAnswer(first.item, "reading", readingCorrect, !readingCorrect, true);
+    });
+    const retry = currentQuestion();
+    await act(async () => {
+      retry.onAnswer(retry.item, "meaning", true, false, true);
+      retry.onAnswer(retry.item, "reading", true, false, true);
+    });
+    await waitFor(() => expect(mockPersistProgress).toHaveBeenCalledTimes(1));
+    expect(mockPersistProgress).toHaveBeenCalledWith(expect.objectContaining({ meaningIncorrectCount, readingIncorrectCount }));
+    await screen.findByText("Results");
+    screen.unmount();
+  });
+
   it("allows a grouped meaning and reading pair while blocking duplicate callbacks", async () => {
     mockAnkiCardMode = true;
     mockAnkiGroupQuestions = true;
@@ -1177,6 +1202,31 @@ describe("review parent manual-correction accounting", () => {
     await waitFor(() => expect(mockPersistProgress).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByText("Results")).toBeTruthy());
     expect(mockQueueProgress).toHaveBeenCalledTimes(1);
+    screen.unmount();
+  });
+
+  it("waits for a fully correct grouped card after alternating mistakes (#111)", async () => {
+    mockAnkiCardMode = true;
+    mockAnkiGroupQuestions = true;
+    const screen = render(<ReviewScreen />);
+    await screen.findByTestId("accounting-question");
+    for (const [meaningCorrect, readingCorrect] of [[false, true], [true, false]]) {
+      const question = currentQuestion();
+      await act(async () => {
+        question.onAnswer(question.item, "meaning", meaningCorrect, !meaningCorrect, true);
+        question.onAnswer(question.item, "reading", readingCorrect, !readingCorrect, true);
+      });
+      expect(mockPersistProgress).not.toHaveBeenCalled();
+      expect(screen.queryByText("Results")).toBeNull();
+    }
+    const finalQuestion = currentQuestion();
+    await act(async () => {
+      finalQuestion.onAnswer(finalQuestion.item, "meaning", true, false, true);
+      finalQuestion.onAnswer(finalQuestion.item, "reading", true, false, true);
+    });
+    await screen.findByText("Results");
+    expect(mockPersistProgress).toHaveBeenCalledTimes(1);
+    expect(mockPersistProgress).toHaveBeenCalledWith(expect.objectContaining({ meaningIncorrectCount: 1, readingIncorrectCount: 1 }));
     screen.unmount();
   });
 

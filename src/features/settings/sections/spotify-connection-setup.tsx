@@ -151,13 +151,13 @@ export function SpotifyConnectionSetup({
               <View style={setupStyles.step}>
                 <Text style={headingStyle}>Before you start</Text>
                 <Text style={bodyStyle}>
-                  You need Spotify Premium on the account that owns the developer
-                  app. Premium must stay active for development mode and is also
-                  required for playback control.
+                  You need Spotify Premium on the account that owns the
+                  developer app. Premium must stay active for development mode
+                  and is also required for playback control.
                 </Text>
                 <Text style={bodyStyle}>
-                  Install Spotify and sign in with that same account. Open Spotify
-                  and play a track before using playback in Kakehashi.
+                  Install Spotify and sign in with that same account. Open
+                  Spotify and play a track before using playback in Kakehashi.
                 </Text>
                 <Text style={bodyStyle}>
                   Spotify development apps allow up to 5 authorized users. This
@@ -166,7 +166,9 @@ export function SpotifyConnectionSetup({
               </View>
 
               <View style={setupStyles.step}>
-                <Text style={headingStyle}>1. Open the developer dashboard</Text>
+                <Text style={headingStyle}>
+                  1. Open the developer dashboard
+                </Text>
                 <Text style={bodyStyle}>
                   Sign in with your Premium Spotify account and accept Spotify’s
                   developer terms if prompted.
@@ -176,21 +178,23 @@ export function SpotifyConnectionSetup({
                   style={setupStyles.textButton}
                   onPress={() => void openLink(SPOTIFY_DASHBOARD_URL)}
                 >
-                  <Text style={linkStyle}>Open Spotify Developer Dashboard</Text>
+                  <Text style={linkStyle}>
+                    Open Spotify Developer Dashboard
+                  </Text>
                 </TouchableOpacity>
               </View>
 
               <View style={setupStyles.step}>
                 <Text style={headingStyle}>2. Create your Spotify app</Text>
                 <Text style={bodyStyle}>
-                  Choose Create app. Use “Kakehashi personal” as the app name and
-                  “Personal playlist access and playback” as the description.
-                  Select Web API when asked which API you will use.
+                  Choose Create app. Use “Kakehashi personal” as the app name
+                  and “Personal playlist access and playback” as the
+                  description. Select Web API when asked which API you will use.
                 </Text>
                 <Text style={bodyStyle}>
-                  Add this exact value under Redirect URIs, choose Add, then save
-                  the app. Long-press the address below to copy it. Every character
-                  must match, including the slashes.
+                  Add this exact value under Redirect URIs, choose Add, then
+                  save the app. Long-press the address below to copy it. Every
+                  character must match, including the slashes.
                 </Text>
                 <Text
                   selectable
@@ -212,8 +216,8 @@ export function SpotifyConnectionSetup({
                 <Text style={headingStyle}>3. Copy your Client ID</Text>
                 <Text style={bodyStyle}>
                   Open your new app’s Settings and copy the Client ID. In Users
-                  Management, add your own Spotify account’s name and email if it
-                  is not already listed.
+                  Management, add your own Spotify account’s name and email if
+                  it is not already listed.
                 </Text>
                 <Text style={bodyStyle}>
                   Kakehashi only needs the Client ID. The Client Secret is never
@@ -225,8 +229,8 @@ export function SpotifyConnectionSetup({
                 <Text style={headingStyle}>4. Save and connect</Text>
                 <Text style={bodyStyle}>
                   Paste your Client ID below and tap Save Client ID. Then tap
-                  Connect Spotify, sign in with the same account, and approve the
-                  requested access.
+                  Connect Spotify, sign in with the same account, and approve
+                  the requested access.
                 </Text>
               </View>
             </View>
@@ -259,7 +263,8 @@ export function SpotifyConnectionSetup({
               ]}
             />
             <Text style={bodyStyle}>
-              Use the Client ID, not the Client Secret. It is saved on this device.
+              Use the Client ID, not the Client Secret. It is saved on this
+              device.
               {spotifyClientId
                 ? " Replacing or removing it disconnects Spotify."
                 : ""}
@@ -297,7 +302,9 @@ export function SpotifyConnectionSetup({
               {isSaving ? (
                 <ActivityIndicator size="small" color={theme.primary} />
               ) : (
-                <Text style={[setupStyles.buttonText, { color: theme.primary }]}>
+                <Text
+                  style={[setupStyles.buttonText, { color: theme.primary }]}
+                >
                   Save Client ID
                 </Text>
               )}
@@ -306,13 +313,19 @@ export function SpotifyConnectionSetup({
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityState={{
-                  disabled: isBusy || !isSpotifyAuthAvailable || hasUnsavedChanges,
+                  disabled:
+                    isBusy || !isSpotifyAuthAvailable || hasUnsavedChanges,
                 }}
-                disabled={isBusy || !isSpotifyAuthAvailable || hasUnsavedChanges}
+                disabled={
+                  isBusy || !isSpotifyAuthAvailable || hasUnsavedChanges
+                }
                 onPress={() => void handleSpotifyLogin()}
                 style={[
                   setupStyles.button,
-                  { borderColor: theme.primary, backgroundColor: theme.primary },
+                  {
+                    borderColor: theme.primary,
+                    backgroundColor: theme.primary,
+                  },
                   (isBusy || !isSpotifyAuthAvailable || hasUnsavedChanges) &&
                     setupStyles.disabled,
                 ]}
@@ -329,7 +342,9 @@ export function SpotifyConnectionSetup({
           </View>
 
           {hasUnsavedChanges && (
-            <Text style={bodyStyle}>Save your Client ID before connecting.</Text>
+            <Text style={bodyStyle}>
+              Save your Client ID before connecting.
+            </Text>
           )}
           {!!spotifyClientId && (
             <View style={setupStyles.actions}>
@@ -375,8 +390,9 @@ export function SpotifyConnectionSetup({
                 includes the exact address shown in step 2.
               </Text>
               <Text style={bodyStyle}>
-                Access denied: check the saved Client ID, sign in with the account
-                listed in Users Management, and approve all requested permissions.
+                Access denied: check the saved Client ID, sign in with the
+                account listed in Users Management, and approve all requested
+                permissions.
               </Text>
               <Text style={bodyStyle}>
                 Premium required: check that the developer app owner’s Premium
@@ -396,7 +412,9 @@ export function SpotifyConnectionSetup({
                 style={setupStyles.textButton}
                 onPress={() => void openLink(SPOTIFY_DEVELOPMENT_MODE_URL)}
               >
-                <Text style={linkStyle}>Spotify development mode requirements</Text>
+                <Text style={linkStyle}>
+                  Spotify development mode requirements
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 accessibilityRole="link"
@@ -428,7 +446,11 @@ const setupStyles = StyleSheet.create({
   link: { fontSize: 14, fontWeight: "600" },
   guide: { gap: 16 },
   step: { gap: 8 },
-  textButton: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
+  textButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    alignSelf: "flex-start",
+  },
   redirectUri: {
     padding: 12,
     borderWidth: 1,

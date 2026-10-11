@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { PatreonMark } from "./PatreonMark";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../utils/theme";
@@ -23,8 +23,7 @@ export function PatreonSupporterBadge({
         { backgroundColor, borderColor },
       ]}
     >
-      <MaterialCommunityIcons
-        name="patreon"
+      <PatreonMark
         size={compact ? 10 : 11}
         color={textColor}
       />

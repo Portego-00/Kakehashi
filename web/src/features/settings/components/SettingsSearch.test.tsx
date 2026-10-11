@@ -28,3 +28,15 @@ describe("settings search navigation", () => {
     expect(screen.getByLabelText("API key")).toBeVisible();
   });
 });
+
+it("opens a hidden advanced preference in its category and focuses its real input", async()=>{
+ const scroll=vi.fn();Object.defineProperty(HTMLElement.prototype,'scrollIntoView',{configurable:true,value:scroll});
+ render(<SettingsSearch organized><section data-settings-category="reviews"><h2>Reviews</h2><label data-settings-search=""><strong>Pause on wrong</strong><input aria-label="Pause on wrong" type="checkbox"/></label></section><section data-settings-category="reading"><h2>Reading</h2><details><summary>Advanced recognition</summary><label data-settings-search=""><strong>Word details</strong><small>Open word definitions</small><select aria-label="Word details"><option>Click</option><option>Hover</option></select></label></details></section></SettingsSearch>);
+ await waitFor(()=>expect(screen.getByRole('button',{name:/Reading tools/})).toBeInTheDocument());
+ expect(screen.queryByRole('combobox',{name:'Word details'})).not.toBeInTheDocument();
+ fireEvent.change(screen.getByRole('searchbox'),{target:{value:'word details'}});
+ fireEvent.click(screen.getByRole('button',{name:/Word details/}));
+ await waitFor(()=>expect(screen.getByRole('combobox',{name:'Word details'})).toHaveFocus());
+ expect(screen.getByRole('button',{name:/Reading tools/})).toHaveAttribute('aria-current','page');
+ Reflect.deleteProperty(HTMLElement.prototype,'scrollIntoView');
+});

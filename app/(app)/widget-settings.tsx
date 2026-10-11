@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -33,7 +34,7 @@ const WIDGET_CONTENT_OPTIONS: {
   value: WidgetContentMode;
   title: string;
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
 }[] = [
   {
     value: "reviews",

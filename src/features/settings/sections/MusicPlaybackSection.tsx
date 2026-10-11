@@ -1,3 +1,4 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
 import React, { useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
@@ -192,7 +193,7 @@ export function MusicPlaybackSection() {
   return (
     <>
       {showMusicPlaybackSection && (
-        <View
+        <SettingsSectionSurface
           style={[
             styles.section,
             {
@@ -274,7 +275,7 @@ export function MusicPlaybackSection() {
               )}
             </View>
           )}
-        </View>
+        </SettingsSectionSurface>
       )}
     </>
   );

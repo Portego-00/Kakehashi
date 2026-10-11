@@ -352,3 +352,7 @@
   .detailIdentity strong { font-size: 18px; }
   .detailIdentity span { font-size: 12px; }
 }
+.settingsHeading { display: flex; align-items: center; gap: var(--space-sm); font-size: var(--text-xl); font-weight: 700; }
+.settingsHeading svg { flex-shrink: 0; color: var(--color-accent); }
+.apiKeyLabel { display: inline-flex; align-items: center; gap: var(--space-sm); }
+.apiKeyLabel svg { flex: 0 0 20px; color: var(--color-accent); }

@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { StyleSheet } from "react-native";
 import PagerView from "react-native-pager-view";
@@ -121,6 +121,7 @@ it.each([
   fireEvent.press(screen.getByLabelText(meaningNote ? "Edit meaning note" : "Add meaning note"), { stopPropagation: jest.fn() });
   expect(onEditNote).toHaveBeenCalledWith("meaning");
 
+  fireEvent.press(screen.getByText("Context"));
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });
 
@@ -152,6 +153,7 @@ it.each([false, true])("renders ドキドキ with working kana tabs (embedded: %
   expect(mockSetPage).toHaveBeenLastCalledWith(0);
   fireEvent(pager, "pageSelected", { nativeEvent: { position: 1 } });
   expect(StyleSheet.flatten(screen.getByText("Context").props.style).color).toBe("white");
+  fireEvent.press(screen.getByText("Context"));
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });
 
@@ -219,6 +221,7 @@ it("shows only Meaning and Context for custom kana, rendering mnemonic tags as s
   expect(mockSetPage).toHaveBeenCalledWith(1);
   expect(screen.getByText(vocabulary.contextSentences[0].ja)).toBeTruthy();
   expect(screen.getByText(vocabulary.contextSentences[1].en)).toBeTruthy();
+  fireEvent.press(screen.getByText("Context"));
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });
 
@@ -233,6 +236,7 @@ it("keeps custom progress but hides WaniKani-only editing and fabricated statist
   expect(screen.queryByText("Longest")).toBeNull();
   expect(screen.queryByText("0")).toBeNull();
   expect(CustomContextSentencesSection).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByText("Context"));
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });
 
@@ -253,7 +257,22 @@ it("retains the Reading tab for custom kanji vocabulary", async () => {
   expect(mockSetPage).toHaveBeenCalledWith(1);
   fireEvent.press(screen.getByText("Context"));
   expect(mockSetPage).toHaveBeenCalledWith(2);
+  fireEvent.press(screen.getByText("Context"));
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
+});
+
+it.each([false, true])("keeps unvisited heavy pages unmounted while progression loads (embedded: %s) (#110)", async (embedded) => {
+  const screen = render(<VocabularyDetails embedded={embedded} vocabulary={{ ...vocabulary,
+    object: "vocabulary", characters: "先日", readings: [{ reading: "せんじつ", primary: true }],
+  }} progressionStatus="loading" />);
+  expect(screen.getAllByText("Loading progression...")).toHaveLength(1);
+  expect(screen.queryByText("Readings")).toBeNull();
+  expect(screen.queryByText(vocabulary.contextSentences[0].ja)).toBeNull();
+  fireEvent.press(screen.getByText("Reading"));
+  expect(screen.getByText("Readings")).toBeTruthy();
+  fireEvent.press(screen.getByText("Context"));
+  expect(screen.getByText(vocabulary.contextSentences[0].ja)).toBeTruthy();
+  await screen.findByText(/No media examples found/);
 });
 
 it("offers Shizuka audio on Meaning for custom kana and plays the cached clip", async () => {
@@ -269,6 +288,31 @@ it("offers Shizuka audio on Meaning for custom kana and plays the cached clip", 
   await waitFor(() => expect(Audio.Sound.createAsync).toHaveBeenCalledWith({ uri: "file:///custom-audio.mp3" }, { shouldPlay: true }));
 });
 
+it("releases the active vocabulary player when closing the card (#110)", async () => {
+  const sound = { setOnPlaybackStatusUpdate: jest.fn(), stopAsync: jest.fn(async () => {}), unloadAsync: jest.fn(async () => {}) };
+  jest.mocked(Audio.Sound.createAsync).mockResolvedValue({ sound } as never);
+  const audio = { url: "https://audio.example/clip.mp3", content_type: "audio/mpeg", metadata: { gender: "female", source_id: 1, pronunciation: "やっぱり", voice_actor_id: -1, voice_actor_name: "Shizuka", voice_description: "" } };
+  const screen = render(<VocabularyDetails vocabulary={{ ...vocabulary, audioFiles: [audio] }} progressionStatus="success" />);
+  fireEvent.press(screen.getByLabelText("Play Shizuka pronunciation"));
+  await waitFor(() => expect(sound.setOnPlaybackStatusUpdate).toHaveBeenCalled());
+  screen.unmount();
+  expect(sound.unloadAsync).toHaveBeenCalledTimes(1);
+  expect(sound.setOnPlaybackStatusUpdate).toHaveBeenLastCalledWith(null);
+});
+
+it("releases a player that finishes loading after the card closes (#110)", async () => {
+  const sound = { setOnPlaybackStatusUpdate: jest.fn(), stopAsync: jest.fn(async () => {}), unloadAsync: jest.fn(async () => {}) };
+  let finishLoading!: (value: unknown) => void;
+  jest.mocked(Audio.Sound.createAsync).mockImplementationOnce(() => new Promise(resolve => { finishLoading = resolve; }) as never);
+  const audio = { url: "https://audio.example/clip.mp3", content_type: "audio/mpeg", metadata: { gender: "female", source_id: 1, pronunciation: "やっぱり", voice_actor_id: -1, voice_actor_name: "Shizuka", voice_description: "" } };
+  const screen = render(<VocabularyDetails vocabulary={{ ...vocabulary, audioFiles: [audio] }} progressionStatus="success" />);
+  fireEvent.press(screen.getByLabelText("Play Shizuka pronunciation"));
+  await waitFor(() => expect(Audio.Sound.createAsync).toHaveBeenCalled());
+  screen.unmount();
+  await act(async () => finishLoading({ sound }));
+  expect(sound.unloadAsync).toHaveBeenCalledTimes(1);
+});
+
 it.each(["vocabulary", "kana_vocabulary"])("shows optional JLPT and frequency labels in %s details", async (object) => {
   mockSettings.showJLPTLevel = true;
   mockSettings.showVocabularyFrequency = true;
@@ -282,5 +326,6 @@ it.each(["vocabulary", "kana_vocabulary"])("shows optional JLPT and frequency la
   expect(screen.getByText("JLPT Level")).toBeTruthy();
   expect(screen.getByText("N5")).toBeTruthy();
   expect(screen.getByText("Frequency")).toBeTruthy();
+  fireEvent.press(screen.getByText("Context"));
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
 });

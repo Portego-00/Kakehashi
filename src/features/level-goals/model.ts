@@ -36,6 +36,7 @@ export type LevelGoalState = {
   history: GoalHistory[];
   widgetHidden: boolean;
   studyPlan?: StudyPlan;
+  studyPlanAnchor?: { level: number; date: string };
 };
 export const EMPTY_GOAL_STATE: LevelGoalState = {
   version: 1,
@@ -109,6 +110,11 @@ export function parseGoalState(raw: string | null | undefined): LevelGoalState {
     return {
       version: 1,
       ...(isStudyPlan(state.studyPlan) ? { studyPlan: state.studyPlan } : {}),
+      ...(isLevel(state.studyPlanAnchor?.level) &&
+      typeof state.studyPlanAnchor?.date === "string" &&
+      parseGoalDate(state.studyPlanAnchor.date)
+        ? { studyPlanAnchor: state.studyPlanAnchor }
+        : {}),
       active: validGoal(state.active) ? state.active : null,
       widgetHidden: state.widgetHidden === true,
       history: Array.isArray(state.history)

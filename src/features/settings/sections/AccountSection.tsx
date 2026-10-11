@@ -1,6 +1,9 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
-import { Text, TouchableOpacity, View } from "react-native";
+
+import { Text, TouchableOpacity } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
@@ -12,7 +15,7 @@ export function AccountSection() {
   return (
     <>
       {/* Account Section */}
-      <View
+      <SettingsSectionSurface
         style={[
           styles.section,
           {
@@ -43,11 +46,11 @@ export function AccountSection() {
             color="#e53935"
             style={styles.settingIcon}
           />
-          <Text style={[styles.settingText, { color: "#e53935" }]}>
+          <SettingsLabel style={[styles.settingText, { color: "#e53935" }]}>
             Sign Out
-          </Text>
+          </SettingsLabel>
         </TouchableOpacity>
-      </View>
+      </SettingsSectionSurface>
     </>
   );
 }

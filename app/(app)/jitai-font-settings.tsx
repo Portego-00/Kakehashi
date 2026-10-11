@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
+
 import { File } from "expo-file-system";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -245,19 +246,19 @@ export default function JitaiFontSettingsScreen() {
         style={[
           styles.header,
           {
-            backgroundColor: theme.headerBackground,
+            backgroundColor: theme.backgroundColor,
             paddingTop: insets.top + 8,
           },
         ]}
       >
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={theme.headerText} />
+          <Ionicons name="arrow-back" size={24} color={theme.textColor} />
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
-          <Text style={[styles.title, { color: theme.headerText }]}>
+          <Text style={[styles.title, { color: theme.textColor }]}>
             Jitai Fonts
           </Text>
-          <Text style={[styles.subtitle, { color: theme.headerText }]}>
+          <Text style={[styles.subtitle, { color: theme.textColor }]}>
             {`${jitaiSelectedFontIds.length} selected for random mode`}
           </Text>
         </View>

@@ -499,7 +499,7 @@ export default function ProgressTab() {
                 onItemPress={handleItemPress}
               />
 
-              {isPortegoUsername(userData?.username) ? <LevelGoalPanel currentLevel={userData?.level ?? dashboardData.currentLevel} progressions={dashboardData.levelProgressions} paused={!!userData?.current_vacation_started_at} /> : null}
+              <LevelGoalPanel currentLevel={userData?.level ?? dashboardData.currentLevel} progressions={dashboardData.levelProgressions} paused={!!userData?.current_vacation_started_at} />
 
               {dashboardData.subjects && dashboardData.assignments && (
                 <IncompleteLevelsProgress

@@ -1,5 +1,6 @@
+import {SettingsIcon as Ionicons} from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Image } from "expo-image";
 import {
   Modal,

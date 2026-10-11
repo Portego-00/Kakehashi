@@ -1,5 +1,11 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import {
+  SettingsIcon as Ionicons,
+  SettingsIcon as MaterialCommunityIcons,
+} from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+
 import { Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
@@ -11,7 +17,7 @@ export function PatreonSupportersSection() {
   return (
     <>
       {/* Patreon Supporters Section */}
-      <View
+      <SettingsSectionSurface
         style={[
           styles.section,
           {
@@ -38,13 +44,15 @@ export function PatreonSupportersSection() {
           <MaterialCommunityIcons
             name="patreon"
             size={24}
-            color={theme.primary}
+            color={theme.textColor}
             style={styles.settingIcon}
           />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               View Supporters
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -57,7 +65,7 @@ export function PatreonSupportersSection() {
             color={theme.textSecondary}
           />
         </TouchableOpacity>
-      </View>
+      </SettingsSectionSurface>
     </>
   );
 }

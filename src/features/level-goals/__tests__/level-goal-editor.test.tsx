@@ -136,6 +136,19 @@ it("selects a future calendar day in the native date flow", () => {
   );
 });
 
+it("saves a user-chosen level 30 goal for April 2027 (#112)", () => {
+  const screen = mount();
+  fireEvent.press(screen.getByText("A date"));
+  fireEvent.press(screen.getByLabelText("Continue"));
+  fireEvent.press(screen.getByLabelText("Target date · Oct 30"));
+  for (let i = 0; i < 6; i++) fireEvent.press(screen.getByLabelText("Next month"));
+  fireEvent.press(screen.getByLabelText("April 30, 2027"));
+  fireEvent.press(screen.getByLabelText("Level 30"));
+  fireEvent.press(screen.getByLabelText("Continue"));
+  fireEvent.press(screen.getByLabelText("Create goal"));
+  expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ targetLevel: 30, deadline: "2027-04-30" }));
+});
+
 it("spaces one radial tick per available level evenly in the native dial", () => {
   const now = new Date("2026-09-30T12:00:00");
   const screen = render(

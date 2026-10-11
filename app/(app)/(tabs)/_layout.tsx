@@ -1,13 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
+import { router, Tabs, useSegments } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Appearance, DynamicColorIOS, Platform } from "react-native";
 import { TabBarVisibilityProvider, useTabBarHidden } from "../../../src/contexts/TabBarVisibilityContext";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
 import { useTabNavigation } from "../../../src/hooks/useTabNavigation";
 import { TAB_INFO, type TabId } from "../../../src/utils/tabNavigation";
 import { useTheme } from "../../../src/utils/theme";
+
+function tabBarKey({ direct, overflow }: ReturnType<typeof useTabNavigation>) {
+  return [...direct.map(tab => tab.id), ...(overflow.length ? ["more"] : [])].join(":");
+}
 
 export default function TabsLayout() {
   return <TabBarVisibilityProvider><TabsContent /></TabBarVisibilityProvider>;
@@ -17,8 +22,34 @@ function TabsContent() {
   const tabBarHidden = useTabBarHidden();
   const { theme, themeMode, isDark } = useTheme();
   const useNativeTabs = supportsNativeTabs();
-  const { direct, overflow } = useTabNavigation();
+  const navigation = useTabNavigation();
+  const focused = useIsFocused();
+  const segments = useSegments();
+  const [nativeNavigation, setNativeNavigation] = useState(navigation);
+  const nextTabBarKey = tabBarKey(navigation);
+  const currentTabBarKey = tabBarKey(nativeNavigation);
+  const tabsSegmentIndex = segments.indexOf("(tabs)");
+  const activeTab = tabsSegmentIndex >= 0 ? segments[tabsSegmentIndex + 1] ?? "index" : undefined;
+  const { direct, overflow } = useNativeTabs ? nativeNavigation : navigation;
   const routeName = (id: TabId) => id === "home" ? "index" : id;
+
+  useEffect(() => {
+    // Keep auto-saved edits pending while another screen covers the tabs, so we
+    // can leave any removed route before changing its visibility.
+    if (!useNativeTabs || !focused || nextTabBarKey === currentTabBarKey) return;
+
+    const activeTabRemainsVisible = activeTab === "search"
+      || (activeTab === "more" && navigation.overflow.length > 0)
+      || navigation.direct.some(tab => (tab.id === "home" ? "index" : tab.id) === activeTab);
+    if (activeTab && !activeTabRemainsVisible) {
+      // Native tabs cannot focus a hidden route, including More after overflow
+      // is removed. Leave it while the previous configuration is still mounted.
+      router.replace("/(app)/(tabs)");
+      return;
+    }
+
+    setNativeNavigation(navigation);
+  }, [activeTab, currentTabBarKey, focused, navigation, nextTabBarKey, useNativeTabs]);
   const nativeIcons = {
     home: { default: "house", selected: "house.fill" },
     progress: { default: "chart.line.text.clipboard", selected: "chart.line.text.clipboard.fill" },

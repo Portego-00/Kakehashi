@@ -1,5 +1,7 @@
 .entry { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 4.5rem; padding: var(--space-sm) var(--space-md); border: 0; background: transparent; color: var(--color-ink); text-align: left; cursor: pointer; }
 .entry span { display: grid; }
+.entry { gap: var(--space-sm); }
+.entry > span { flex: 1; min-width: 0; }
 .entry small { color: var(--color-muted); font-size: var(--text-xs); }
 .entry:hover { background: var(--color-paper-2); }
 .dialog { margin: auto; padding: 0; width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: hidden; border: 1px solid var(--color-rule); border-radius: 10px; background: var(--color-surface); color: var(--color-ink); }

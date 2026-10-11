@@ -1,5 +1,8 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
@@ -21,7 +24,7 @@ export function DataStorageSection() {
     <>
       {/* Data & Storage Section - Feature flagged by user email */}
       {showDataStorageSection && (
-        <View
+        <SettingsSectionSurface
           style={[
             styles.section,
             {
@@ -54,9 +57,11 @@ export function DataStorageSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Check Cache Health
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -90,9 +95,11 @@ export function DataStorageSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Repair Cache
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -109,7 +116,7 @@ export function DataStorageSection() {
               />
             )}
           </TouchableOpacity>
-        </View>
+        </SettingsSectionSurface>
       )}
     </>
   );

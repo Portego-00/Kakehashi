@@ -1,5 +1,9 @@
+import { SettingsRowIcon } from "../../../ui/settings/settings-row-icon";
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Switch, Text, View } from "react-native";
 
 import { useSettingsStore } from "../../../utils/store";
@@ -8,11 +12,15 @@ import { styles } from "../styles";
 
 export function SubjectDetailsSection() {
   const { theme, updateSectionOffset } = useSettingsControllerContext();
-  const showSubjectHistory = useSettingsStore((state) => state.showSubjectHistory);
-  const setShowSubjectHistory = useSettingsStore((state) => state.setShowSubjectHistory);
+  const showSubjectHistory = useSettingsStore(
+    (state) => state.showSubjectHistory,
+  );
+  const setShowSubjectHistory = useSettingsStore(
+    (state) => state.setShowSubjectHistory,
+  );
 
   return (
-    <View
+    <SettingsSectionSurface
       style={[
         styles.section,
         { backgroundColor: theme.cardBackground, borderColor: theme.border },
@@ -30,19 +38,15 @@ export function SubjectDetailsSection() {
         Subject Details
       </Text>
       <View style={[styles.settingItem, { borderBottomColor: "transparent" }]}>
-        <Ionicons
-          name="time-outline"
-          size={24}
-          color={theme.primary}
-          style={styles.settingIcon}
-        />
+
+        <SettingsRowIcon setting="history" color={theme.primary} />
         <View style={styles.settingTextContainer}>
-          <Text style={[styles.settingText, { color: theme.textColor }]}>
-            Subject Update History
-          </Text>
-          <Text
-            style={[styles.settingSubtext, { color: theme.textSecondary }]}
+          <SettingsLabel
+            style={[styles.settingText, { color: theme.textColor }]}
           >
+            Subject Update History
+          </SettingsLabel>
+          <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
             Show the update history button on subject detail pages
           </Text>
         </View>
@@ -54,6 +58,6 @@ export function SubjectDetailsSection() {
           accessibilityLabel="Show subject update history"
         />
       </View>
-    </View>
+    </SettingsSectionSurface>
   );
 }

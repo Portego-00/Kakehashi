@@ -1,3 +1,5 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
 import React from "react";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Switch, Text, View } from "react-native";
@@ -16,7 +18,7 @@ export function HapticSection() {
   return (
     <>
       {/* Feedback Section */}
-      <View
+      <SettingsSectionSurface
         style={[
           styles.section,
           {
@@ -47,9 +49,11 @@ export function HapticSection() {
             style={styles.settingIcon}
           />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Haptic Feedback
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -63,7 +67,7 @@ export function HapticSection() {
             thumbColor="#f4f3f4"
           />
         </View>
-      </View>
+      </SettingsSectionSurface>
     </>
   );
 }

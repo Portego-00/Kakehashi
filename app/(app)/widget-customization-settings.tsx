@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
+
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useMemo, useState } from "react";
@@ -34,7 +35,7 @@ type DraftState = Record<WidgetCardStyleColorKey, string>;
 const WIDGET_CARD_OPTIONS: {
   key: WidgetCardKey;
   title: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
 }[] = [
   { key: "lessons", title: "Lesson Card", icon: "book-outline" },
   { key: "reviews", title: "Review Card", icon: "checkmark-done-outline" },

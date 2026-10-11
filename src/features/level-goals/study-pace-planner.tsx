@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import Slider from "@react-native-community/slider";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   FadeInDown,
@@ -13,9 +14,11 @@ import {
   canAccessLevelGoals,
   createLevelGoal,
   dateAfterDays,
+  localDateKey,
   replaceGoal,
   shortGoalDate,
   suggestedGoalLevel,
+  type GoalProgression,
 } from "./model";
 import {
   planForLessons,
@@ -34,6 +37,7 @@ type Props = {
   subjects: readonly PlannerSubject[];
   loading?: boolean;
   paused?: boolean;
+  progressions?: readonly GoalProgression[];
 };
 
 export function StudyPacePlanner(props: Props) {
@@ -124,12 +128,14 @@ function PlanEditor({
   subjects,
   loading = false,
   paused = false,
+  progressions = [],
 }: Props) {
   const goals = useLevelGoals();
   const { theme } = useTheme();
   const reduced = useReducedMotion();
   const lessonLimit = useSettingsStore((state) => state.dailyLessonLimit);
   const batchSize = useSettingsStore((state) => state.reviewBatchSize);
+  const batchEnabled = useSettingsStore((state) => state.reviewBatchSizeEnabled);
   const count = subjectsPerLevel(subjects, currentLevel);
   const [plan, setPlan] = useState<StudyPlan>(
     () =>
@@ -140,8 +146,18 @@ function PlanEditor({
         count,
       ),
   );
-  const [applied, setApplied] = useState(false);
-  const [goalSaved, setGoalSaved] = useState(false);
+  const [fallbackAnchor] = useState(() => ({
+    level: currentLevel,
+    date: localDateKey(new Date(goals.state.active?.createdAt ?? goals.now)),
+  }));
+  const started = progressions
+    .filter((row) => row.data.level === currentLevel && !row.data.abandoned_at)
+    .map((row) => row.data.unlocked_at)
+    .filter((date): date is string => !!date && Number.isFinite(Date.parse(date)))
+    .sort().at(-1);
+  const anchor = goals.state.studyPlanAnchor ?? (started
+    ? { level: currentLevel, date: localDateKey(new Date(started)) }
+    : fallbackAnchor);
   const [method, setMethod] = useState(false);
   const [error, setError] = useState("");
   const days = useMemo(
@@ -165,18 +181,26 @@ function PlanEditor({
       ? goals.state.active.targetLevel
       : suggestedGoalLevel(currentLevel, null, null, [], goals.now);
   const deadline = dateAfterDays(
-    Math.max(1, target - currentLevel) * plan.daysPerLevel,
-    goals.now,
+    Math.max(1, target - anchor.level) * plan.daysPerLevel,
+    new Date(`${anchor.date}T12:00:00`),
   );
+  const savedPlan = goals.state.studyPlan;
+  const matchesSavedPlan = !!savedPlan &&
+    savedPlan.daysPerLevel === plan.daysPerLevel &&
+    savedPlan.dailyLessons === plan.dailyLessons &&
+    savedPlan.reviewBatch === plan.reviewBatch;
+  const applied = matchesSavedPlan && lessonLimit === plan.dailyLessons &&
+    batchEnabled && batchSize === plan.reviewBatch;
+  const goalSaved = matchesSavedPlan && goals.state.active?.deadline === deadline &&
+    goals.state.active.targetLevel === target;
   const change = (next: StudyPlan) => {
     setPlan(next);
-    setApplied(false);
-    setGoalSaved(false);
     setError("");
   };
   const apply = () => {
     const previous = goals.state.studyPlan;
-    if (!goals.update((state) => ({ ...state, studyPlan: plan }))) return;
+    const previousAnchor = goals.state.studyPlanAnchor;
+    if (!goals.update((state) => ({ ...state, studyPlan: plan, studyPlanAnchor: anchor }))) return;
     try {
       // One persisted update keeps the linked settings together.
       useSettingsStore.setState({
@@ -184,10 +208,9 @@ function PlanEditor({
         reviewBatchSizeEnabled: true,
         reviewBatchSize: plan.reviewBatch,
       });
-      setApplied(true);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      goals.update((state) => ({ ...state, studyPlan: previous }));
+      goals.update((state) => ({ ...state, studyPlan: previous, studyPlanAnchor: previousAnchor }));
       setError("Your study settings could not be saved. Please try again.");
     }
   };
@@ -207,9 +230,9 @@ function PlanEditor({
         ...replaceGoal(state, goal, goals.now),
         widgetHidden: false,
         studyPlan: plan,
+        studyPlanAnchor: anchor,
       }))
     ) {
-      setGoalSaved(true);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
@@ -266,7 +289,7 @@ function PlanEditor({
         {currentLevel < 60 ? (
           <View style={styles.destination}>
             <Text style={[styles.note, note]}>
-              Level {target} · target date
+              Reach level {target} · pace estimate
             </Text>
             <Text style={[styles.amount, { color: theme.textColor }]}>
               {shortGoalDate(deadline)}
@@ -274,6 +297,15 @@ function PlanEditor({
           </View>
         ) : null}
       </View>
+      {currentLevel < 60 ? (
+        <Pressable accessibilityRole="button" onPress={() => router.push("/(app)/level-goal")}>
+          <Text style={{ color: theme.primary, paddingVertical: 8 }}>Set a level goal</Text>
+        </Pressable>
+      ) : null}
+      <Text style={[styles.note, note]}>
+        Reaching level {target} means unlocking the start of that level. The pace
+        estimate is anchored to {shortGoalDate(anchor.date)}; it is a target, not a guaranteed level-up date.
+      </Text>
       <View style={styles.presets}>
         {[7, 14, 30].map((value) => (
           <Pressable
@@ -445,7 +477,9 @@ function PlanEditor({
         </Pressable>
       ) : null}
       <Text style={[styles.note, note]}>
-        Apply sets your daily lesson limit and review session size.
+        Apply sets your daily lesson limit and review session size. Scheduled reviews
+        above keep their WaniKani SRS dates. The plan preview includes estimated
+        reviews from new lessons; your actual level-up estimate follows kanji progress.
       </Text>
       {goals.error || error ? (
         <Text accessibilityRole="alert" style={{ color: theme.error }}>

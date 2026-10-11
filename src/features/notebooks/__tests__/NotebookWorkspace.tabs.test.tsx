@@ -37,6 +37,7 @@ jest.mock("expo-router", () => {
     Redirect: ({ href }: { href: string }) => <Text>Redirect: {href}</Text>,
     router: { back: jest.fn(), push: jest.fn() },
     useLocalSearchParams: () => ({}),
+    useSegments: () => ["(app)", "(tabs)", "notebooks"],
   };
 });
 jest.mock("@react-navigation/native", () => ({ useIsFocused: () => mockFocused }));

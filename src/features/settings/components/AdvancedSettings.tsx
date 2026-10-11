@@ -1,3 +1,4 @@
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React, {
   createContext,
   useCallback,
@@ -5,8 +6,12 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import {
+  SettingsSearchRegistryContext,
+  SettingsSearchReveal,
+} from "../../../ui/settings/settings-search";
 import Animated, {
   CurvedTransition,
   Easing,
@@ -36,7 +41,7 @@ const advancedSettingExiting = FadeOutUp.duration(140)
   .easing(Easing.in(Easing.cubic))
   .reduceMotion(ReduceMotion.System);
 
-const AdvancedSettingsContext = createContext(false);
+export const AdvancedSettingsContext = createContext(false);
 
 const componentStyles = StyleSheet.create({
   settingItem: {
@@ -51,14 +56,16 @@ const componentStyles = StyleSheet.create({
   },
   settingText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
   },
 });
 
 export function AdvancedSettingsGroup({
   children,
+  grouped = false,
 }: {
   children: React.ReactNode;
+  grouped?: boolean;
 }) {
   const { theme } = useSettingsControllerContext();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -67,9 +74,7 @@ export function AdvancedSettingsGroup({
   useEffect(() => {
     expansionProgress.value = withTiming(isExpanded ? 1 : 0, {
       duration: isExpanded ? 200 : 140,
-      easing: isExpanded
-        ? Easing.out(Easing.cubic)
-        : Easing.in(Easing.cubic),
+      easing: isExpanded ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
       reduceMotion: ReduceMotion.System,
     });
   }, [expansionProgress, isExpanded]);
@@ -77,6 +82,7 @@ export function AdvancedSettingsGroup({
   const toggleAdvancedSettings = useCallback(() => {
     setIsExpanded((currentValue) => !currentValue);
   }, []);
+  const reveal = useCallback(() => setIsExpanded(true), []);
 
   const chevronStyle = useAnimatedStyle(() => ({
     transform: [
@@ -86,67 +92,64 @@ export function AdvancedSettingsGroup({
     ],
   }));
 
+  if (grouped) return <>{children}</>;
+
   return (
     <AdvancedSettingsContext.Provider value={isExpanded}>
-      <Animated.View layout={disclosureLayoutTransition}>
-        {children}
-        <TouchableOpacity
-          style={[
-            componentStyles.settingItem,
-            {
-              borderTopColor: theme.border,
-              borderTopWidth: StyleSheet.hairlineWidth,
-            },
-          ]}
-          onPress={toggleAdvancedSettings}
-          activeOpacity={0.72}
-          accessibilityRole="button"
-          accessibilityLabel={
-            isExpanded
-              ? "Collapse advanced settings"
-              : "Advanced settings"
-          }
-          accessibilityHint={
-            isExpanded
-              ? "Hides less commonly used settings"
-              : "Shows less commonly used settings"
-          }
-          accessibilityState={{ expanded: isExpanded }}
-        >
-          <Ionicons
-            name="options-outline"
-            size={22}
-            color={theme.textSecondary}
-            style={componentStyles.settingIcon}
-          />
-          <Text
-            style={[componentStyles.settingText, { color: theme.textColor }]}
+      <SettingsSearchReveal reveal={reveal}>
+        <Animated.View layout={disclosureLayoutTransition}>
+          {children}
+          <TouchableOpacity
+            style={[
+              componentStyles.settingItem,
+              {
+                borderTopColor: theme.border,
+                borderTopWidth: StyleSheet.hairlineWidth,
+              },
+            ]}
+            onPress={toggleAdvancedSettings}
+            activeOpacity={0.72}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isExpanded ? "Collapse advanced settings" : "Advanced settings"
+            }
+            accessibilityHint={
+              isExpanded
+                ? "Hides less commonly used settings"
+                : "Shows less commonly used settings"
+            }
+            accessibilityState={{ expanded: isExpanded }}
           >
-            {isExpanded
-              ? "Collapse advanced settings"
-              : "Advanced settings"}
-          </Text>
-          <Animated.View style={chevronStyle}>
             <Ionicons
-              name="chevron-down"
-              size={20}
+              name="options-outline"
+              size={22}
               color={theme.textSecondary}
+              style={componentStyles.settingIcon}
             />
-          </Animated.View>
-        </TouchableOpacity>
-      </Animated.View>
+            <Text
+              style={[componentStyles.settingText, { color: theme.textColor }]}
+            >
+              {isExpanded ? "Collapse advanced settings" : "Advanced settings"}
+            </Text>
+            <Animated.View style={chevronStyle}>
+              <Ionicons
+                name="chevron-down"
+                size={20}
+                color={theme.textSecondary}
+              />
+            </Animated.View>
+          </TouchableOpacity>
+        </Animated.View>
+      </SettingsSearchReveal>
     </AdvancedSettingsContext.Provider>
   );
 }
 
-export function AdvancedSetting({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function AdvancedSetting({ children }: { children: React.ReactNode }) {
   const isExpanded = useContext(AdvancedSettingsContext);
+  const searchRegistry = useContext(SettingsSearchRegistryContext);
 
-  if (!isExpanded) {
+  if (!isExpanded && !searchRegistry) {
     return null;
   }
 
@@ -155,6 +158,10 @@ export function AdvancedSetting({
       entering={advancedSettingEntering}
       exiting={advancedSettingExiting}
       layout={disclosureLayoutTransition}
+      style={!isExpanded ? { height: 0, overflow: "hidden" } : undefined}
+      pointerEvents={isExpanded ? "auto" : "none"}
+      accessibilityElementsHidden={!isExpanded}
+      importantForAccessibility={isExpanded ? "auto" : "no-hide-descendants"}
     >
       {children}
     </Animated.View>

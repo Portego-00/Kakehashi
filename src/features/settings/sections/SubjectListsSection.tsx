@@ -1,5 +1,9 @@
+import { SettingsRowIcon } from "../../../ui/settings/settings-row-icon";
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Text, TouchableOpacity, View } from "react-native";
 
 import {
@@ -16,7 +20,7 @@ export function SubjectListsSection() {
   return (
     <>
       {/* Subject Lists Section */}
-      <View
+      <SettingsSectionSurface
         style={[
           styles.section,
           {
@@ -42,16 +46,14 @@ export function SubjectListsSection() {
             style={[styles.settingItem, { borderBottomColor: "transparent" }]}
             onPress={() => router.push("/subject-lists")}
           >
-            <Ionicons
-              name="list"
-              size={24}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
+
+            <SettingsRowIcon setting="subject-lists" color={theme.primary} />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Manage Subject Lists
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -68,7 +70,7 @@ export function SubjectListsSection() {
             <KnownVocabularyExportSetting />
           </AdvancedSetting>
         </AdvancedSettingsGroup>
-      </View>
+      </SettingsSectionSurface>
     </>
   );
 }

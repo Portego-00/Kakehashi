@@ -1,6 +1,11 @@
+import { SettingsRowIcon } from "../../../ui/settings/settings-row-icon";
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import { SettingsChoiceCards } from "../../../ui/settings/settings-choice-cards";
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
-import { Switch, Text, TouchableOpacity, View } from "react-native";
+
+import { Switch, Text, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
@@ -28,7 +33,7 @@ export function ReadingDefaultsSection() {
 
   return (
     <>
-      <View
+      <SettingsSectionSurface
         style={[
           styles.section,
           {
@@ -66,9 +71,11 @@ export function ReadingDefaultsSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 NHK News Default View
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -76,50 +83,28 @@ export function ReadingDefaultsSection() {
               </Text>
             </View>
           </View>
-          <View style={styles.playbackSelector}>
-            {STUDY_MODE_DEFAULT_OPTIONS.map((option) => {
-              const isBlocked = option.value === "full" && !hasStoredJpdbApiKey;
+          <SettingsChoiceCards
+            compact
+            label="News study mode"
+            value={newsDefaultStudyMode}
+            theme={theme}
+            options={STUDY_MODE_DEFAULT_OPTIONS.map((option) => ({
+              ...option,
+              description:
+                option.value === "full" && !hasStoredJpdbApiKey
+                  ? "Connect JPDB"
+                  : undefined,
+              art: `news-${option.value}`,
 
-              return (
-                <TouchableOpacity
-                  key={`news-study-mode-${option.value}`}
-                  style={[
-                    styles.playbackSourceButton,
-                    isBlocked ? { opacity: 0.6 } : null,
-                    {
-                      borderColor: theme.border,
-                      backgroundColor:
-                        newsDefaultStudyMode === option.value
-                          ? theme.primary
-                          : "transparent",
-                    },
-                  ]}
-                  onPress={() => {
-                    if (isBlocked) {
-                      handleBlockedFullModeSelection("news");
-                      return;
-                    }
-                    setNewsDefaultStudyMode(option.value);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.playbackSourceButtonText,
-                      {
-                        color:
-                          newsDefaultStudyMode === option.value
-                            ? "#fff"
-                            : theme.textColor,
-                      },
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+            }))}
+            onChange={(value) => {
+              if (value === "full" && !hasStoredJpdbApiKey) {
+                handleBlockedFullModeSelection("news");
+                return;
+              }
+              setNewsDefaultStudyMode(value);
+            }}
+          />
         </View>
 
         <View
@@ -131,16 +116,14 @@ export function ReadingDefaultsSection() {
             },
           ]}
         >
-          <Ionicons
-            name="text-outline"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
+
+          <SettingsRowIcon setting="furigana" color={theme.primary} />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Hide Furigana by Default
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -165,16 +148,14 @@ export function ReadingDefaultsSection() {
             },
           ]}
         >
-          <Ionicons
-            name="eye-off-outline"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
+
+          <SettingsRowIcon setting="hide-tooltip-meaning" color={theme.primary} />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Hide meaning in tooltips
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -198,16 +179,14 @@ export function ReadingDefaultsSection() {
             },
           ]}
         >
-          <Ionicons
-            name="text-outline"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
+
+          <SettingsRowIcon setting="hide-tooltip-reading" color={theme.primary} />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Hide reading in tooltips
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -236,9 +215,11 @@ export function ReadingDefaultsSection() {
               style={styles.settingIcon}
             />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 Song Lyrics Default View
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -246,52 +227,30 @@ export function ReadingDefaultsSection() {
               </Text>
             </View>
           </View>
-          <View style={styles.playbackSelector}>
-            {SONG_LYRICS_STUDY_MODE_DEFAULT_OPTIONS.map((option) => {
-              const isBlocked = option.value === "full" && !hasStoredJpdbApiKey;
+          <SettingsChoiceCards
+            compact
+            label="Song lyrics study mode"
+            value={songsLyricsDefaultStudyMode}
+            theme={theme}
+            options={SONG_LYRICS_STUDY_MODE_DEFAULT_OPTIONS.map((option) => ({
+              ...option,
+              description:
+                option.value === "full" && !hasStoredJpdbApiKey
+                  ? "Connect JPDB"
+                  : undefined,
+              art: `lyrics-${option.value}`,
 
-              return (
-                <TouchableOpacity
-                  key={`lyrics-study-mode-${option.value}`}
-                  style={[
-                    styles.playbackSourceButton,
-                    isBlocked ? { opacity: 0.6 } : null,
-                    {
-                      borderColor: theme.border,
-                      backgroundColor:
-                        songsLyricsDefaultStudyMode === option.value
-                          ? theme.primary
-                          : "transparent",
-                    },
-                  ]}
-                  onPress={() => {
-                    if (isBlocked) {
-                      handleBlockedFullModeSelection("lyrics");
-                      return;
-                    }
-                    setSongsLyricsDefaultStudyMode(option.value);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.playbackSourceButtonText,
-                      {
-                        color:
-                          songsLyricsDefaultStudyMode === option.value
-                            ? "#fff"
-                            : theme.textColor,
-                      },
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+            }))}
+            onChange={(value) => {
+              if (value === "full" && !hasStoredJpdbApiKey) {
+                handleBlockedFullModeSelection("lyrics");
+                return;
+              }
+              setSongsLyricsDefaultStudyMode(value);
+            }}
+          />
         </View>
-      </View>
+      </SettingsSectionSurface>
     </>
   );
 }

@@ -64,6 +64,7 @@ const mockSettings = {
   setReviewMultipleChoiceEnabled: jest.fn(),
   ankiCardMode: false,
   ankiGroupQuestions: false,
+  ankiAskIncorrectPart: false,
   ankiCardModeScope: "both",
   ankiHideAnswerCompletely: false,
   ankiButtonlessMode: false,
@@ -482,6 +483,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockGetAssignments.mockResolvedValue([]);
     mockSettings.allowSkippingReviews = false;
     mockSettings.ankiCardMode = false;
+    mockSettings.ankiAskIncorrectPart = false;
     mockSettings.ankiCardModeScope = "both";
     mockSettings.ankiHideAnswerCompletely = false;
     mockSettings.disableAutoProgressOnWrong = false;
@@ -1828,7 +1830,93 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(screen.getByText("Tap anywhere to see the answer")).toBeTruthy();
   });
 
+  it.each([
+    ["Meaning wrong", false, true],
+    ["Reading wrong", true, false],
+    ["Both wrong", false, false],
+  ] as const)("grades grouped Anki %s separately (#111)", async (label, meaningCorrect, readingCorrect) => {
+    mockSettings.ankiCardMode = true;
+    mockSettings.ankiGroupQuestions = true;
+    mockSettings.ankiAskIncorrectPart = true;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} />);
+    fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+    fireEvent.press(screen.getByText("Wrong"));
+    expect(onAnswer).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByLabelText(label));
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(2));
+    expect(onAnswer).toHaveBeenNthCalledWith(1, audioItem, "meaning", meaningCorrect, !meaningCorrect, true);
+    expect(onAnswer).toHaveBeenNthCalledWith(2, audioItem, "reading", readingCorrect, !readingCorrect, true);
+  });
+
   describe("Anki background reveal gestures", () => {
+    it("offers the opt-in choices after a buttonless wrong tap without intercepting row presses (#111)", async () => {
+      mockSettings.ankiCardMode = true;
+      mockSettings.ankiGroupQuestions = true;
+      mockSettings.ankiAskIncorrectPart = true;
+      mockSettings.ankiButtonlessMode = true;
+      const onAnswer = jest.fn();
+      const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      const pane = screen.getByLabelText("Buttonless anki controls");
+      const tap = { nativeEvent: { pageX: 0, pageY: 300 } };
+      fireEvent(pane, "responderGrant", tap);
+      fireEvent(pane, "responderRelease", tap);
+      expect(screen.getByText("What was incorrect?")).toBeTruthy();
+      expect(pane.props.onStartShouldSetResponder()).toBe(false);
+      fireEvent.press(screen.getByLabelText("Reading wrong"));
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(2));
+      expect(onAnswer).toHaveBeenNthCalledWith(1, audioItem, "meaning", true, false, true);
+      expect(onAnswer).toHaveBeenNthCalledWith(2, audioItem, "reading", false, true, true);
+    });
+    it("returns to ordinary grading if the chooser preference is turned off while open (#111)", async () => {
+      mockSettings.ankiCardMode = true;
+      mockSettings.ankiGroupQuestions = true;
+      mockSettings.ankiAskIncorrectPart = true;
+      const onAnswer = jest.fn();
+      const props = { item: audioItem, questionType: "meaning" as const, onAnswer };
+      const screen = render(<ReviewQuestionScreen {...props} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      fireEvent.press(screen.getByText("Wrong"));
+      mockSettings.ankiAskIncorrectPart = false;
+      screen.rerender(<ReviewQuestionScreen {...props} />);
+      expect(screen.queryByText("What was incorrect?")).toBeNull();
+      expect(onAnswer).not.toHaveBeenCalled();
+      fireEvent.press(screen.getByText("Wrong"));
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(2));
+      expect(onAnswer).toHaveBeenNthCalledWith(1, audioItem, "meaning", false, true, true);
+      expect(onAnswer).toHaveBeenNthCalledWith(2, audioItem, "reading", false, true, true);
+    });
+    it.each([false, undefined])("marks both grouped parts wrong without asking when the preference is %s (#111)", async (preference) => {
+      mockSettings.ankiCardMode = true;
+      mockSettings.ankiGroupQuestions = true;
+      Object.assign(mockSettings, { ankiAskIncorrectPart: preference });
+      const onAnswer = jest.fn();
+      const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      fireEvent.press(screen.getByText("Wrong"));
+      expect(screen.queryByText("What was incorrect?")).toBeNull();
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(2));
+      expect(onAnswer).toHaveBeenNthCalledWith(1, audioItem, "meaning", false, true, true);
+      expect(onAnswer).toHaveBeenNthCalledWith(2, audioItem, "reading", false, true, true);
+    });
+
+    it("cancels mistake selection without grading and can then mark the card correct (#111)", async () => {
+      mockSettings.ankiCardMode = true;
+      mockSettings.ankiGroupQuestions = true;
+      mockSettings.ankiAskIncorrectPart = true;
+      const onAnswer = jest.fn();
+      const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      fireEvent.press(screen.getByText("Wrong"));
+      fireEvent.press(screen.getByLabelText("Cancel mistake selection"));
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(screen.queryByText("What was incorrect?")).toBeNull();
+      fireEvent.press(screen.getByText("Correct"));
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(2));
+      expect(onAnswer).toHaveBeenNthCalledWith(1, audioItem, "meaning", true, false, true);
+      expect(onAnswer).toHaveBeenNthCalledWith(2, audioItem, "reading", true, false, true);
+    });
     it.each([false, true])(
       "reveals from a background tap without grading or treating a drag as a tap (buttonless: %s)",
       (buttonless) => {

@@ -1,5 +1,8 @@
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
@@ -13,7 +16,7 @@ export function WidgetSection() {
     <>
       {/* Widget Section */}
       {showWidgetsSection && (
-        <View
+        <SettingsSectionSurface
           style={[
             styles.section,
             {
@@ -46,9 +49,11 @@ export function WidgetSection() {
             />
             <View style={styles.settingTextContainer}>
               <View style={styles.settingRow}>
-                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                <SettingsLabel
+                  style={[styles.settingText, { color: theme.textColor }]}
+                >
                   Home Widget
-                </Text>
+                </SettingsLabel>
                 <View style={styles.betaBadge}>
                   <Text style={styles.betaBadgeText}>BETA</Text>
                 </View>
@@ -65,7 +70,7 @@ export function WidgetSection() {
               color={theme.textSecondary}
             />
           </TouchableOpacity>
-        </View>
+        </SettingsSectionSurface>
       )}
     </>
   );

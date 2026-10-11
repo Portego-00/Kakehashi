@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
+
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useMemo } from "react";
@@ -125,15 +126,15 @@ export default function TabSettings() {
         style={[
           styles.header,
           {
-            backgroundColor: theme.headerBackground,
+            backgroundColor: theme.backgroundColor,
             paddingTop: 60,
           },
         ]}
       >
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={theme.headerText} />
+          <Ionicons name="arrow-back" size={24} color={theme.textColor} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.headerText }]}>
+        <Text style={[styles.title, { color: theme.textColor }]}>
           Customize Tabs
         </Text>
         <View style={styles.headerSpacer} />

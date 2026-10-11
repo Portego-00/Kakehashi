@@ -25,6 +25,10 @@ const routerMock = vi.hoisted(() => ({
   replace: vi.fn<(href: string) => void>(),
 }));
 
+// Persistence tests isolate the navigation/disclosure layer; its accessible flows are tested separately.
+vi.mock("./SettingsSearch", () => ({ SettingsSearch: ({children,actions}: {children:React.ReactNode;actions:React.ReactNode}) => <>{actions}{children}</> }));
+vi.mock("./settings-disclosure", () => ({ SettingsDisclosure: ({children,title}: {children:React.ReactNode;title:string}) => <div><h3>{title}</h3>{children}</div> }));
+
 vi.mock("@/lib/session", () => ({
   useSession: () => sessionMock,
 }));
@@ -71,11 +75,11 @@ it("includes JPDB tools in the demo without showing a personal credential field"
 it("saves the Multiple Choice setting from Reviews with its Anki explanation", async () => {
   localStorage.clear();
   render(<SettingsWorkspace />);
-  const toggle = await screen.findByRole("checkbox", { name: /^Multiple Choice/ });
-  expect(toggle).not.toBeChecked();
+  const toggle = await screen.findByRole("radio", { name: "Multiple choice" });
+  expect(toggle).toHaveAttribute("aria-checked", "false");
   fireEvent.click(toggle);
   await waitFor(() => expect(JSON.parse(localStorage.getItem(settingsStorageKey("Tester"))!).study.reviewMultipleChoiceEnabled).toBe(true));
-  expect(screen.getByText(/Choose from similar readings and related meanings/)).toHaveTextContent("Anki questions keep their current behavior");
+  expect(toggle).toHaveAttribute("aria-checked", "true");
 });
 
 function dataTransfer() {
@@ -285,7 +289,7 @@ describe("review question preferences", () => {
     expect(within(lessonsSection!).getByRole("combobox", { name: "Lesson batch size" })).toBeInTheDocument();
     expect(within(lessonsSection!).getByRole("combobox", { name: "Lesson question order" })).toBeInTheDocument();
     expect(within(reviewsSection!).getByRole("heading", { level: 3, name: "Review order" })).toBeInTheDocument();
-    expect(within(reviewsSection!).getByRole("heading", { name: "Anki mode" })).toBeInTheDocument();
+    expect(within(reviewsSection!).getByRole("radio", { name: "Anki cards" })).toBeInTheDocument();
     expect(within(reviewsSection!).getByText("Used by custom reviews.")).toBeInTheDocument();
     expect(within(reviewsSection!).queryByText(/custom lesson quizzes/i)).not.toBeInTheDocument();
 
@@ -326,8 +330,11 @@ describe("review question preferences", () => {
   it("uses the familiar Anki mode name everywhere", () => {
     render(<SettingsWorkspace />);
 
+    expect(screen.queryByRole("heading", { name: "Anki mode" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Anki cards" }));
     expect(screen.getByRole("heading", { name: "Anki mode" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Anki mode" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Answer mode" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Anki cards" })).toBeInTheDocument();
     expect(screen.queryByText(/Self-assessment cards/i)).not.toBeInTheDocument();
   });
 
@@ -356,7 +363,7 @@ describe("review question preferences", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Allow skipping reviews/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Accept user synonyms/i }));
     fireEvent.change(screen.getByRole("combobox", { name: /SRS progression/i }), { target: { value: "compact" } });
-    fireEvent.change(screen.getByRole("combobox", { name: /Anki mode/i }), { target: { value: "both" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Anki cards" }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Group meaning and reading/i }));
     fireEvent.change(screen.getByRole("combobox", { name: "Combined Anki details tab" }), { target: { value: "reading" } });
     fireEvent.change(screen.getByRole("combobox", { name: /Review character size/i }), { target: { value: "0.3" } });
@@ -380,15 +387,13 @@ describe("review question preferences", () => {
 
   it("clears grouped grading when Anki mode no longer applies to both question types", async () => {
     render(<SettingsWorkspace />);
-    const mode = await screen.findByRole("combobox", { name: /Anki mode/i });
-
-    fireEvent.change(mode, { target: { value: "both" } });
+    fireEvent.click(await screen.findByRole("radio", { name: "Anki cards" }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Group meaning and reading/i }));
-    fireEvent.change(mode, { target: { value: "meaning" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Meanings" }));
 
     const study = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study;
     expect(study).toMatchObject({ ankiMode: "meaning", ankiGroupQuestions: false });
-    expect(screen.getByText('Only available when “Meanings and readings” is selected.')).toBeInTheDocument();
+    expect(screen.getByText('Choose Both above to group meanings and readings.')).toBeInTheDocument();
   });
 });
 
@@ -454,12 +459,25 @@ describe("Japanese context voice download", () => {
 describe("reader integrations", () => {
   beforeEach(() => window.localStorage.clear());
 
+  it("switches screen previews without changing recognition, and supports keyboard selection", () => {
+    render(<SettingsWorkspace />);
+    const radios = screen.getByRole("radiogroup", { name: "Text recognition" });
+    const before = window.localStorage.getItem(settingsStorageKey("Tester"));
+    fireEvent.click(screen.getByRole("button", { name: "Song lyrics" }));
+    expect(radios.querySelector('[data-screen-preview="lyrics-wk"]')).toBeInTheDocument();
+    expect(radios.querySelector('[data-screen-preview="lyrics-full"]')).toBeInTheDocument();
+    expect(window.localStorage.getItem(settingsStorageKey("Tester"))).toBe(before);
+    fireEvent.keyDown(within(radios).getByRole("radio", { name: "WaniKani + JPDB" }), { key: "Home" });
+    expect(within(radios).getByRole("radio", { name: "WaniKani only" })).toHaveAttribute("aria-checked", "true");
+    expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").reader.recognitionMode).toBe("wk");
+  });
+
   it("persists shared reader interaction and recognition preferences", () => {
     render(<SettingsWorkspace />);
 
     expect(screen.getByText("JPDB API key").closest("label")).toHaveAttribute("id", "jpdb-api-key");
     fireEvent.change(screen.getByRole("combobox", { name: /Word details/ }), { target: { value: "hover" } });
-    fireEvent.change(screen.getByRole("combobox", { name: /Text recognition/ }), { target: { value: "wk" } });
+    fireEvent.click(screen.getByRole("radio", { name: "WaniKani only" }));
 
     expect(JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").reader).toEqual({
       detailsInteraction: "hover",
@@ -645,7 +663,7 @@ it("saves custom daily lesson limits and the restored hide-answer setting", () =
   window.localStorage.clear();
   render(<SettingsWorkspace />);
   fireEvent.change(screen.getByRole("spinbutton", { name: "Daily lesson limit" }), { target: { value: "7" } });
-  fireEvent.change(screen.getByRole("combobox", { name: "Anki mode" }), { target: { value: "both" } });
+  fireEvent.click(screen.getByRole("radio", { name: "Anki cards" }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Hide answer completely/ }));
   const saved = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester"))!);
   expect(saved.study.dailyLessonLimit).toBe(7);

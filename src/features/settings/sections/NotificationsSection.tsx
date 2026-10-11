@@ -1,5 +1,9 @@
+import { SettingsRowIcon } from "../../../ui/settings/settings-row-icon";
+import { SettingsSectionSurface } from "../../../ui/settings/settings-section-surface";
+import { SettingsLabel } from "../../../ui/settings/settings-search";
+import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import React from "react";
-import { Ionicons } from "@expo/vector-icons";
+
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 
 import {
@@ -40,7 +44,7 @@ export function NotificationsSection() {
   return (
     <>
       {/* Notifications Section */}
-      <View
+      <SettingsSectionSurface
         style={[
           styles.section,
           {
@@ -65,16 +69,14 @@ export function NotificationsSection() {
           <View
             style={[styles.settingItem, { borderBottomColor: theme.border }]}
           >
-            <Ionicons
-              name="notifications"
-              size={24}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
+
+            <SettingsRowIcon setting="badge-notify" color={theme.primary} />
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
+              <SettingsLabel
+                style={[styles.settingText, { color: theme.textColor }]}
+              >
                 App Badge Notifications
-              </Text>
+              </SettingsLabel>
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
@@ -101,16 +103,14 @@ export function NotificationsSection() {
             },
           ]}
         >
-          <Ionicons
-            name="alarm"
-            size={24}
-            color={theme.primary}
-            style={styles.settingIcon}
-          />
+
+          <SettingsRowIcon setting="review-notify" color={theme.primary} />
           <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: theme.textColor }]}>
+            <SettingsLabel
+              style={[styles.settingText, { color: theme.textColor }]}
+            >
               Review Notifications
-            </Text>
+            </SettingsLabel>
             <Text
               style={[styles.settingSubtext, { color: theme.textSecondary }]}
             >
@@ -130,16 +130,14 @@ export function NotificationsSection() {
             <View
               style={[styles.settingItem, { borderBottomColor: theme.border }]}
             >
-              <Ionicons
-                name="time"
-                size={24}
-                color={theme.primary}
-                style={styles.settingIcon}
-              />
+
+              <SettingsRowIcon setting="daily-review-reminder" color={theme.primary} />
               <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                <SettingsLabel
+                  style={[styles.settingText, { color: theme.textColor }]}
+                >
                   Daily Review Reminder
-                </Text>
+                </SettingsLabel>
                 <Text
                   style={[
                     styles.settingSubtext,
@@ -161,16 +159,14 @@ export function NotificationsSection() {
             <View
               style={[styles.settingItem, { borderBottomColor: theme.border }]}
             >
-              <Ionicons
-                name="book-outline"
-                size={24}
-                color={theme.primary}
-                style={styles.settingIcon}
-              />
+
+              <SettingsRowIcon setting="daily-lesson-reminder" color={theme.primary} />
               <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                <SettingsLabel
+                  style={[styles.settingText, { color: theme.textColor }]}
+                >
                   Daily Lesson Reminder
-                </Text>
+                </SettingsLabel>
                 <Text
                   style={[
                     styles.settingSubtext,
@@ -203,11 +199,11 @@ export function NotificationsSection() {
                   style={styles.settingIcon}
                 />
                 <View style={styles.settingTextContainer}>
-                  <Text
+                  <SettingsLabel
                     style={[styles.settingText, { color: theme.textColor }]}
                   >
                     Minimum Daily Lessons
-                  </Text>
+                  </SettingsLabel>
                   <Text
                     style={[
                       styles.settingSubtext,
@@ -307,9 +303,11 @@ export function NotificationsSection() {
                 style={styles.settingIcon}
               />
               <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: theme.textColor }]}>
+                <SettingsLabel
+                  style={[styles.settingText, { color: theme.textColor }]}
+                >
                   Reminder Time
-                </Text>
+                </SettingsLabel>
                 <Text
                   style={[
                     styles.settingSubtext,
@@ -338,37 +336,41 @@ export function NotificationsSection() {
 
         {__DEV__ && (
           <AdvancedSettingsGroup>
-          <AdvancedSetting>
-          <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: "transparent" }]}
-            onPress={handleShowPendingNotifications}
-          >
-            <Ionicons
-              name="list"
-              size={24}
-              color={theme.primary}
-              style={styles.settingIcon}
-            />
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme.textColor }]}>
-                View Scheduled Notifications
-              </Text>
-              <Text
-                style={[styles.settingSubtext, { color: theme.textSecondary }]}
+            <AdvancedSetting>
+              <TouchableOpacity
+                style={[
+                  styles.settingItem,
+                  { borderBottomColor: "transparent" },
+                ]}
+                onPress={handleShowPendingNotifications}
               >
-                Debug: See all pending notifications and badges
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
-          </AdvancedSetting>
+
+                <SettingsRowIcon setting="scheduled-notify" color={theme.primary} />
+                <View style={styles.settingTextContainer}>
+                  <SettingsLabel
+                    style={[styles.settingText, { color: theme.textColor }]}
+                  >
+                    View Scheduled Notifications
+                  </SettingsLabel>
+                  <Text
+                    style={[
+                      styles.settingSubtext,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Debug: See all pending notifications and badges
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </AdvancedSetting>
           </AdvancedSettingsGroup>
         )}
-      </View>
+      </SettingsSectionSurface>
     </>
   );
 }
