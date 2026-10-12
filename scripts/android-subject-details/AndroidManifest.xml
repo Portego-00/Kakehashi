@@ -1,0 +1,1 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.portego00.kakehashi.probe"><uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36"/><application android:label="Issue 110 probe"/><instrumentation android:name="com.portego00.kakehashi.SubjectDetailsResponsivenessTest" android:targetPackage="com.portego00.kakehashi"/></manifest>
