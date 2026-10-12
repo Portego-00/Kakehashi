@@ -28,6 +28,7 @@ const PACK_FILTERS = ["All packs", "My packs", "Kana", "Kanji"];
 const STAGE_NAMES = ["New lesson", "Apprentice I", "Apprentice II", "Apprentice III", "Apprentice IV", "Guru I", "Guru II", "Master", "Enlightened", "Burned"];
 
 export function customVocabularyPackLabel(pack: CustomVocabularyPack) {
+  if (pack.id.startsWith("personal:")) return "Personal deck";
   if (pack.levelRange) return `Kanji · Levels ${pack.levelRange.min}–${pack.levelRange.max}`;
   return pack.script === "hiragana" ? "Hiragana" : pack.script === "katakana" ? "Katakana" : "Kana";
 }
@@ -41,12 +42,13 @@ function assignmentLabel(assignment?: CustomSrsAssignment) {
 export default function CustomVocabularyHub({ packId }: { packId?: string } = {}) {
   const params = useLocalSearchParams<{ packId?: string }>();
   const selectedPackId = packId ?? params.packId;
-  const selectedPack = selectedPackId ? getCustomVocabularyPack(selectedPackId) : undefined;
   const { theme } = useTheme();
   const colors = useSubjectColors();
   const vocabularyInk = getBestContrastTextColor(colors.vocabulary);
   const insets = useSafeAreaInsets();
   const customSrs = useCustomSrs();
+  const allPacks = customSrs.packs ?? CUSTOM_VOCABULARY_PACKS;
+  const selectedPack = selectedPackId ? allPacks.find((pack) => pack.id === selectedPackId) : undefined;
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState(0);
   const [enrolling, setEnrolling] = useState(false);
@@ -54,13 +56,13 @@ export default function CustomVocabularyHub({ packId }: { packId?: string } = {}
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const enrolledIds = useMemo(() => new Set(customSrs.state.enrolledPackIds), [customSrs.state.enrolledPackIds]);
-  const packs = useMemo(() => CUSTOM_VOCABULARY_PACKS.filter((pack) => {
+  const packs = useMemo(() => allPacks.filter((pack) => {
     if (filter === 1 && !enrolledIds.has(pack.id)) return false;
-    if (filter === 2 && pack.script === "kanji") return false;
-    if (filter === 3 && pack.script !== "kanji") return false;
+    if (filter === 2 && !pack.words.some((word) => !customWordUsesKanji(word))) return false;
+    if (filter === 3 && !pack.words.some(customWordUsesKanji)) return false;
     return !normalizedQuery || `${pack.title} ${pack.description}`.toLocaleLowerCase().includes(normalizedQuery)
       || pack.words.some((word) => `${word.characters} ${word.reading} ${word.meanings.join(" ")}`.toLocaleLowerCase().includes(normalizedQuery));
-  }), [enrolledIds, filter, normalizedQuery]);
+  }), [allPacks, enrolledIds, filter, normalizedQuery]);
   const words = useMemo(() => selectedPack?.words.filter((word) => !normalizedQuery
     || `${word.characters} ${word.reading} ${word.meanings.join(" ")}`.toLocaleLowerCase().includes(normalizedQuery)) ?? [], [selectedPack, normalizedQuery]);
   const progress = selectedPack ? customPackProgress(customSrs.state, selectedPack) : undefined;
@@ -137,6 +139,10 @@ export default function CustomVocabularyHub({ packId }: { packId?: string } = {}
 
   const header = (
     <View style={styles.listHeader}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/custom-vocabulary/library", params: selectedPack?.id.startsWith("personal:") ? { deckId: selectedPack.id } : {} } as never)} style={styles.retry}><Text style={{ color: colors.vocabulary }}>Manage personal decks</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/custom-vocabulary/settings" as never)} style={styles.retry}><Text style={{ color: colors.vocabulary }}>Scheduling settings</Text></Pressable>
+      </View>
       {selectedPack ? <>
         <View style={[styles.packSummary, { backgroundColor: theme.cardBackground }]}>
           <View style={styles.cardHeading}>
@@ -182,7 +188,7 @@ export default function CustomVocabularyHub({ packId }: { packId?: string } = {}
       {!selectedPack ? <SegmentedControl values={PACK_FILTERS} selectedIndex={filter} onChange={(event) => setFilter(event.nativeEvent.selectedSegmentIndex)} appearance={theme.isDark ? "dark" : "light"} style={styles.filters} /> : null}
       <View style={styles.sectionHeading}>
         <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.textColor }]}>{selectedPack ? "Vocabulary" : PACK_FILTERS[filter]}</Text>
-        <Text selectable style={[styles.meta, { color: theme.textSecondary }]}>{selectedPack ? `${words.length} words` : normalizedQuery || filter > 0 ? `${packs.length} packs` : `${CUSTOM_VOCABULARY_PACKS.length} packs · ${CUSTOM_VOCABULARY_WORDS.length} words`}</Text>
+      <Text selectable style={[styles.meta, { color: theme.textSecondary }]}>{selectedPack ? `${words.length} words` : normalizedQuery || filter > 0 ? `${packs.length} packs` : `${allPacks.length} packs · ${allPacks.reduce((total, pack) => total + pack.words.length, 0)} words`}</Text>
       </View>
       {customSrs.loading ? <ActivityIndicator accessibilityLabel="Loading cloud progress" color={colors.vocabulary} /> : null}
     </View>
@@ -234,7 +240,7 @@ export default function CustomVocabularyHub({ packId }: { packId?: string } = {}
     </Pressable>;
   }
 
-  if (selectedPackId && !selectedPack) return <View style={[styles.screen, { backgroundColor: theme.backgroundColor }]}>
+  if (selectedPackId && !selectedPack && !customSrs.loading) return <View style={[styles.screen, { backgroundColor: theme.backgroundColor }]}>
     <Stack.Screen options={{ headerShown: false, title: "Vocabulary packs" }} />
     <CustomVocabularyHeader title="Vocabulary packs" onBack={goBack} />
     <View style={styles.empty}>

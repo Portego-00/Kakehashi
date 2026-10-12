@@ -1,6 +1,8 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
 import type ReviewQuestionScreen from '../../src/components/ReviewQuestionScreen';
+import type ReviewResultsScreen from '../../src/components/ReviewResultsScreen';
+import { loadExtraStudySessionState } from '../../src/utils/extraStudySessionPersistence';
 import CustomReviewScreen from '../(app)/custom-review';
 import {
   getAllAssignmentsCached,
@@ -12,6 +14,7 @@ import { useAuthStore, useSettingsStore } from '../../src/utils/store';
 
 const mockUseLocalSearchParams = jest.fn();
 let mockReviewProps: React.ComponentProps<typeof ReviewQuestionScreen>;
+let mockResultsProps: React.ComponentProps<typeof ReviewResultsScreen>;
 
 jest.mock('expo-router', () => ({
   router: {
@@ -63,10 +66,16 @@ jest.mock('../../src/utils/theme', () => ({
 
 jest.mock('../../src/components/ReviewResultsScreen', () => {
   const React = jest.requireActual('react');
-  const { Text } = jest.requireActual('react-native');
+  const { Text, TouchableOpacity, View } = jest.requireActual('react-native');
 
-  return function MockReviewResultsScreen() {
-    return <Text>Custom review results</Text>;
+  return function MockReviewResultsScreen(props: React.ComponentProps<typeof ReviewResultsScreen>) {
+    mockResultsProps = props;
+    return <View>
+      <Text>Custom review results</Text>
+      <TouchableOpacity onPress={props.onRedo} accessibilityLabel="Redo">
+        <Text>Redo</Text>
+      </TouchableOpacity>
+    </View>;
   };
 });
 
@@ -84,6 +93,7 @@ jest.mock('../../src/components/ReviewQuestionScreen', () => {
     } = props;
     return (
       <View>
+        <Text testID="custom-review-question">{props.questionType}</Text>
         {isWrapUpMode ? (
           <TouchableOpacity onPress={onWrapUp}>
             <Text>Wrapping Up ({remainingSubjectsCount} left)</Text>
@@ -101,6 +111,7 @@ jest.mock('../../src/components/ReviewQuestionScreen', () => {
 describe('CustomReview Screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (loadExtraStudySessionState as jest.Mock).mockResolvedValue(null);
 
     (useAuthStore as unknown as jest.Mock).mockReturnValue({
       apiToken: 'test-token',
@@ -123,6 +134,98 @@ describe('CustomReview Screen', () => {
     (getSubjects as jest.Mock).mockResolvedValue({
       data: [],
     });
+  });
+
+  it.each([false, true])('restarts the whole session with fresh answers and progress (grouped: %s)', async (grouped) => {
+    (useSettingsStore as unknown as jest.Mock).mockReturnValue({
+      ankiCardMode: grouped,
+      ankiGroupQuestions: grouped,
+      ankiCardModeScope: 'both',
+      customReviewOrder: 'lowestLevelFirst',
+      backToBackQuestions: true,
+      reviewQuestionOrderEnabled: true,
+      meaningFirst: true,
+    });
+    const subjects = [1001, 1002].map((id) => ({
+      id, object: 'kanji', data: { level: id - 1000, characters: '漢',
+        meanings: [{ meaning: 'Chinese', primary: true }],
+        readings: [{ reading: 'かん', primary: true }],
+      },
+    }));
+    mockUseLocalSearchParams.mockReturnValue({ subjectIds: '1001,1002', resume: 'false' });
+    (getAllSubjects as jest.Mock).mockResolvedValue(subjects);
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [] });
+    const screen = render(<CustomReviewScreen />);
+    await screen.findByTestId('custom-review-question');
+    expect(mockReviewProps.item.subject.id).toBe(1001);
+
+    const answer = (correct: boolean) => act(() => {
+      const question = mockReviewProps;
+      if (grouped) {
+        question.onAnswer(question.item, 'meaning', correct, !correct, true);
+        question.onAnswer(question.item, 'reading', correct, !correct, true);
+      } else {
+        question.onAnswer(question.item, question.questionType, correct, !correct, false);
+      }
+    });
+    const finish = async () => {
+      for (let index = 0; index < 8 && screen.queryByTestId('custom-review-question'); index += 1) {
+        answer(true);
+      }
+      await screen.findByText('Custom review results');
+    };
+
+    answer(false);
+    await finish();
+    expect(mockResultsProps.reviewItems.some((item) => item.meaningIncorrect > 0)).toBe(true);
+
+    for (let repetition = 0; repetition < 2; repetition += 1) {
+      fireEvent.press(screen.getByLabelText('Redo'));
+      expect(screen.queryByText('Custom review results')).toBeNull();
+      expect(mockReviewProps.item.subject.id).toBe(1001);
+      expect(mockReviewProps.currentItem).toBe(0);
+      expect(mockReviewProps.totalItems).toBe(2);
+      expect(mockReviewProps.correctAnswersCount).toBe(0);
+      await finish();
+      expect(mockResultsProps.progress.completedItems).toBe(2);
+      expect(mockResultsProps.progress.answeredCount).toBe(grouped ? 2 : 4);
+      expect(mockResultsProps.reviewItems).toEqual(expect.arrayContaining([
+        expect.objectContaining({ subjectId: 1001, meaningIncorrect: 0, readingIncorrect: 0 }),
+        expect.objectContaining({ subjectId: 1002, meaningIncorrect: 0, readingIncorrect: 0 }),
+      ]));
+    }
+    expect(getAllSubjects).toHaveBeenCalledTimes(1);
+    expect(getAllAssignmentsCached).toHaveBeenCalledTimes(1);
+  });
+
+  it('restarts a resumed session without needing route subject IDs', async () => {
+    mockUseLocalSearchParams.mockReturnValue({ resume: 'true' });
+    const subject = { id: 1001, object: 'radical', data: { level: 1, characters: '一',
+      meanings: [{ meaning: 'ground', primary: true }],
+    } };
+    (loadExtraStudySessionState as jest.Mock).mockResolvedValue({
+      reviewItems: [{ id: 1001, assignmentId: -1001, subjectId: 1001, subject,
+        meaningDone: false, readingDone: false, meaningIncorrect: 1, readingIncorrect: 0,
+      }],
+      activeQueue: [{ itemId: 1001, type: 'meaning' }],
+      currentQuestion: { itemId: 1001, type: 'meaning' },
+      progress: { totalItems: 1, answeredCount: 1 },
+      isWrapUpMode: true,
+      sessionUsesAnkiGrouping: false,
+    });
+    const screen = render(<CustomReviewScreen />);
+    await screen.findByTestId('custom-review-question');
+    expect(mockReviewProps.item.subject.id).toBe(1001);
+    act(() => mockReviewProps.onAnswer(mockReviewProps.item, 'meaning', true, false, false));
+    await screen.findByText('Custom review results');
+    fireEvent.press(screen.getByLabelText('Redo'));
+    expect(mockReviewProps.isWrapUpMode).toBe(false);
+    expect(mockReviewProps.correctAnswersCount).toBe(0);
+    act(() => mockReviewProps.onAnswer(mockReviewProps.item, 'meaning', true, false, false));
+    await screen.findByText('Custom review results');
+    expect(mockResultsProps.reviewItems[0].meaningIncorrect).toBe(0);
+    expect(mockResultsProps.progress.completedItems).toBe(1);
+    expect(getAllSubjects).not.toHaveBeenCalled();
   });
 
   it('should toggle custom review wrap up back to the full queue', async () => {

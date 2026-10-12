@@ -339,12 +339,15 @@ describe("core study prompt layout", () => {
     expect(screen.queryByRole("button", { name: "Reveal answer" })).not.toBeInTheDocument();
   });
 
-  it("falls back to typing when the catalog has too few distinct answers", async () => {
+  it("keeps four selectable choices when the catalog has too few distinct answers", async () => {
     fixtures.settings.study.reviewMultipleChoiceEnabled = true;
+    fixtures.settings.study.pauseOnCorrect = true;
     renderSession("reviews");
-    expect(await screen.findByText(/Not enough distinct choices/)).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Your answer" })).toBeVisible();
-    await submitAnswer("River", "meaning");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    expect(within(group).getAllByRole("button")).toHaveLength(4);
+    expect(screen.queryByText(/Not enough distinct choices/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. River$/ }));
     expect(screen.getByText("Correct", { exact: true })).toBeInTheDocument();
   });
 
@@ -372,12 +375,14 @@ describe("core study prompt layout", () => {
     expect(await screen.findByRole("group", { name: "Answer choices" })).toBeVisible();
   });
 
-  it("keeps typing available when the choice catalog cannot be loaded", async () => {
+  it("keeps multiple choice available when the choice catalog cannot be loaded", async () => {
     fixtures.settings.study.reviewMultipleChoiceEnabled = true;
     fixtures.choiceCatalogError = true;
     renderSession("reviews");
-    expect(await screen.findByRole("textbox", { name: "Your answer" }, { timeout: 3000 })).toBeVisible();
-    expect(screen.getByText(/Not enough distinct choices/)).toBeVisible();
+    const group = await screen.findByRole("group", { name: "Answer choices" }, { timeout: 3000 });
+    expect(within(group).getAllByRole("button")).toHaveLength(4);
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Not enough distinct choices/)).not.toBeInTheDocument();
   });
 
   it("keeps an active review available when a background Vacation Mode check fails", async () => {

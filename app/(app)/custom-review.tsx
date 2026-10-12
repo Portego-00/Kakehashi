@@ -28,7 +28,6 @@ import {
   buildReviewQuestionQueue,
   generateReviewQuestions,
   sortReviewItemsForQueue,
-  type OrderableReviewItem,
   type ReviewQueueQuestion,
 } from "../../src/utils/reviewOrdering";
 import {
@@ -311,6 +310,42 @@ export default function CustomReviewScreen() {
     studyMaterialsMap,
   ]);
 
+  const startCustomReview = useCallback((items: ReviewItem[]) => {
+    const sortedItems = sortReviewItemsForQueue(items, {
+      reviewOrder: customReviewOrder,
+    });
+    const allQuestions = generateReviewQuestions(sortedItems, {
+      groupQuestions: effectiveAnkiGrouping,
+    });
+    const orderedQuestions = buildReviewQuestionQueue(sortedItems, {
+      groupQuestions: effectiveAnkiGrouping,
+      backToBack: backToBackQuestions && !effectiveAnkiGrouping,
+      questionTypeOrderEnabled: reviewQuestionOrderEnabled,
+      questionTypeOrder: preferredQuestionType,
+      maxQuestionGap: 10,
+    });
+
+    groupedMeaningResultRef.current.clear();
+    wrapUpDeferredQuestionsRef.current = [];
+    setIsWrapUpMode(false);
+    setIsFinished(false);
+    setSessionUsesAnkiGrouping(effectiveAnkiGrouping);
+    setReviewItems(sortedItems);
+    setActiveQueue(orderedQuestions);
+    setCurrentQuestion(orderedQuestions[0] || null);
+    setProgress({
+      ...EMPTY_PROGRESS_STATE,
+      total: effectiveAnkiGrouping ? sortedItems.length : allQuestions.length / 2,
+      totalItems: sortedItems.length,
+    });
+  }, [
+    customReviewOrder,
+    effectiveAnkiGrouping,
+    backToBackQuestions,
+    reviewQuestionOrderEnabled,
+    preferredQuestionType,
+  ]);
+
   // Load selected subjects
   const loadCustomReview = useCallback(async () => {
     const resumeRequested =
@@ -466,37 +501,7 @@ export default function CustomReviewScreen() {
         readingIncorrectCounted: false,
       }));
 
-      const sortableItems = items as (ReviewItem & OrderableReviewItem)[];
-      const sortedItems = sortReviewItemsForQueue(sortableItems, {
-        reviewOrder: customReviewOrder,
-      });
-      const allQuestions = generateReviewQuestions(sortedItems, {
-        groupQuestions: effectiveAnkiGrouping,
-      });
-      const useBackToBack = backToBackQuestions && !effectiveAnkiGrouping;
-      const orderedQuestions = buildReviewQuestionQueue(sortedItems, {
-        groupQuestions: effectiveAnkiGrouping,
-        backToBack: useBackToBack,
-        questionTypeOrderEnabled: reviewQuestionOrderEnabled,
-        questionTypeOrder: preferredQuestionType,
-        maxQuestionGap: 10,
-      });
-
-      // Set up the review
-      setReviewItems(sortedItems);
-      setActiveQueue(orderedQuestions);
-      setCurrentQuestion(orderedQuestions[0] || null);
-
-      // In grouped mode, 1 question per item; otherwise divide by 2 since each item has meaning+reading
-      const totalForProgress = effectiveAnkiGrouping
-        ? sortedItems.length
-        : allQuestions.length / 2;
-
-      setProgress({
-        ...EMPTY_PROGRESS_STATE,
-        total: totalForProgress,
-        totalItems: sortedItems.length,
-      });
+      startCustomReview(items);
     } catch (error) {
       console.error("Error loading custom review:", error);
       setHasError(true);
@@ -509,10 +514,7 @@ export default function CustomReviewScreen() {
     params.subjectIds,
     effectiveAnkiGrouping,
     acceptUserSynonymsAsAnswers,
-    customReviewOrder,
-    backToBackQuestions,
-    reviewQuestionOrderEnabled,
-    preferredQuestionType,
+    startCustomReview,
     clearSavedCustomReviewSession,
     navigateToDashboard,
     restoreSavedCustomReviewSession,
@@ -852,6 +854,22 @@ export default function CustomReviewScreen() {
     router.replace("/");
   };
 
+  const handleRedo = () => {
+    void clearSavedCustomReviewSession();
+    startCustomReview(reviewItems.map((item) => ({
+      ...item,
+      meaningDone: false,
+      readingDone: false,
+      meaningIncorrect: 0,
+      readingIncorrect: 0,
+      progressCounted: false,
+      meaningCorrectlyAnswered: false,
+      readingCorrectlyAnswered: false,
+      meaningIncorrectCounted: false,
+      readingIncorrectCounted: false,
+    })));
+  };
+
   // Render current question
   const renderCurrentQuestion = () => {
     if (!currentQuestion) return null;
@@ -977,6 +995,7 @@ export default function CustomReviewScreen() {
           progress={progress}
           submittingResults={false} // No submission for custom reviews
           onBackToDashboard={handleBackToDashboard}
+          onRedo={handleRedo}
         />
       )}
     </View>

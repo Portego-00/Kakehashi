@@ -3,7 +3,8 @@ import { parseCustomSrsStateStrict } from "../../../web/src/features/custom-srs/
 import { expandCustomSrsWireResult } from "../../../web/src/features/custom-srs/transport";
 import { createCustomSrsPendingStore } from "./pending";
 import { customVocabularyPacks } from "./catalog";
-import type { CustomSrsMutation, CustomSrsState } from "./types";
+import { EMPTY_PERSONAL_LIBRARY, parsePersonalLibrary, type PersonalLibrary, type PersonalMutation } from "./personal-library";
+import type { CustomSrsMutation, CustomSrsSettingsMutation, CustomSrsState } from "./types";
 
 export type CustomSrsAccount = { id: string; token: string };
 export type CustomSrsSnapshot = {
@@ -13,6 +14,8 @@ export type CustomSrsSnapshot = {
   loading: boolean;
   syncing: boolean;
   error: string | null;
+  library: PersonalLibrary;
+  pendingCount: number;
 };
 type CloudResult = { state: CustomSrsState; revision: number };
 
@@ -20,14 +23,16 @@ type CloudResult = { state: CustomSrsState; revision: number };
 export class CustomSrsConflictError extends Error {
   readonly status = 409;
 
-  constructor() {
-    super("Your progress changed on another device. Refresh and try again.");
+  constructor(message = "Your progress changed on another device. Refresh and try again.") {
+    super(message);
     this.name = "CustomSrsConflictError";
   }
 }
 
 type Dependencies = {
-  request: (token: string, action: CustomSrsMutation | { action: "read" }, previous?: CloudResult) => Promise<CloudResult>;
+  request: (token: string, action: CustomSrsMutation | CustomSrsSettingsMutation | { action: "read" }, previous?: CloudResult) => Promise<CloudResult>;
+  requestLibrary?: (token: string, base: PersonalLibrary) => Promise<PersonalLibrary>;
+  mutateLibrary?: (token: string, action: PersonalMutation) => Promise<{ revision: number; added: number; skipped: number; changed: number }>;
   cache: { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<void> };
 };
 
@@ -58,7 +63,7 @@ export function createCustomSrsClient(dependencies: Dependencies) {
   let generation = 0;
   let snapshot: CustomSrsSnapshot = {
     accountId: null, state: createCustomSrsState(), revision: -1,
-    loading: false, syncing: false, error: null,
+    loading: false, syncing: false, error: null, library: EMPTY_PERSONAL_LIBRARY, pendingCount: 0,
   };
   let refreshRequest: Promise<CustomSrsState> | null = null;
   let mutationTail: Promise<unknown> = Promise.resolve();
@@ -94,7 +99,7 @@ export function createCustomSrsClient(dependencies: Dependencies) {
   const accept = async (result: CloudResult, expected: number) => {
     requireCurrent(expected);
     if (result.revision >= snapshot.revision) {
-      emit({ state: result.state, revision: result.revision, loading: false, error: null });
+      emit({ state: result.state, revision: result.revision, loading: Boolean(dependencies.requestLibrary && (result.state.personalLibraryRevision ?? 0) > snapshot.library.revision), error: null });
       const cacheKey = customSrsCacheKey(account!.id);
       const cachedResult = JSON.stringify({ available: true, ...result });
       // Disk is only a convenience: keep one in-flight write and only the newest
@@ -112,6 +117,8 @@ export function createCustomSrsClient(dependencies: Dependencies) {
   };
   const drainPending = async (current: CustomSrsAccount, expected: number) => {
     const pending = await pendingStore.read(current.id);
+    requireCurrent(expected);
+    emit({ pendingCount: pending.length });
     for (const action of pending) {
       requireCurrent(expected);
       let result: CloudResult;
@@ -126,7 +133,21 @@ export function createCustomSrsClient(dependencies: Dependencies) {
       await accept(result, expected);
       // If this write fails, replay with the same event ID after restart.
       await pendingStore.remove(current.id, action.eventId);
+      requireCurrent(expected);
+      emit({ pendingCount: (await pendingStore.read(current.id)).length });
     }
+  };
+  const syncLibrary = async (current: CustomSrsAccount, expected: number) => {
+    requireCurrent(expected);
+    if (dependencies.requestLibrary && (snapshot.state.personalLibraryRevision ?? 0) > snapshot.library.revision) {
+      const library = await dependencies.requestLibrary(current.token, snapshot.library);
+      requireCurrent(expected);
+      if (library.revision < (snapshot.state.personalLibraryRevision ?? 0)) throw new Error("Your vocabulary library is still syncing. Refresh and try again.");
+      emit({ library, loading: false });
+      pendingCacheWrites.set(`${customSrsCacheKey(current.id)}:library`, JSON.stringify(library));
+      void flushCacheWrites();
+    }
+    return snapshot.state;
   };
   const refresh = (): Promise<CustomSrsState> => {
     if (!account) return Promise.reject(new Error("Custom vocabulary is not available for this account."));
@@ -144,6 +165,7 @@ export function createCustomSrsClient(dependencies: Dependencies) {
       return dependencies.request(current.token, { action: "read" }, { state: snapshot.state, revision: snapshot.revision });
     })
       .then((result) => accept(result, expected))
+      .then(() => syncLibrary(current, expected))
       .catch((error: Error) => {
         if (isCurrent(expected)) emit({ loading: false, error: error.message });
         throw error;
@@ -167,12 +189,17 @@ export function createCustomSrsClient(dependencies: Dependencies) {
       refreshRequest = null;
       mutationTail = Promise.resolve();
       pendingMutations = 0;
-      emit({ accountId: next?.id ?? null, state: createCustomSrsState(), revision: -1, loading: Boolean(next), syncing: false, error: null });
+      emit({ accountId: next?.id ?? null, state: createCustomSrsState(), revision: -1, loading: Boolean(next), syncing: false, error: null, library: EMPTY_PERSONAL_LIBRARY, pendingCount: 0 });
       if (!next) return;
       void dependencies.cache.getItem(customSrsCacheKey(next.id)).then((raw) => {
         if (!raw || !isCurrent(expected)) return;
         const cached = parseCustomSrsCloudResult(JSON.parse(raw));
         if (snapshot.revision < cached.revision) emit({ state: cached.state, revision: cached.revision });
+      }).catch(() => undefined);
+      if (dependencies.requestLibrary) void dependencies.cache.getItem(`${customSrsCacheKey(next.id)}:library`).then((raw) => {
+        if (!raw || !isCurrent(expected)) return;
+        const library = parsePersonalLibrary(JSON.parse(raw));
+        if (library.revision > snapshot.library.revision) emit({ library });
       }).catch(() => undefined);
     },
     refresh,
@@ -192,6 +219,9 @@ export function createCustomSrsClient(dependencies: Dependencies) {
         requireCurrent(expected);
         await pendingStore.add(current.id, guarded);
         requireCurrent(expected);
+        const pending = await pendingStore.read(current.id);
+        requireCurrent(expected);
+        emit({ pendingCount: pending.length });
         onQueued?.();
       });
       // Delivery may still be waiting for an earlier request when disk fails.
@@ -214,14 +244,62 @@ export function createCustomSrsClient(dependencies: Dependencies) {
       mutationTail = request;
       return request;
     },
+    saveSettings(action: CustomSrsSettingsMutation) {
+      return confirmControlMutation(action);
+    },
+    saveLibrary(action: PersonalMutation) {
+      return confirmControlMutation(action);
+    },
   };
+
+  // Library edits and schedule changes require cloud confirmation. Do not put
+  // them in the answer outbox or let them overtake saved study answers.
+  function confirmControlMutation(action: CustomSrsSettingsMutation | PersonalMutation) {
+    if (!account) return Promise.reject(new Error("Custom vocabulary is not available for this account."));
+    if (pendingMutations || snapshot.pendingCount || refreshRequest) return Promise.reject(new Error("Wait for your progress to finish syncing before saving changes."));
+    const current = account, expected = generation;
+    pendingMutations += 1;
+    emit({ syncing: true, error: null });
+    const request = mutationTail.catch(() => undefined).then(async () => {
+      requireCurrent(expected);
+      if ((await pendingStore.read(current.id)).length) throw new Error("Wait for your saved answers to sync before saving changes.");
+      requireCurrent(expected);
+      if (action.action === "update_settings") {
+        const result = await dependencies.request(current.token, action, { state: snapshot.state, revision: snapshot.revision });
+        return await accept(result, expected);
+      }
+      if (!dependencies.mutateLibrary) throw new Error("Update the app to manage your vocabulary library.");
+      const saved = await dependencies.mutateLibrary(current.token, action);
+      requireCurrent(expected);
+      const result = await dependencies.request(current.token, { action: "read" }, { state: snapshot.state, revision: snapshot.revision });
+      await accept(result, expected);
+      await syncLibrary(current, expected);
+      return saved;
+    }).catch((error: Error) => {
+      if (isCurrent(expected)) emit({ loading: false, error: error.message });
+      throw error;
+    }).finally(() => {
+      if (isCurrent(expected)) { pendingMutations -= 1; emit({ syncing: pendingMutations > 0 || refreshRequest !== null }); }
+    });
+    mutationTail = request;
+    return request;
+  }
 }
 
 export async function requestCustomSrsCloud(
   token: string,
-  action: CustomSrsMutation | { action: "read" },
+  action: CustomSrsMutation | CustomSrsSettingsMutation | { action: "read" },
   options: { url?: string; anonKey?: string; fetcher?: typeof fetch; timeoutMs?: number; previous?: CloudResult } = {},
 ): Promise<CloudResult> {
+  const value = await requestCustomSrsEndpoint(token, { ...action, ...(options.previous ? { knownRevision: options.previous.revision } : {}) }, options);
+  return parseCustomSrsCloudResult(expandCustomSrsWireResult(value, options.previous));
+}
+
+export async function requestCustomSrsEndpoint(
+  token: string,
+  action: object,
+  options: { url?: string; anonKey?: string; fetcher?: typeof fetch; timeoutMs?: number } = {},
+): Promise<unknown> {
   const url = options.url ?? process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
   const anonKey = options.anonKey ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
   if (!url || !anonKey) throw new Error("Custom vocabulary cloud sync is not configured in this app build.");
@@ -234,12 +312,15 @@ export async function requestCustomSrsCloud(
     response = await (options.fetcher ?? fetch)(`${url.replace(/\/+$/, "")}/functions/v1/custom-srs`, {
       method: "POST",
       headers: { apikey: anonKey, "Content-Type": "application/json", "x-wanikani-token": token },
-      body: JSON.stringify({ ...action, ...(options.previous ? { knownRevision: options.previous.revision } : {}) }), signal: controller.signal,
+      body: JSON.stringify(action), signal: controller.signal,
     });
     let value: unknown;
     try { value = await response.json(); } catch { throw new Error("Cloud sync returned an unreadable response. Retry to confirm your progress."); }
     if (!response.ok) {
-      if (response.status === 409) throw new CustomSrsConflictError();
+      if (response.status === 409) {
+        const message = object(value) && typeof value.error === "string" ? value.error : undefined;
+        throw new CustomSrsConflictError(message);
+      }
       const messages: Record<number, string> = {
         401: "Your WaniKani session needs to be renewed. Sign in again.",
         403: "Custom vocabulary is not available for this account.",
@@ -247,7 +328,7 @@ export async function requestCustomSrsCloud(
       };
       throw new Error(messages[response.status] ?? "Your cloud progress could not be confirmed. Please retry before leaving.");
     }
-    return parseCustomSrsCloudResult(expandCustomSrsWireResult(value, options.previous));
+    return value;
   } catch (error) {
     if (timeoutExpired) throw new Error("Cloud sync timed out. Retry to confirm your progress before leaving.");
     if (error instanceof CustomSrsConflictError) throw error;

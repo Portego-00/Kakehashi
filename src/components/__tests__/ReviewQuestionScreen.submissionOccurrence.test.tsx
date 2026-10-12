@@ -2266,11 +2266,36 @@ describe("ReviewQuestionScreen question occurrences", () => {
     await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(item, "meaning", true, false, false));
   });
 
-  it("falls back to typing when meaning choices cannot be generated", async () => {
+  it("keeps four meaning choices available without a catalog", async () => {
     mockSettings.reviewMultipleChoiceEnabled = true;
     const screen = renderQuestion();
-    expect(await screen.findByTestId("answer-input")).toBeTruthy();
-    expect(screen.getByText("Not enough distinct choices for this question. Type your answer.")).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByRole("button").filter(button => /^\d\. /.test(button.props.accessibilityLabel))).toHaveLength(4));
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    expect(screen.queryByText(/Not enough distinct choices/)).toBeNull();
+  });
+
+  it("shows only verb alternatives for 想像する even when the catalog contains only related nouns", async () => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    const item = { ...audioItem, subject: { ...audioItem.subject, data: {
+      ...audioItem.subject.data, characters: "想像する",
+      meanings: [{ meaning: "To Imagine", primary: true, accepted_answer: true }],
+      readings: [{ reading: "そうぞうする", primary: true, accepted_answer: true }],
+    } } };
+    mockGetAllSubjects.mockResolvedValue(["Expectation", "Ideology", "Assumption"].map((meaning, index) => ({
+      ...item.subject, id: 101 + index, data: {
+        ...item.subject.data, characters: "想",
+        meanings: [{ meaning, primary: true, accepted_answer: true }],
+      },
+    })));
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={onAnswer} />);
+    const correct = await screen.findByRole("button", { name: /\d\. To Imagine$/ });
+    const choices = screen.getAllByRole("button").filter(button => /^\d\. /.test(button.props.accessibilityLabel));
+    expect(choices).toHaveLength(4);
+    expect(choices.every(button => /^\d\. To /.test(button.props.accessibilityLabel))).toBe(true);
+    expect(screen.queryByTestId("answer-input")).toBeNull();
+    fireEvent.press(correct);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(item, "meaning", true, false, false));
   });
 
   it.each([false, true])("keeps choices across unrelated meanings and reopening with an enabled preference (audio prompt=%s)", async (audioPrompt) => {

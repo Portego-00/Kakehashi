@@ -31,6 +31,8 @@ export default function CustomVocabularyLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.backgroundColor } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="word/[wordId]" />
+      <Stack.Screen name="library" />
+      <Stack.Screen name="settings" />
       <Stack.Screen name="lessons" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <Stack.Screen name="reviews" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
     </Stack>

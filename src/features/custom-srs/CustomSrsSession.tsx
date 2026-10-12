@@ -46,7 +46,8 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
   const showContextHints = useSettingsStore((state) => state.showVocabContextSentencesInReviews);
   const offlineAudioEnabled = useSettingsStore((state) => state.offlineVocabularyAudioEnabled);
   const batchSize = customLessonBatchSize(configuredBatchSize);
-  const packs = useMemo(() => packId ? CUSTOM_VOCABULARY_PACKS.filter((pack) => pack.id === packId) : CUSTOM_VOCABULARY_PACKS, [packId]);
+  const allPacks = cloud.packs ?? CUSTOM_VOCABULARY_PACKS;
+  const packs = useMemo(() => packId ? allPacks.filter((pack) => pack.id === packId) : allPacks, [allPacks, packId]);
   const [phase, setPhase] = useState<Phase>("loading");
   const [batch, setBatch] = useState<CustomVocabularyWord[]>([]);
   const [teachingIndex, setTeachingIndex] = useState(0);
@@ -430,7 +431,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
           onBatchItemPress={setTeachingIndex}
           typeCounts={{ radical: 0, kanji: 0, vocabulary: teachingItems.length }}
           onSubjectPress={(subjectId) => {
-            const word = customSubjectIdToWord(subjectId);
+            const word = customSubjectIdToWord(subjectId, cloud.words);
             if (word) openWord(word.id);
             else if (subjectId > 0) router.push({ pathname: "/subject/[id]", params: { id: String(subjectId) } });
           }}
@@ -446,7 +447,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
           onSkip={skipQuestion}
           onExit={exitSession}
           onViewSubjectDetails={(subjectId) => {
-            const word = customSubjectIdToWord(subjectId);
+            const word = customSubjectIdToWord(subjectId, cloud.words);
             if (word) openWord(word.id);
           }}
           showHeader

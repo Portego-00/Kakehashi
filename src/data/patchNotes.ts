@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.5.2",
+    date: "2026-10-12",
+    changes: [
+      {
+        type: "feature",
+        title: "Redo Reviews",
+        description:
+          "Tap the Redo icon after mobile reviews or custom reviews to practice the whole session again.",
+      },
+    ],
+  },
+  {
     version: "1.5.1",
     date: "2026-10-10",
     changes: [

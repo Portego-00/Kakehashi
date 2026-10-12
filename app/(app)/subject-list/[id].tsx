@@ -77,6 +77,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
 const DEFAULT_ACTIVE_SRS_STAGES = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+const HIDE_MEANINGS_STORAGE_KEY = "subject_list_hide_meanings";
 const SELECTED_SUBJECT_SORT_SECTIONS = [
   {
     id: "sortMode",
@@ -125,6 +126,7 @@ export default function SubjectListEditorScreen() {
   const [activeTab, setActiveTab] = useState<SubjectListEditorTab>("browse");
   const [showFilters, setShowFilters] = useState(false);
   const [showSelectedSortModal, setShowSelectedSortModal] = useState(false);
+  const [hideMeanings, setHideMeanings] = useState<boolean | null>(null);
   const [selectedSubjectSortMode, setSelectedSubjectSortMode] =
     useState<SubjectListItemSortMode>(DEFAULT_SUBJECT_LIST_ITEM_SORT_MODE);
   const [filters, setFilters] = useState<SearchFilters>(() => {
@@ -147,6 +149,31 @@ export default function SubjectListEditorScreen() {
   const [isCacheMissing, setIsCacheMissing] = useState(false);
   const [isRebuildingCache, setIsRebuildingCache] = useState(false);
   const [cacheRebuildProgress, setCacheRebuildProgress] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    AsyncStorage.getItem(HIDE_MEANINGS_STORAGE_KEY)
+      .then((stored) => {
+        if (isMounted) {
+          setHideMeanings(stored === "true");
+        }
+      })
+      .catch((error) => {
+        console.warn("Failed to load subject list meaning visibility:", error);
+        if (isMounted) setHideMeanings(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const toggleMeaningVisibility = () => {
+    const next = !hideMeanings;
+    setHideMeanings(next);
+    AsyncStorage.setItem(HIDE_MEANINGS_STORAGE_KEY, String(next)).catch((error) => {
+      console.warn("Failed to save subject list meaning visibility:", error);
+    });
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -595,7 +622,7 @@ export default function SubjectListEditorScreen() {
     }
     return (
       <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-        {item.data.meanings[0].meaning}
+        {hideMeanings ? "?" : item.data.meanings[0].meaning}
       </Text>
     );
   };
@@ -866,6 +893,7 @@ export default function SubjectListEditorScreen() {
 
   const openHeaderMenu = () => {
     const actions: Parameters<typeof Alert.alert>[2] = [
+      { text: hideMeanings ? "Show Meanings" : "Hide Meanings", onPress: toggleMeaningVisibility },
       { text: "Sort Items", onPress: handleOpenSelectedSort },
       { text: "Rename", onPress: handleStartRename },
     ];
@@ -937,13 +965,13 @@ export default function SubjectListEditorScreen() {
             <SubjectRadicalCharacter item={item} />
           ) : (
             <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-              {item.data.characters || item.data.meanings[0].meaning}
+              {item.data.characters || (hideMeanings ? "?" : item.data.meanings[0].meaning)}
             </Text>
           )}
         </TouchableOpacity>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {item.data.meanings[0].meaning}
+            {hideMeanings ? " " : item.data.meanings[0].meaning}
           </Text>
           <View style={styles.itemMetadata}>
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>
@@ -976,7 +1004,7 @@ export default function SubjectListEditorScreen() {
     return (
       <TouchableOpacity
         accessibilityRole="checkbox"
-        accessibilityLabel={`Select ${item.data.meanings[0].meaning} for list actions`}
+        accessibilityLabel={`Select ${hideMeanings ? item.data.characters?.trim() || `${item.object} ${item.id}` : item.data.meanings[0].meaning} for list actions`}
         accessibilityState={{ checked: isActionSelected, disabled: isSaving }}
         disabled={isSaving}
         onPress={() => toggleActionSubject(item.id)}
@@ -1010,13 +1038,13 @@ export default function SubjectListEditorScreen() {
             <SubjectRadicalCharacter item={item} />
           ) : (
             <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-              {item.data.characters || item.data.meanings[0].meaning}
+              {item.data.characters || (hideMeanings ? "?" : item.data.meanings[0].meaning)}
             </Text>
           )}
         </TouchableOpacity>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {item.data.meanings[0].meaning}
+            {hideMeanings ? " " : item.data.meanings[0].meaning}
           </Text>
           <View style={styles.itemMetadata}>
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>
@@ -1041,7 +1069,7 @@ export default function SubjectListEditorScreen() {
     );
   };
 
-  if (isLoadingList || !list) {
+  if (isLoadingList || !list || hideMeanings === null) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundColor }]}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -1105,6 +1133,11 @@ export default function SubjectListEditorScreen() {
                     </SwiftUI.RNHostView>
                   }
                 >
+                  <SwiftUI.Button
+                    label={hideMeanings ? "Show Meanings" : "Hide Meanings"}
+                    systemImage={hideMeanings ? "eye" : "eye.slash"}
+                    onPress={toggleMeaningVisibility}
+                  />
                   <SwiftUI.Button
                     label="Sort Items"
                     systemImage="arrow.up.arrow.down"

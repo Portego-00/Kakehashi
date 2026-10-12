@@ -12,6 +12,7 @@ export function customWordUsesKanji(word: Pick<CustomVocabularyWord, "characters
 
 /** Negative IDs keep custom subjects outside every real WaniKani ID namespace. */
 export function customVocabularySubjectId(wordId: string): number {
+  if (/^personal:[0-9a-f-]{36}$/i.test(wordId)) return -5_000_000_000 - Number.parseInt(wordId.replace(/-/g, "").slice(-13), 16);
   let hash = 2_166_136_261;
   for (const character of wordId) {
     hash ^= character.codePointAt(0) ?? 0;
@@ -24,8 +25,8 @@ const wordsBySubjectId = new Map(
   CUSTOM_VOCABULARY_WORDS.map((word) => [customVocabularySubjectId(word.id), word]),
 );
 
-export function customSubjectIdToWord(subjectId: number) {
-  return wordsBySubjectId.get(subjectId);
+export function customSubjectIdToWord(subjectId: number, words?: readonly CustomVocabularyWord[]) {
+  return words?.find((word) => customVocabularySubjectId(word.id) === subjectId) ?? wordsBySubjectId.get(subjectId);
 }
 
 /** Display adapter only: never place this subject into the WaniKani review queue. */

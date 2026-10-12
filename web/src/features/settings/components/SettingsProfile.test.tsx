@@ -24,6 +24,7 @@ describe("Gravatar profile settings", () => {
 
   it("validates and saves the normalized email for the current web user", async () => {
     render(<SettingsWorkspace />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Settings category" }), { target: { value: "profile" } });
     const input = await screen.findByRole("textbox", { name: "Gravatar email" });
 
     fireEvent.change(input, { target: { value: "not-an-email" } });

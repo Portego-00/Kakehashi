@@ -122,6 +122,7 @@ interface ReviewResultsProps {
   progress: ReviewProgress;
   submittingResults: boolean;
   onBackToDashboard: () => void;
+  onRedo?: () => void;
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
 }
@@ -138,6 +139,7 @@ export default function ReviewResultsScreen({
   progress,
   submittingResults,
   onBackToDashboard,
+  onRedo,
   secondaryActionLabel,
   onSecondaryAction,
 }: ReviewResultsProps) {
@@ -331,6 +333,7 @@ export default function ReviewResultsScreen({
   };
 
   const hasSecondaryAction = Boolean(secondaryActionLabel && onSecondaryAction);
+  const hasRedoAction = Boolean(onRedo && reviewItems.length > 0);
 
   const toggleItemReveal = (itemId: number) => {
     setRevealedItemIds((prev) => {
@@ -852,46 +855,65 @@ export default function ReviewResultsScreen({
         >
           <Text style={styles.backButtonText}>Back to Dashboard</Text>
         </TouchableOpacity>
-        {hasMistakeSubjects ? (
+        {hasMistakeSubjects || hasRedoAction ? (
           <View style={styles.mistakesActionsRow}>
-            <TouchableOpacity
-              style={[
-                styles.practiceMistakesButton,
-                { borderColor: "#f44336" },
-              ]}
-              onPress={handlePracticeMistakes}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.practiceMistakesButtonText}>
-                {`Practice Mistakes • ${mistakeSubjectIds.length}`}
-              </Text>
-            </TouchableOpacity>
+            {hasMistakeSubjects ? (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.practiceMistakesButton,
+                    { borderColor: "#f44336" },
+                  ]}
+                  onPress={handlePracticeMistakes}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.practiceMistakesButtonText}>
+                    {`Practice Mistakes • ${mistakeSubjectIds.length}`}
+                  </Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.iconOnlyActionButton,
-                { borderColor: theme.secondary },
-              ]}
-              onPress={handleAddMistakesToList}
-              activeOpacity={0.8}
-              accessibilityLabel="Add mistakes to lists"
-            >
-              <Ionicons
-                name="bookmark-outline"
-                size={20}
-                color={theme.secondary}
-              />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.iconOnlyActionButton,
+                    { borderColor: theme.secondary },
+                  ]}
+                  onPress={handleAddMistakesToList}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Add mistakes to lists"
+                >
+                  <Ionicons
+                    name="bookmark-outline"
+                    size={20}
+                    color={theme.secondary}
+                  />
+                </TouchableOpacity>
 
-            {hasSecondaryAction ? (
+                {hasSecondaryAction ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.iconOnlyActionButton,
+                      { borderColor: theme.secondary },
+                    ]}
+                    onPress={onSecondaryAction}
+                    activeOpacity={0.8}
+                    accessibilityLabel={secondaryActionLabel}
+                  >
+                    <Ionicons name="refresh-outline" size={20} color={theme.secondary} />
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            ) : null}
+            {hasRedoAction ? (
               <TouchableOpacity
                 style={[
                   styles.iconOnlyActionButton,
                   { borderColor: theme.secondary },
                 ]}
-                onPress={onSecondaryAction}
+                onPress={onRedo}
                 activeOpacity={0.8}
-                accessibilityLabel={secondaryActionLabel}
+                accessibilityRole="button"
+                accessibilityLabel="Redo"
+                accessibilityHint="Start this review session again as extra practice"
               >
                 <Ionicons name="refresh-outline" size={20} color={theme.secondary} />
               </TouchableOpacity>
@@ -1271,10 +1293,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     flexDirection: "row",
     alignItems: "stretch",
+    justifyContent: "flex-end",
     gap: 8,
   },
   iconOnlyActionButton: {
     width: 54,
+    minHeight: 54,
     borderRadius: 12,
     borderWidth: 2,
     alignItems: "center",

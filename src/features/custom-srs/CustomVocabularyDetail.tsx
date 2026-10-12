@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import VocabularyDetails from "../../components/VocabularyDetails";
 import { useAuthStore } from "../../utils/store";
 import { useTheme } from "../../utils/theme";
@@ -15,9 +15,12 @@ export default function CustomVocabularyDetail({ wordId }: { wordId?: string } =
   const { theme } = useTheme();
   const customSrs = useCustomSrs();
   const userLevel = useAuthStore((state) => state.userData?.level ?? 1);
-  const word = getCustomVocabularyWord(wordId ?? params.wordId ?? "");
+  const id = wordId ?? params.wordId ?? "";
+  const word = customSrs.words?.find((entry) => entry.id === id) ?? getCustomVocabularyWord(id);
   const assignment = word ? customSrs.state.assignments[word.id] : undefined;
   const vocabulary = useMemo(() => word ? customVocabularyWordToDetails(word, assignment) : null, [word, assignment]);
+
+  if (!word && customSrs.loading) return <View style={[styles.screen, { backgroundColor: theme.backgroundColor }]}><CustomVocabularyHeader title="Vocabulary" onBack={() => goBackFromCustomVocabulary()} /><ActivityIndicator accessibilityLabel="Loading your vocabulary" color={theme.primary} /></View>;
 
   if (!word || !vocabulary) return <View style={[styles.screen, { backgroundColor: theme.backgroundColor }]}>
     <Stack.Screen options={{ headerShown: false, title: "Vocabulary" }} />
@@ -39,7 +42,7 @@ export default function CustomVocabularyDetail({ wordId }: { wordId?: string } =
       initialTab={initialTab}
       userLevel={userLevel}
       onSubjectPress={(subjectId) => {
-        const customWord = customSubjectIdToWord(subjectId);
+        const customWord = customSubjectIdToWord(subjectId, customSrs.words);
         if (customWord) {
           router.push({ pathname: "/custom-vocabulary/word/[wordId]", params: { wordId: customWord.id } } as never);
         } else if (subjectId > 0) {

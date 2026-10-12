@@ -52,6 +52,7 @@ export interface Subject {
       type: "whitelist" | "blacklist";
     }[];
     component_subject_ids?: number[];
+    parts_of_speech?: string[] | null;
     amalgamation_subject_ids?: number[];
     visually_similar_subject_ids?: number[];
   };
