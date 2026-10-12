@@ -8,6 +8,7 @@ import VocabularyDetails from "../VocabularyDetails";
 import { Audio } from "../../utils/expoAvCompat";
 import { resolveCustomVocabularyAudioForPlayback } from "../../features/custom-srs/audio-cache";
 import { getWaniKaniVocabularyPatterns } from "../../utils/wanikaniVocabularyPatterns";
+import { getAllSubjects } from "../../utils/cache";
 
 const mockSetPage = jest.fn();
 const mockSettings = {
@@ -97,8 +98,39 @@ beforeEach(() => {
   mockSettings.hideContextSentenceTranslations = false;
   mockSettings.hideContextSentenceTranslationsCompletely = false;
   mockSettings.showPatternsOfUse = false;
+  mockSettings.showSimilarVocabulary = false;
+  jest.mocked(getAllSubjects).mockResolvedValue([]);
   jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([]);
   jest.mocked(searchImmersionKit).mockResolvedValue({ results: [], nextOffset: 0 });
+});
+
+it("matches similar vocabulary across English casing and whitespace without changing kana", async () => {
+  mockSettings.showSimilarVocabulary = true;
+  const subject = (id: number, characters: string, meaning: string, reading: string) => ({
+    id, object: "vocabulary", data: { level: 4, characters,
+      meanings: [{ meaning, primary: true }], readings: [{ reading, primary: true }],
+    },
+  });
+  jest.mocked(getAllSubjects).mockResolvedValue([
+    subject(2652, "先日", "The Other Day", "せんじつ"),
+    subject(2653, "意味一致", "  the OTHER day  ", "べつ"),
+    subject(2654, "読み一致", "Different Meaning", "  せんじつ  "),
+    subject(2655, "不一致", "Unrelated", "きゅうじつ"),
+  ] as any);
+  const onSubjectPress = jest.fn();
+  const screen = render(<VocabularyDetails vocabulary={{ ...vocabulary,
+    id: 2652, object: "vocabulary", characters: "先日",
+    meanings: [{ meaning: "The Other Day", primary: true }],
+    readings: [{ reading: "せんじつ", primary: true }],
+  }} progressionStatus="success" onSubjectPress={onSubjectPress}/>);
+  await waitFor(() => expect(screen.getByText("意味一致")).toBeTruthy());
+  expect(screen.queryByText("不一致")).toBeNull();
+  fireEvent.press(screen.getByText("意味一致"));
+  expect(onSubjectPress).toHaveBeenCalledWith(2653);
+  fireEvent.press(screen.getAllByText("Reading")[0]);
+  await waitFor(() => expect(screen.getByText("読み一致")).toBeTruthy());
+  fireEvent.press(screen.getByText("読み一致"));
+  expect(onSubjectPress).toHaveBeenCalledWith(2654);
 });
 
 it.each([
