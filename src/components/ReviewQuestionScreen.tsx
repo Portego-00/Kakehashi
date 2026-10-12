@@ -1,3 +1,4 @@
+import { useLearningDisplay } from "../features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { BlurView } from "expo-blur";
@@ -1592,6 +1593,7 @@ export default function ReviewQuestionScreen({
     totalItems,
     completedCount,
   );
+  const display = useLearningDisplay();
   const subject = item.subject;
   const questionTypeDisplayLabel = getQuestionTypeDisplayLabel(
     subject,
@@ -3863,6 +3865,7 @@ export default function ReviewQuestionScreen({
                 id: relatedSubject.id,
                 characters: relatedSubject.characters || "",
                 meanings: relatedSubject.meanings,
+            readings: relatedSubject.readings,
                 level: relatedSubject.level,
               }),
             ),
@@ -3911,6 +3914,7 @@ export default function ReviewQuestionScreen({
             id: relatedSubject.id,
             characters: relatedSubject.characters || "",
             meanings: relatedSubject.meanings,
+            readings: relatedSubject.readings,
             level: relatedSubject.level,
           })),
           contextSentences: Array.isArray(data.context_sentences)
@@ -4103,6 +4107,9 @@ export default function ReviewQuestionScreen({
             {pausedCorrectAnswerText}
           </Text>
           {renderAudioAnswerReading("details")}
+          {display.resolveMeaning(subject) && <Text selectable style={{color: theme.textSecondary, marginTop: 6}}>
+            Meaning translation: {display.meaning(subject)}
+          </Text>}
         </View>
       </View>
     );

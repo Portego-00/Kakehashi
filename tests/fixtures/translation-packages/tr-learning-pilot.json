@@ -1,0 +1,339 @@
+{
+  "$schema": "./translation-package.schema.json",
+  "schemaVersion": 1,
+  "packageId": "wanikani-tr-personal",
+  "language": "tr",
+  "name": "Turkish learning content — level 8 and preserved pilot",
+  "version": "0.3.0",
+  "generatedAt": "2026-10-10T19:38:18.150908+00:00",
+  "purpose": "learning-content",
+  "scope": "display-only",
+  "subjects": {
+    "440": {
+      "source": {
+        "type": "kanji",
+        "word": "一",
+        "meaningsEn": [
+          "One"
+        ],
+        "readingsJa": [
+          "いち",
+          "いつ",
+          "ひと",
+          "かず"
+        ],
+        "level": 1,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "c23c986cf6564a6b892eb6734d6aa37c9dfe5478dcda08d48208b0c18b23d9ed"
+      },
+      "meaning": {
+        "primary": "bir",
+        "alternatives": [
+          "1"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": []
+    },
+    "2467": {
+      "source": {
+        "type": "vocabulary",
+        "word": "一",
+        "meaningsEn": [
+          "One"
+        ],
+        "readingsJa": [
+          "いち"
+        ],
+        "level": 1,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "1c70293a53b55825308e569b6e0572ec106d7376e22713937b9bef3a7ded0e74"
+      },
+      "meaning": {
+        "primary": "bir",
+        "alternatives": [],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "このレモン、一キログラム！？大きいですね！",
+            "en": "This lemon weighs a kilogram!? That's big!"
+          },
+          "sourceSha256": "1fab949d475ec9d0845caafbeec70348a0e94193f7f3edbe9477cd199bb4ef96",
+          "translation": "Bu limon bir kilogram mı!? Ne kadar büyük!",
+          "usage": "Bu cümlede 一, kilogram miktarını bir olarak belirtir.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "レベル一です。",
+            "en": "It's level 1."
+          },
+          "sourceSha256": "e83f8c58361578f85edae5226eda028236a15d6700932c2f5dfe9f8f00a5dc19",
+          "translation": "Seviye bir.",
+          "usage": "Bu cümlede 一, seviye numarasını belirtir.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "このメロンはアメリカ一の大きさです。",
+            "en": "This is the largest size melon in the United States."
+          },
+          "sourceSha256": "dd508a8a5075b22749832fc4c942b96c6fa004bd9cce1ba4b9c9b88e0dc99e2e",
+          "translation": "Bu kavun, ABD’deki en büyük kavun.",
+          "usage": "Bu cümlede 一, アメリカ一 ifadesinde Amerika genelinde birinci, yani en büyük anlamını verir.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ]
+    },
+    "2490": {
+      "source": {
+        "type": "vocabulary",
+        "word": "上げる",
+        "meaningsEn": [
+          "To Lift Something",
+          "To Raise Something",
+          "To Increase Something"
+        ],
+        "readingsJa": [
+          "あげる"
+        ],
+        "level": 1,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "47f1d805d0eb9bd07d2eeff1aa06e11acb2c62bd756d432b06ae49bc15748263"
+      },
+      "meaning": {
+        "primary": "bir şeyi kaldırmak",
+        "alternatives": [
+          "bir şeyi yükseltmek",
+          "bir şeyi artırmak"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "大きいブランケットをロフトに上げる。",
+            "en": "I lift a large blanket up to the loft."
+          },
+          "sourceSha256": "8797fe1326430cc6699d54b5fb24fc1fc349b56ac77141ff70e2596989624327",
+          "translation": "Büyük bir battaniyeyi asma kata çıkarıyorum.",
+          "usage": "Bu cümlede 上げる, battaniyeyi daha yüksek bir yere çıkarmayı anlatır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "「スピーカーのボリューム、上げる？」「うん。」",
+            "en": "\"Should I turn up the volume on the speaker?\" \"Yeah.\""
+          },
+          "sourceSha256": "2632035a3b93b69a1f4b0db8a1d7bd4b4269f075b553a633129e63542732b4c2",
+          "translation": "“Hoparlörün sesini artırayım mı?” “Evet.”",
+          "usage": "Bu cümlede 上げる, ses düzeyini artırmak anlamında kullanılır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "ピカチュウのレベルを上げるには、どうしたらいいですか？",
+            "en": "What can I do to raise Pikachu's level?"
+          },
+          "sourceSha256": "fbfb8841f583af7295a21651cb109191acf822c8aa9d57f1360a015f96065753",
+          "translation": "Pikachu’nun seviyesini yükseltmek için ne yapabilirim?",
+          "usage": "Bu cümlede 上げる, oyun karakterinin seviyesini yükseltmek anlamındadır.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ]
+    },
+    "2761": {
+      "source": {
+        "type": "vocabulary",
+        "word": "池",
+        "meaningsEn": [
+          "Pond"
+        ],
+        "readingsJa": [
+          "いけ"
+        ],
+        "level": 8,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "a8eb3cc9f15ba5328c3fda3d5572c888b3588ac085853f736fa2248a8c90d286"
+      },
+      "meaning": {
+        "primary": "gölet",
+        "alternatives": [],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "この池の中には、大きなワニがいます。",
+            "en": "There's a big alligator in this pond."
+          },
+          "sourceSha256": "a69202202c2983509d42ae893d996e68249243f94c3cabb93da11718e9b48639",
+          "translation": "Bu gölette büyük bir timsah var.",
+          "usage": "池, timsahın bulunduğu göleti belirtir; の中 ile göletin içi vurgulanır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "雨のせいで、池の金魚を全て失った。",
+            "en": "We lost all the gold fish in the pond because of the rain."
+          },
+          "sourceSha256": "f6289aed1174ebccf1dec4d805e6d8ae28b696b6e8ac0353c4fe715971870435",
+          "translation": "Yağmur yüzünden göletteki bütün japon balıklarını kaybettik.",
+          "usage": "池, balıkların bulunduğu göleti belirtir; 池の金魚 göletteki japon balıkları demektir.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "池の近くには、大きくて古い石や竹林があります。",
+            "en": "There are some big, old rocks and a bamboo grove near the pond."
+          },
+          "sourceSha256": "dedd81dbd5983841d381680bdcaa2688617f91e694fbb718322973af363d7c66",
+          "translation": "Göletin yakınında büyük, eski taşlar ve bir bambu korusu var.",
+          "usage": "池の近く, göletin kendisini değil, yakınındaki bölgeyi belirtir.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ]
+    },
+    "6479": {
+      "source": {
+        "type": "vocabulary",
+        "word": "瀬戸",
+        "meaningsEn": [
+          "Seto"
+        ],
+        "readingsJa": [
+          "せと"
+        ],
+        "level": 41,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "1873d87d7398a6f972a21d53eca02fadaec0f5edf4e0e0ae968a914a7e09fb92"
+      },
+      "meaning": {
+        "primary": "Seto",
+        "alternatives": [],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "赤西仁を瀬戸市で見たよ。",
+            "en": "I saw Jin Akanishi in Seto City."
+          },
+          "sourceSha256": "6b0cca0ced2bfcd60b07ec9d9deafc61eb88c097ed4184c149b368ce89b0d005",
+          "translation": "Seto şehrinde Jin Akanishi'yi gördüm.",
+          "usage": "瀬戸 burada bir yer adıdır. 瀬戸市, Seto şehri anlamındadır.",
+          "reviewStatus": "demo"
+        }
+      ]
+    },
+    "9207": {
+      "source": {
+        "type": "kana_vocabulary",
+        "word": "でも",
+        "meaningsEn": [
+          "But",
+          "However"
+        ],
+        "readingsJa": [],
+        "level": 8,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "e2cd940e60d93d8efee7b596725b85401baca720b196162d1d552f3346ed7c95"
+      },
+      "meaning": {
+        "primary": "ama",
+        "alternatives": [
+          "fakat",
+          "ancak"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "でも、できないよ。",
+            "en": "But I can't."
+          },
+          "sourceSha256": "8a2e86dc794b615d504759d2443446c8ac84796b371bbf784562584fa00aff90",
+          "translation": "Ama yapamıyorum ki.",
+          "usage": "Cümle başındaki でも önceki söze karşıtlık getirir; できない yapamama anlamındadır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "でも、いいの？",
+            "en": "But are you okay with that?"
+          },
+          "sourceSha256": "e2d9e28161440a89c146a51926be71923728092d672b8ba769d63ef6d7bd349a",
+          "translation": "Ama senin için sorun yok mu?",
+          "usage": "でも tereddüt veya karşıtlık bildirir; いいの？ karşıdakinin bunu uygun bulup bulmadığını sorar.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "でも、５０パーセントオフだよ？",
+            "en": "But it's 50 percent off, you know?"
+          },
+          "sourceSha256": "bbd3d46966f1c09ecb7c51a35df06bd51281b24ae166a0779e808c91e6861a7b",
+          "translation": "Ama yüzde 50 indirimli, biliyorsun değil mi?",
+          "usage": "でも önceki tereddüde karşı bir gerekçe sunar; ５０パーセントオフ fiyatın yüzde 50 indirimli olduğunu belirtir.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ]
+    },
+    "9208": {
+      "source": {
+        "type": "kana_vocabulary",
+        "word": "まだ",
+        "meaningsEn": [
+          "Still",
+          "Not Yet"
+        ],
+        "readingsJa": [],
+        "level": 8,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "3c04e208db4826c5f6d3adc2e0dedd5aaadf36efd473786a4502ef8aa76ceb02"
+      },
+      "meaning": {
+        "primary": "hâlâ",
+        "alternatives": [
+          "henüz"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "それはまだ分からないよ。",
+            "en": "I don't know that yet."
+          },
+          "sourceSha256": "3d3e36114d0c3848db7979c4fef9168edc72d65c46bfef2933603baa6412203c",
+          "translation": "Bunu henüz bilmiyorum.",
+          "usage": "Bu cümlede まだ, olumsuz ifadeyle henüz anlamını verir.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "え、まだトイレにいるの？",
+            "en": "What, are you still in the bathroom?"
+          },
+          "sourceSha256": "7d78a50ffc00e3d52a417ae4b003508721680c6f90156eaa3f5b76afaf902d68",
+          "translation": "Ne, hâlâ tuvalette misin?",
+          "usage": "Bu cümlede まだ, kişinin tuvalette bulunmasının devam ettiğini anlatır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "ケンなら、まだシャワーしてるよ。",
+            "en": "If you're looking for Ken, he's still taking a shower."
+          },
+          "sourceSha256": "9804f2005a49155e7502c7b5e7c59549bb149c5f1f5301695bc55c0bd36119e7",
+          "translation": "Ken’i soruyorsan, hâlâ duş alıyor.",
+          "usage": "Bu cümlede まだ, duş alma eyleminin devam ettiğini belirtir.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ]
+    }
+  }
+}

@@ -794,6 +794,10 @@ export default function SubjectDetailsScreen() {
         id: subject.id,
         characters: subject.data.characters,
         meanings: subject.data.meanings.map((m: any) => m.meaning),
+        readings: (subject.data.readings || []).map((reading: any) => ({
+          reading: reading.reading,
+          primary: reading.primary,
+        })),
         level: subject.data.level,
       })),
       userSynonyms,
@@ -855,6 +859,7 @@ export default function SubjectDetailsScreen() {
         id: subject.id,
         characters: subject.data.characters,
         meanings: subject.data.meanings.map((m: any) => m.meaning),
+            readings: subject.data.readings || [],
         level: subject.data.level,
       })),
       amalgamationSubjects: amalgamations.map((subject) => ({
@@ -925,6 +930,7 @@ export default function SubjectDetailsScreen() {
             id: subject.id,
             characters: subject.data.characters,
             meanings: subject.data.meanings.map((m: any) => m.meaning),
+            readings: subject.data.readings || [],
             level: subject.data.level,
           }))
         : [],

@@ -1,3 +1,4 @@
+import { useItemMeaning } from "../../src/features/translation-packages/item-display";
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
 import { useNavigation, useRouter } from "expo-router";
@@ -115,6 +116,7 @@ export default function BurnedItemsScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const { theme } = useTheme();
+  const itemMeaning = useItemMeaning();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allBurnedItems, setAllBurnedItems] = useState<BurnedItem[]>([]);
@@ -475,7 +477,7 @@ export default function BurnedItemsScreen() {
         </View>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {burnedItem.meaning}
+            {itemMeaning(burnedItem)}
           </Text>
           <View style={styles.itemMetadata}>
             {(burnedItem.type === "kanji" ||

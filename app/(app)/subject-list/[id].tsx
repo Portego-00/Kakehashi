@@ -1,3 +1,4 @@
+import { useLearningDisplay } from "../../../src/features/translation-packages/display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -99,6 +100,7 @@ export default function SubjectListEditorScreen() {
   const router = useRouter();
   const { apiToken } = useAuthStore();
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Subject>>(null);
   const tabScrollOffsetsRef = useRef<Record<SubjectListEditorTab, number>>({
@@ -595,7 +597,7 @@ export default function SubjectListEditorScreen() {
     }
     return (
       <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-        {item.data.meanings[0].meaning}
+        {display.meaning(item, "—")}
       </Text>
     );
   };
@@ -937,13 +939,13 @@ export default function SubjectListEditorScreen() {
             <SubjectRadicalCharacter item={item} />
           ) : (
             <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-              {item.data.characters || item.data.meanings[0].meaning}
+              {item.data.characters || display.meaning(item, "—")}
             </Text>
           )}
         </TouchableOpacity>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {item.data.meanings[0].meaning}
+            {display.meaning(item, "—")}
           </Text>
           <View style={styles.itemMetadata}>
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>
@@ -976,7 +978,7 @@ export default function SubjectListEditorScreen() {
     return (
       <TouchableOpacity
         accessibilityRole="checkbox"
-        accessibilityLabel={`Select ${item.data.meanings[0].meaning} for list actions`}
+        accessibilityLabel={`Select ${display.meaning(item, "—")} for list actions`}
         accessibilityState={{ checked: isActionSelected, disabled: isSaving }}
         disabled={isSaving}
         onPress={() => toggleActionSubject(item.id)}
@@ -1010,13 +1012,13 @@ export default function SubjectListEditorScreen() {
             <SubjectRadicalCharacter item={item} />
           ) : (
             <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-              {item.data.characters || item.data.meanings[0].meaning}
+              {item.data.characters || display.meaning(item, "—")}
             </Text>
           )}
         </TouchableOpacity>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {item.data.meanings[0].meaning}
+            {display.meaning(item, "—")}
           </Text>
           <View style={styles.itemMetadata}>
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>

@@ -1,3 +1,4 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -43,7 +44,7 @@ function getItemTypeColor(itemType: string): string {
   return "#64748b";
 }
 
-function getSubjectPreviewLabel(subject: any): string {
+function getSubjectPreviewLabel(subject: any, translatedMeaning: string): string {
   const characters =
     typeof subject?.data?.characters === "string"
       ? subject.data.characters.trim()
@@ -54,9 +55,9 @@ function getSubjectPreviewLabel(subject: any): string {
 
   const meaning =
     typeof subject?.data?.meanings?.[0]?.meaning === "string"
-      ? subject.data.meanings[0].meaning.trim()
+      ? translatedMeaning.trim()
       : "";
-  return meaning ? meaning.slice(0, 2).toUpperCase() : "•";
+  return meaning ? meaning.slice(0, 2).toLocaleUpperCase("tr-TR") : "•";
 }
 
 function formatUpdatedAt(updatedAt: string): string {
@@ -69,6 +70,7 @@ function formatUpdatedAt(updatedAt: string): string {
 
 export default function SubjectListsScreen() {
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const [lists, setLists] = useState<SubjectList[]>([]);
   const [subjectsById, setSubjectsById] = useState<Map<number, any>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -429,7 +431,7 @@ export default function SubjectListsScreen() {
                             <Text
                               style={styles.previewChipText}
                             >
-                              {getSubjectPreviewLabel(subject)}
+                              {getSubjectPreviewLabel(subject, display.meaning(subject, ""))}
                             </Text>
                           </View>
                         ))}

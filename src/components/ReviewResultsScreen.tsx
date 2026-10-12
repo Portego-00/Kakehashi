@@ -1,3 +1,4 @@
+import { useLearningDisplay } from "../features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -142,6 +143,7 @@ export default function ReviewResultsScreen({
   onSecondaryAction,
 }: ReviewResultsProps) {
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<"mistakes" | "all">(
@@ -413,7 +415,7 @@ export default function ReviewResultsScreen({
         numberOfLines={1}
         adjustsFontSizeToFit
       >
-        {subject.data.meanings[0].meaning}
+        {display.meaning(subject, "—")}
       </Text>
     );
   };
@@ -424,7 +426,7 @@ export default function ReviewResultsScreen({
     const hasMeaning = isMeaningApplicable(item);
     const hasReading = isReadingApplicable(item);
     const isRevealed = !hideAnswersForRequiz || revealedItemIds.has(item.id);
-    const primaryMeaning = item.subject.data.meanings[0]?.meaning ?? "—";
+    const primaryMeaning = display.meaning(item.subject, "—");
     const primaryReading = hasReading ? getPrimaryReading(item.subject) : null;
 
     return (

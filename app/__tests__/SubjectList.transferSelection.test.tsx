@@ -1,3 +1,5 @@
+let mockTranslations = false;
+jest.mock("../../src/features/translation-packages/display", () => ({useLearningDisplay: () => ({meaning: (subject: any) => mockTranslations && subject.id === 1 ? "Bir" : subject.data.meanings[0].meaning})}));
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
@@ -79,6 +81,7 @@ describe("list action selection", () => {
     .find((list: { id: string }) => list.id === id).subjectIds;
 
   beforeEach(() => {
+    mockTranslations = false;
     jest.useFakeTimers();
     jest.clearAllMocks();
     storage.clear();
@@ -105,7 +108,7 @@ describe("list action selection", () => {
     const screen = render(<SubjectListEditorScreen />);
     await waitFor(() => expect(screen.getByText("In List (4)")).toBeTruthy());
     fireEvent.press(screen.getByText("In List (4)"));
-    await waitFor(() => expect(screen.getByLabelText("Select One for list actions")).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText(mockTranslations ? "Select Bir for list actions" : "Select One for list actions")).toBeTruthy());
     return screen;
   }
 
@@ -184,6 +187,16 @@ describe("list action selection", () => {
     fireEvent.press(screen.getByLabelText("Copy 4 subjects to Practice"));
     await waitFor(() => expect(savedIds("destination")).toEqual([2, 1, 3, 4]));
     expect(savedIds("source")).toEqual([1, 2, 3, 4]);
+  });
+
+  it("uses translated meanings in list actions and updates when disabled", async () => {
+    mockTranslations = true;
+    const screen = await openList();
+    expect(screen.getByLabelText("Select Bir for list actions")).toBeTruthy();
+    expect(screen.getByText("Bir")).toBeTruthy();
+    mockTranslations = false;
+    screen.rerender(<SubjectListEditorScreen/>);
+    expect(screen.getByLabelText("Select One for list actions")).toBeTruthy();
   });
 
   it("clears checks for items removed through Browse", async () => {

@@ -1,3 +1,4 @@
+import { useLearningDisplay } from "../features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
 import { StatusBar } from "expo-status-bar";
@@ -498,6 +499,7 @@ export default function LessonPicker({
   onStart,
   onCancel,
 }: LessonPickerProps) {
+  const contentDisplay = useLearningDisplay();
   const { theme } = useTheme();
   const lessonPickerViewMode = useSettingsStore(
     (state) => state.lessonPickerViewMode
@@ -1084,7 +1086,7 @@ export default function LessonPicker({
           </View>
           <View style={styles.listLessonDetails}>
             <Text style={[styles.listLessonMeaning, { color: theme.textColor }]}>
-              {getPrimaryMeaning(lesson)}
+              {contentDisplay.meaning(lesson.subject, getPrimaryMeaning(lesson))}
             </Text>
             <View style={styles.listLessonMetaRow}>
               <Text style={[styles.listLessonType, { color: theme.textSecondary }]}>
@@ -1114,6 +1116,7 @@ export default function LessonPicker({
       );
     },
     [
+      contentDisplay,
       collapsedLevels,
       selectedItems,
       theme,

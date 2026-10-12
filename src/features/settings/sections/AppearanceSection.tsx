@@ -5,7 +5,7 @@ import {
   SettingsIcon as MaterialCommunityIcons,
 } from "../../../ui/settings/settings-icon";
 import React from "react";
-
+import { ContentLanguageSetting } from "../../translation-packages/ContentLanguageSetting";
 import type { Href } from "expo-router";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 
@@ -43,6 +43,9 @@ export function AppearanceSection() {
         >
           Appearance
         </Text>
+
+        <ContentLanguageSetting />
+
 
         {showAppTextSizeSetting ? (
           <TouchableOpacity
