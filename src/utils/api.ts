@@ -2653,6 +2653,20 @@ export async function getSubject(apiToken: string, id: number): Promise<any> {
   }
 }
 
+/** Network-only catalog verification before an explicit synonym transfer. */
+export async function getFreshSynonymSubjects(apiToken: string, params: {levels?: number[]; ids?: number[]}) {
+  const url = new URL(`${API_BASE_URL}/subjects`);
+  if (params.levels) url.searchParams.set("levels", params.levels.join(","));
+  if (params.ids) url.searchParams.set("ids", params.ids.join(","));
+  const response = await fetchWaniKaniApi(url.toString(), {method: "GET", headers: {
+    Authorization: `Bearer ${apiToken}`, "Wanikani-Revision": API_REVISION,
+  }});
+  if (!response.ok) throw new Error(`Could not verify current subjects (HTTP ${response.status})`);
+  const page = await response.json();
+  if (!Array.isArray(page?.data)) throw new Error("Incomplete current subject response");
+  return page.pages?.next_url ? fetchAllPages(page, apiToken) : page;
+}
+
 // Get study materials with caching
 export async function getStudyMaterials(
   apiToken: string,
