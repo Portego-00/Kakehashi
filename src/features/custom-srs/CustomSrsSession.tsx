@@ -38,7 +38,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
   const colors = useSubjectColors();
   const insets = useSafeAreaInsets();
   const cloud = useCustomSrs();
-  const { refresh, completeLesson, submitReview } = cloud;
+  const { refresh, completeLesson, submitReview, getPacks } = cloud;
   const configuredBatchSize = useSettingsStore((state) => state.lessonBatchSize);
   const meaningFirst = useSettingsStore((state) => state.meaningFirst);
   const ordered = useSettingsStore((state) => state.reviewQuestionOrderEnabled);
@@ -48,6 +48,10 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
   const batchSize = customLessonBatchSize(configuredBatchSize);
   const allPacks = cloud.packs ?? CUSTOM_VOCABULARY_PACKS;
   const packs = useMemo(() => packId ? allPacks.filter((pack) => pack.id === packId) : allPacks, [allPacks, packId]);
+  const freshPacks = useCallback(() => {
+    const current = getPacks?.() ?? packs;
+    return packId ? current.filter((pack) => pack.id === packId) : current;
+  }, [getPacks, packId, packs]);
   const [phase, setPhase] = useState<Phase>("loading");
   const [batch, setBatch] = useState<CustomVocabularyWord[]>([]);
   const [teachingIndex, setTeachingIndex] = useState(0);
@@ -138,9 +142,9 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
   }, []);
 
   const updateRemaining = useCallback((state: CustomSrsState) => {
-    setRemainingLessons(customLessonWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id)).length);
-    setRemainingReviews(customReviewWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id)).length);
-  }, [packs]);
+    setRemainingLessons(customLessonWords(state, freshPacks()).filter((word) => !completedWordIdsRef.current.has(word.id)).length);
+    setRemainingReviews(customReviewWords(state, freshPacks()).filter((word) => !completedWordIdsRef.current.has(word.id)).length);
+  }, [freshPacks]);
 
   const startBatch = useCallback((words: CustomVocabularyWord[], lessonCount: number, number: number, state: CustomSrsState) => {
     const nextBatch = mode === "lessons" ? customLessonBatch(words, batchSize) : words;
@@ -165,14 +169,14 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
       // A dashboard may already have cached data. Revalidate it before fixing the queue.
       const state = await refresh();
       if (!mountedRef.current) return;
-      const lessonWords = customLessonWords(state, packs);
-      const words = mode === "lessons" ? lessonWords : customReviewWords(state, packs);
+      const lessonWords = customLessonWords(state, freshPacks());
+      const words = mode === "lessons" ? lessonWords : customReviewWords(state, freshPacks());
       updateRemaining(state);
       startBatch(words, lessonWords.length, 1, state);
     } catch (error) {
       if (mountedRef.current) setLoadError(error instanceof Error ? error.message : "Could not load your progress.");
     }
-  }, [refresh, mode, packs, startBatch, updateRemaining]);
+  }, [refresh, mode, freshPacks, startBatch, updateRemaining]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -291,8 +295,8 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
         if (error instanceof CustomSrsConflictError) completedWordIdsRef.current.delete(pending.wordId);
       }
       failedSavesRef.current.clear();
-      const lessons = customLessonWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id));
-      const words = mode === "lessons" ? lessons : customReviewWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id));
+      const lessons = customLessonWords(state, freshPacks()).filter((word) => !completedWordIdsRef.current.has(word.id));
+      const words = mode === "lessons" ? lessons : customReviewWords(state, freshPacks()).filter((word) => !completedWordIdsRef.current.has(word.id));
       pendingSaveRef.current = null;
       setPendingSave(null);
       setSaveError(null);
@@ -305,7 +309,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
       savingRef.current = false;
       if (mountedRef.current) setSaving(false);
     }
-  }, [batchNumber, refresh, mode, packs, startBatch, updateRemaining]);
+  }, [batchNumber, refresh, mode, freshPacks, startBatch, updateRemaining]);
 
   const question = quiz?.questions[0];
   const currentItem = quiz?.items.find((item) => item.word.id === question?.wordId);
@@ -383,7 +387,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
     try {
       const state = await refresh();
       if (!mountedRef.current) return;
-      const words = customLessonWords(state, packs).filter((word) => !completedWordIdsRef.current.has(word.id));
+      const words = customLessonWords(state, freshPacks()).filter((word) => !completedWordIdsRef.current.has(word.id));
       updateRemaining(state);
       startBatch(words, words.length, batchNumber + 1, state);
     } catch (error) {
@@ -391,7 +395,7 @@ export default function CustomSrsSession({ mode, packId }: { mode: "lessons" | "
     } finally {
       if (mountedRef.current) setLoadingNext(false);
     }
-  }, [batchNumber, refresh, loadingNext, packs, startBatch, updateRemaining]);
+  }, [batchNumber, refresh, loadingNext, freshPacks, startBatch, updateRemaining]);
 
   const stats = quiz ? customSessionStats(quiz) : { completed: 0, accuracy: 100, incorrect: 0 };
   const isEmpty = batch.length === 0;

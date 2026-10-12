@@ -5,15 +5,18 @@ export { EMPTY_PERSONAL_LIBRARY, personalLibraryPacks };
 export type { PersonalLibrary, PersonalEntry, PersonalOperation, PersonalWordInput } from "../../../web/src/features/custom-srs/personal-vocabulary";
 export type PersonalMutation = { action: "mutate_library" } & Omit<WebPersonalMutation, "accountId">;
 type Request = (token: string, action: object) => Promise<unknown>;
-const librarySchema = z.object({ revision: z.number().int().min(0), entries: z.record(z.string(), personalEntrySchema) });
 const saveResultSchema = z.object({ revision: z.number().int().min(0), added: z.number().int().min(0), skipped: z.number().int().min(0), changed: z.number().int().min(0) });
 
 export function parsePersonalLibrary(value: unknown): PersonalLibrary {
-  const library = librarySchema.parse(value);
-  for (const [id, entry] of Object.entries(library.entries)) {
-    if (entry.id !== id || entry.revision > library.revision) throw new Error("Your vocabulary library cache could not be read safely.");
+  if (!value || typeof value !== "object" || !("revision" in value) || !Number.isSafeInteger(value.revision) || Number(value.revision) < 0
+    || !("entries" in value) || !value.entries || typeof value.entries !== "object" || Array.isArray(value.entries)) throw new Error("Your vocabulary library cache could not be read safely.");
+  const entries: PersonalLibrary["entries"] = {};
+  for (const [id, raw] of Object.entries(value.entries)) {
+    const entry = personalEntrySchema.parse(raw);
+    if (entry.id !== id || entry.revision > Number(value.revision)) throw new Error("Your vocabulary library cache could not be read safely.");
+    entries[id] = entry;
   }
-  return library;
+  return { revision: Number(value.revision), entries };
 }
 
 /** Read every page at one revision before exposing new definitions to study. */

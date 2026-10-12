@@ -3,6 +3,7 @@ import {
   Children,
   isValidElement,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -121,7 +122,9 @@ export function SettingsSearch({
   organized?: boolean;
 }) {
   const contentRef = useRef<HTMLDivElement>(null),
-    inputRef = useRef<HTMLInputElement>(null);
+    inputRef = useRef<HTMLInputElement>(null),
+    navigationRef = useRef<HTMLElement>(null),
+    mainRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(""),
     [settings, setSettings] = useState<Setting[]>([]),
     [category, setCategory] = useState("reviews"),
@@ -192,7 +195,28 @@ export function SettingsSearch({
       window.removeEventListener("popstate", deepLink);
     };
   }, [organized]);
+  useLayoutEffect(() => {
+    if (!organized) return;
+    window.scrollTo({ top: 0, behavior: "instant" });
+    mainRef.current?.scrollTo?.({ top: 0, behavior: "instant" });
+  }, [organized, category]);
+  useEffect(() => {
+    if (!organized) return;
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const navigation = navigationRef.current;
+        if (navigation) navigation.style.setProperty("--settings-sidebar-height", `${Math.max(120, window.innerHeight - navigation.getBoundingClientRect().top - 16)}px`);
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, { passive: true });
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", update); window.removeEventListener("scroll", update); };
+  }, [organized]);
   function choose(id: string) {
+    window.scrollTo({ top: 0, behavior: "instant" });
     setCategory(id);
     setQuery("");
     const url = new URL(window.location.href);
@@ -215,7 +239,7 @@ export function SettingsSearch({
             element.querySelector("strong,h3,h2")?.textContent?.trim() ||
             "",
           description:
-            element.querySelector("small,p")?.textContent?.trim() ?? "",
+            element.querySelector("[data-settings-description],small,p")?.textContent?.trim() ?? "",
           section:
             element
               .closest("section")
@@ -249,7 +273,7 @@ export function SettingsSearch({
         behavior: "instant",
       });
       const control = setting.element.querySelector<HTMLElement>(
-        "input:not([disabled]),select:not([disabled]),button:not([disabled]),a[href]",
+        "input:not([disabled]),select:not([disabled]),button:not([disabled]):not([data-settings-info]),a[href]",
       );
       if (control) control.focus({ preventScroll: true });
       else {
@@ -324,6 +348,7 @@ export function SettingsSearch({
       <div className={organized ? styles.organizedSettings : undefined}>
         {organized ? (
           <aside
+            ref={navigationRef}
             className={styles.categoryNavigation}
             aria-label="Settings categories"
           >
@@ -359,10 +384,9 @@ export function SettingsSearch({
                     aria-current={category === c.id ? "page" : undefined}
                     onClick={() => choose(c.id)}
                   >
-                    <SettingsIcon name={c.icon} size={30} />
+                    <SettingsIcon name={c.icon} size={16} />
                     <span>
                       <strong>{c.label}</strong>
-                      <small>{c.description}</small>
                     </span>
                   </button>
                 ))}
@@ -370,7 +394,7 @@ export function SettingsSearch({
             ))}
           </aside>
         ) : null}
-        <div className={styles.categoryMain}>
+        <div ref={mainRef} className={styles.categoryMain}>
           {searching && results.length ? (
             <ul
               className={styles.searchResults}

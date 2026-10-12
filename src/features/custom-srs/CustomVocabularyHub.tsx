@@ -17,7 +17,7 @@ import { fontStyles } from "../../utils/fonts";
 import * as Haptics from "../../utils/haptics";
 import { getBestContrastTextColor, useSubjectColors, withAlpha } from "../../utils/subjectColors";
 import { useTheme } from "../../utils/theme";
-import { CUSTOM_VOCABULARY_PACKS, CUSTOM_VOCABULARY_WORDS, getCustomVocabularyPack } from "./catalog";
+import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
 import { customPackProgress, useCustomSrs } from "./data";
 import CustomVocabularyHeader from "./custom-vocabulary-header";
 import { goBackFromCustomVocabulary } from "./navigation";
@@ -244,7 +244,8 @@ export default function CustomVocabularyHub({ packId }: { packId?: string } = {}
     <Stack.Screen options={{ headerShown: false, title: "Vocabulary packs" }} />
     <CustomVocabularyHeader title="Vocabulary packs" onBack={goBack} />
     <View style={styles.empty}>
-      <Text selectable style={[styles.description, { color: theme.textColor }]}>This pack could not be found.</Text>
+      <Text selectable style={[styles.description, { color: theme.textColor }]}>{customSrs.error ?? "This pack could not be found."}</Text>
+      {customSrs.error ? <Pressable accessibilityRole="button" onPress={() => { void customSrs.refresh().catch(() => undefined); }} style={styles.retry}><Text style={{ color: colors.vocabulary }}>Retry loading deck</Text></Pressable> : null}
       <Pressable accessibilityRole="button" onPress={() => router.replace("/custom-vocabulary" as never)} style={styles.retry}><Text style={{ color: colors.vocabulary }}>Explore packs</Text></Pressable>
     </View>
   </View>;

@@ -26,7 +26,8 @@ export default function CustomVocabularyDetail({ wordId }: { wordId?: string } =
     <Stack.Screen options={{ headerShown: false, title: "Vocabulary" }} />
     <CustomVocabularyHeader title="Vocabulary" onBack={() => goBackFromCustomVocabulary()} />
     <View style={styles.empty}>
-      <Text selectable style={[styles.message, { color: theme.textColor }]}>This vocabulary word could not be found.</Text>
+      <Text selectable style={[styles.message, { color: theme.textColor }]}>{customSrs.error ?? "This vocabulary word could not be found."}</Text>
+      {customSrs.error ? <Pressable accessibilityRole="button" onPress={() => { void customSrs.refresh().catch(() => undefined); }} style={styles.button}><Text style={{ color: theme.primary }}>Retry loading vocabulary</Text></Pressable> : null}
       <Pressable accessibilityRole="button" onPress={() => router.replace("/custom-vocabulary" as never)} style={styles.button}><Text style={{ color: theme.primary }}>Explore packs</Text></Pressable>
     </View>
   </View>;

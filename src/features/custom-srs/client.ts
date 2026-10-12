@@ -133,8 +133,9 @@ export function createCustomSrsClient(dependencies: Dependencies) {
       await accept(result, expected);
       // If this write fails, replay with the same event ID after restart.
       await pendingStore.remove(current.id, action.eventId);
+      const remaining = await pendingStore.read(current.id);
       requireCurrent(expected);
-      emit({ pendingCount: (await pendingStore.read(current.id)).length });
+      emit({ pendingCount: remaining.length });
     }
   };
   const syncLibrary = async (current: CustomSrsAccount, expected: number) => {
@@ -276,7 +277,7 @@ export function createCustomSrsClient(dependencies: Dependencies) {
       await syncLibrary(current, expected);
       return saved;
     }).catch((error: Error) => {
-      if (isCurrent(expected)) emit({ loading: false, error: error.message });
+      if (isCurrent(expected)) emit({ loading: false });
       throw error;
     }).finally(() => {
       if (isCurrent(expected)) { pendingMutations -= 1; emit({ syncing: pendingMutations > 0 || refreshRequest !== null }); }

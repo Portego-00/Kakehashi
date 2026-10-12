@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -10,11 +10,11 @@ import { canAccessBunpro } from "./access";
 import { bunpro } from "./client";
 import styles from "./bunpro.module.css";
 
-export function BunproSettings() {
+export function BunproSettings({ children }: { children?: ReactNode }) {
   const { user, isDemo } = useSession();
-  return !isDemo && canAccessBunpro(user?.data.username) ? <Connection /> : null;
+  return !isDemo && canAccessBunpro(user?.data.username) ? <Connection>{children}</Connection> : null;
 }
-function Connection() {
+function Connection({ children }: { children?: ReactNode }) {
   const [token, setToken] = useState("");
   const cache = useQueryClient();
   const connection = useQuery({ queryKey: ["bunpro", "connection"], queryFn: () => bunpro<{ connected: boolean }>("action=connection"), retry: false });
@@ -32,5 +32,6 @@ function Connection() {
       </div>
       {save.error || connection.error ? <p role="alert">{(save.error || connection.error)?.message}</p> : null}
     </form></Card>
+    {connection.data?.connected ? children : null}
   </section>;
 }

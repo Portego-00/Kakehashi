@@ -50,6 +50,13 @@ function mockProgress(overrides: ProgressOverrides = {}) {
     reviewWords: [],
     ...overrides,
     state,
+    library: { revision: 0, entries: {} },
+    pendingCount: 0,
+    packs: [...CUSTOM_VOCABULARY_PACKS],
+    words: CUSTOM_VOCABULARY_PACKS.flatMap((pack) => pack.words),
+    getPacks: () => [...CUSTOM_VOCABULARY_PACKS],
+    saveSettings: jest.fn().mockResolvedValue(state),
+    saveLibrary: jest.fn().mockResolvedValue({ revision: 0, added: 0, skipped: 0, changed: 0 }),
   };
   jest.mocked(useCustomSrs).mockReturnValue(progress);
   return progress;
@@ -97,6 +104,21 @@ it("searches by a vocabulary word and opens its pack", () => {
   fireEvent.changeText(screen.getByLabelText("Find a pack or word"), "やっぱり");
   fireEvent.press(screen.getByLabelText("Conversation Glue, 16 words"));
   expect(router.push).toHaveBeenCalledWith({ pathname: "/custom-vocabulary", params: { packId: "conversation-glue" } });
+});
+
+it("browses synced personal decks and opens imported words with their existing progress", () => {
+  const deckId = "personal:11111111-1111-4111-8111-111111111111";
+  const word = { ...CUSTOM_VOCABULARY_PACKS[0].words[0], id: "personal:22222222-2222-4222-8222-222222222222" };
+  const pack = { id: deckId, title: "My book", script: "mixed" as const, description: "My imported vocabulary", words: [word] };
+  const progress = mockProgress({ state: { enrolledPackIds: [deckId] } });
+  progress.packs = [pack]; progress.words = [word];
+  const screen = render(<CustomVocabularyHub packId={deckId} />);
+  expect(screen.getByText("Personal deck · 1 words")).toBeTruthy();
+  fireEvent.press(screen.getByLabelText(`${word.characters}, ${word.meanings[0]}`));
+  expect(router.push).toHaveBeenCalledWith({ pathname: "/custom-vocabulary/word/[wordId]", params: { wordId: word.id } });
+  screen.unmount();
+  render(<CustomVocabularyDetail wordId={word.id} />);
+  expect(jest.mocked(VocabularyDetails).mock.calls.at(-1)?.[0].vocabulary.characters).toBe(word.characters);
 });
 
 it("shows compact vocabulary previews instead of repeating pack descriptions", () => {
