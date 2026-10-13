@@ -30,15 +30,15 @@ export function ReviewPreviousAnswerCard({ answer }: { answer: MixedReviewAnswer
   if (!answer) return null;
   const backgroundColor = answer.source === "bunpro" ? "#cc5b5d"
     : answer.subjectType ? colors.getColorForType(answer.subjectType) : "#555555";
-  const color = getBestContrastTextColor(backgroundColor, "#101217", "#ffffff");
+  const color = answer.source === "bunpro" ? "#ffffff" : getBestContrastTextColor(backgroundColor, "#101217", "#ffffff");
   const canOpen = Boolean(answer.subjectId || answer.bunproSubject?.slug);
-  return <Animated.View style={[styles.position, animation]}>
+  return <Animated.View style={[styles.position, animation, answer.source === "bunpro" && { transformOrigin: "left center" }]}>
     <TouchableOpacity
       accessibilityRole={canOpen ? "button" : "text"}
       accessibilityLabel={`Previous ${answer.source === "bunpro" ? "Bunpro" : "WaniKani"} answer: ${answer.title}, ${answer.correct ? "correct" : "incorrect"}`}
       testID="previous-answer-card"
       disabled={!canOpen}
-      style={[styles.card, { backgroundColor }]}
+      style={[styles.card, { backgroundColor }, answer.source === "bunpro" && { paddingHorizontal: 8 }]}
       onPress={() => {
         if (answer.subjectId) router.push({ pathname: "/subject/[id]", params: { id: String(answer.subjectId) } });
         else if (answer.bunproSubject) router.push({ pathname: "/bunpro-reviewable/[kind]/[slug]", params: { kind: answer.bunproSubject.kind, slug: encodeURIComponent(answer.bunproSubject.slug) } });
