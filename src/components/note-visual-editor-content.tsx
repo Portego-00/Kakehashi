@@ -48,6 +48,12 @@ type PendingLinkTyping = {
   text: string;
 };
 
+type PendingFormatTyping = {
+  offset: number;
+  text: string;
+  formats: NoteFormat[];
+};
+
 type PendingExternalRuns = {
   runs: NoteVisualEditorRun[];
   signature: string;
@@ -599,12 +605,15 @@ function describeEditorSelection(
   editor: HTMLDivElement,
   runs: readonly NoteVisualEditorRun[],
   offsets: SelectionOffsets,
+  pendingFormats?: NoteFormat[],
 ): NoteVisualEditorSelection {
   const anchor =
     anchorForSelection(editor) ?? anchorForOffsets(editor, offsets);
   const subjectId = anchor ? getSubjectIdFromAnchor(anchor) : undefined;
   const collapsedFormats =
-    offsets.start === offsets.end ? activeCollapsedFormats(editor) : [];
+    offsets.start === offsets.end
+      ? pendingFormats ?? activeCollapsedFormats(editor)
+      : [];
   const description = describeNoteVisualEditorSelection(
     runs,
     offsets.start,
@@ -621,6 +630,19 @@ function describeEditorSelection(
     };
   }
   return description;
+}
+
+function pendingFormatsAtSelection(
+  pending: PendingFormatTyping | null,
+  runs: readonly NoteVisualEditorRun[],
+  offsets: SelectionOffsets,
+): NoteFormat[] | undefined {
+  return pending &&
+    offsets.start === offsets.end &&
+    offsets.start === pending.offset &&
+    getNoteVisualEditorText(runs) === pending.text
+    ? pending.formats
+    : undefined;
 }
 
 function updateLinkAppearances(
@@ -752,6 +774,7 @@ export default function NoteVisualEditorContent({
   const savedSelectionRef = useRef<SelectionSnapshot>({ start: 0, end: 0 });
   const linkPickerSelectionRef = useRef<SelectionSnapshot | null>(null);
   const pendingLinkTypingRef = useRef<PendingLinkTyping | null>(null);
+  const pendingFormatTypingRef = useRef<PendingFormatTyping | null>(null);
   const lastAppliedCommandNonceRef = useRef<number | null>(null);
   const lastAppliedPropSignatureRef = useRef<string | null>(null);
   const lastEmittedSignatureRef = useRef<string | null>(null);
@@ -829,7 +852,13 @@ export default function NoteVisualEditorContent({
         capturedOffsets ?? preferredOffsets ?? savedSelectionRef.current;
       savedSelectionRef.current = offsets;
       const currentRuns = readRunsFromEditor(editor);
-      let description = describeEditorSelection(editor, currentRuns, offsets);
+      const pendingFormats = pendingFormatsAtSelection(
+        pendingFormatTypingRef.current,
+        currentRuns,
+        offsets,
+      );
+      if (pendingFormats === undefined) pendingFormatTypingRef.current = null;
+      let description = describeEditorSelection(editor, currentRuns, offsets, pendingFormats);
       let pendingLink = pendingLinkTypingRef.current;
       if (pendingLink && getNoteVisualEditorText(currentRuns) === pendingLink.text &&
           (offsets.start !== offsets.end || offsets.start !== pendingLink.offset)) {
@@ -880,6 +909,7 @@ export default function NoteVisualEditorContent({
   const reportEditorMutation = useCallback(() => {
     const editor = editorRef.current;
     if (!editor || isComposingRef.current) return;
+    pendingFormatTypingRef.current = null;
 
     let offsets = captureSelection(editor) ?? savedSelectionRef.current;
     let currentRuns = readRunsFromEditor(editor);
@@ -974,6 +1004,7 @@ export default function NoteVisualEditorContent({
     (externalRuns: NoteVisualEditorRun[], signature: string) => {
       const editor = editorRef.current;
       if (!editor) return;
+      pendingFormatTypingRef.current = null;
 
       pendingLinkTypingRef.current = null;
       const wasFocused = document.activeElement === editor;
@@ -1151,11 +1182,13 @@ export default function NoteVisualEditorContent({
       liveSelection.link?.end === commandSelection.link?.end;
     // Replacing a collapsed range clears the browser's pending typing styles.
     // Toolbar toggles should operate on the live caret so they can accumulate.
-    savedSelectionRef.current =
+    const preserveLiveSelection =
       (command.type === "toggle-format" || command.type === "toggle-link" || command.type === "capture-selection") &&
-      sameLiveSelection
-        ? liveSelection
-        : restoreSelection(editor, commandSelection);
+      sameLiveSelection;
+    if (!preserveLiveSelection) pendingFormatTypingRef.current = null;
+    savedSelectionRef.current = preserveLiveSelection
+      ? liveSelection
+      : restoreSelection(editor, commandSelection);
 
     if (command.type === "capture-selection") {
       linkPickerSelectionRef.current = savedSelectionRef.current;
@@ -1173,13 +1206,34 @@ export default function NoteVisualEditorContent({
     if (command.type === "toggle-format") {
       if (!isNoteVisualEditorFormat(command.format)) return;
       const before = captureSelection(editor) ?? savedSelectionRef.current;
-      executeDocumentCommand(command.format);
+      const beforeFormats = pendingFormatsAtSelection(
+        pendingFormatTypingRef.current,
+        readRunsFromEditor(editor),
+        before,
+      ) ?? activeCollapsedFormats(editor);
+      if (!executeDocumentCommand(command.format)) {
+        reportSelection(editor, before);
+        return;
+      }
       const after = captureSelection(editor) ?? before;
       savedSelectionRef.current = after;
 
       // Keep the browser's pending typing format for a collapsed caret. A
       // selected range can be canonicalized immediately without losing it.
-      if (before.start !== before.end) {
+      if (before.start === before.end) {
+        // A successful toggle can precede the browser's command-state update.
+        // Retain the typing choice until the caret moves or the text changes.
+        pendingFormatTypingRef.current = {
+          offset: after.start,
+          text: getNoteVisualEditorText(readRunsFromEditor(editor)),
+          formats: (["bold", "italic", "underline"] as const).filter((format) =>
+            format === command.format
+              ? !beforeFormats.includes(format)
+              : beforeFormats.includes(format),
+          ),
+        };
+      } else {
+        pendingFormatTypingRef.current = null;
         const nextRuns = readRunsFromEditor(editor);
         writeRunsToEditor(editor, nextRuns, appearance, subjectTypes);
         savedSelectionRef.current = restoreSelection(editor, after);
