@@ -57,6 +57,10 @@ import type { MixedReviewBridge } from "../../src/types/mixedReviews";
 import { reorderPendingReviewSession } from "../../src/utils/review-session-ordering";
 import { trimMixedWaniKaniQueue } from "../../src/utils/mixedReviews";
 import { getEnabledReviewPreset } from "../../src/utils/review-presets";
+import {
+  createLearningPageSubjectMatcher,
+  getLearningPage,
+} from "../../src/utils/learningPages";
 
 type ReviewSubject = Subject & {
   object: "radical" | "kanji" | "vocabulary" | "kana_vocabulary";
@@ -109,7 +113,10 @@ const REVIEW_PERMISSION_WARNING_MESSAGE =
   "Your API token does not have review write permission (reviews:create). Open WaniKani Personal Access Tokens, enable review write access, then log in again with the updated token.";
 
 export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = {}) {
-  const { reviewPresetId } = useLocalSearchParams<{ reviewPresetId?: string }>();
+  const { reviewPresetId, learningPageId } = useLocalSearchParams<{
+    reviewPresetId?: string;
+    learningPageId?: string;
+  }>();
   const retainedMixedQuestionRef = useRef<React.ReactElement<{ reviewActive?: boolean }> | null>(null);
   const mixedRef = useRef(mixed);
   mixedRef.current = mixed;
@@ -155,6 +162,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     reviewBatchSize: defaultReviewBatchSize,
     reviewPresetsEnabled,
     reviewPresets,
+    learningPages,
     reviewWrapUpTargetSubjects,
     autoplayVocabularyAudio,
     showAnswerStopSubjectDetails,
@@ -164,6 +172,18 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
   const [sessionPreset] = useState(() => mixed ? null : getEnabledReviewPreset({
     reviewBatchSizeEnabled: defaultReviewBatchSizeEnabled, reviewPresetsEnabled, reviewPresets,
   }, reviewPresetId));
+  const [sessionLearningPage] = useState(() =>
+    mixed ? null : getLearningPage(learningPages, learningPageId),
+  );
+  const getLearningPageMatcher = useCallback(
+    () =>
+      sessionLearningPage &&
+      createLearningPageSubjectMatcher(
+        sessionLearningPage.filter,
+        dashboardDataRef.current.reviewStatistics,
+      ),
+    [sessionLearningPage],
+  );
   const reviewOrder = sessionPreset?.reviewOrder ?? defaultReviewOrder;
   const reviewBatchSize = sessionPreset?.batchSize ?? defaultReviewBatchSize;
   const reviewBatchSizeEnabled = Boolean(sessionPreset) || defaultReviewBatchSizeEnabled;
@@ -603,7 +623,14 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
           ];
         });
 
-        const sortedLiveItems = sortReviewItemsForQueue(liveItems, {
+        const matchesLearningPage = getLearningPageMatcher();
+        const pageLiveItems = matchesLearningPage
+          ? liveItems.filter((item: ReviewItem) =>
+              matchesLearningPage(item.subject, item.srsStage),
+            )
+          : liveItems;
+
+        const sortedLiveItems = sortReviewItemsForQueue(pageLiveItems, {
           reviewOrder,
           reviewTypeOrderEnabled,
           reviewTypeOrder,
@@ -882,6 +909,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
       reviewTypeOrder,
       reviewTypeOrderEnabled,
       showAnswerStopSubjectDetails,
+      getLearningPageMatcher,
     ],
   );
 
@@ -1157,6 +1185,26 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
             "[Reviews] Failed to fetch missing subjects from API, continuing with cached subset:",
             missingSubjectFetchError,
           );
+        }
+      }
+
+      const matchesLearningPage = getLearningPageMatcher();
+      if (matchesLearningPage) {
+        availableReviewAssignments = availableReviewAssignments.filter(
+          (assignment: any) =>
+            matchesLearningPage(
+              subjectMap.get(assignment.data.subject_id),
+              assignment.data.srs_stage,
+            ),
+        );
+
+        if (availableReviewAssignments.length === 0) {
+          Alert.alert(
+            "No Reviews Available",
+            `You don't have any reviews available on “${sessionLearningPage?.name}” right now.`,
+            [{ text: "OK", onPress: () => router.back() }],
+          );
+          return;
         }
       }
 
@@ -1479,6 +1527,8 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     reviewBatchSize,
     REVIEW_MAX_QUESTION_GAP,
     reconcileLiveReviewAssignments,
+    getLearningPageMatcher,
+    sessionLearningPage,
   ]);
 
   // Wrap up mode: toggle between the trimmed wrap-up queue and the full pool.
