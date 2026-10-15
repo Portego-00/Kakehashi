@@ -33,8 +33,9 @@ import { useTheme, type ThemeMode } from "@/lib/theme";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
 import { GITHUB_REPOSITORY_URL, PATREON_URL } from "@/lib/project-links";
 import { BUILT_IN_JITAI_FONTS, deleteCustomJitaiFont, installCustomJitaiFonts, readFontFile, saveCustomJitaiFont } from "../jitai";
-import { LESSON_BATCH_SIZE_VALUES, applyWebSettings, DASHBOARD_SECTION_DEFINITIONS, DEFAULT_DASHBOARD_SECTION_ORDER, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, loadWebSettings, NAVBAR_TAB_IDS, OPTIONAL_NAV_ITEMS, REQUIRED_NAVBAR_TAB_IDS, REVIEW_BATCH_SIZE_VALUES, REVIEW_CHARACTER_FONT_SCALES, saveWebSettings, settingsStorageKey, SUBJECT_COLOR_PRESETS, type DashboardSectionId, type DashboardSectionWidth, type NavbarTabId, type QuestionOrder, type TextScale, type WebSettings } from "../settings";
+import { LESSON_BATCH_SIZE_VALUES, applyWebSettings, DASHBOARD_SECTION_DEFINITIONS, DEFAULT_DASHBOARD_SECTION_ORDER, DEFAULT_DASHBOARD_SECTION_WIDTHS, DEFAULT_HIDDEN_DASHBOARD_SECTIONS, DEFAULT_WEB_SETTINGS, notifyWebSettingsChanged, NAVBAR_TAB_IDS, OPTIONAL_NAV_ITEMS, REQUIRED_NAVBAR_TAB_IDS, REVIEW_BATCH_SIZE_VALUES, REVIEW_CHARACTER_FONT_SCALES, updateWebSettings, WEB_SETTINGS_READ_ERROR, WEB_SETTINGS_SAVE_ERROR, SUBJECT_COLOR_PRESETS, type DashboardSectionId, type DashboardSectionWidth, type NavbarTabId, type QuestionOrder, type TextScale, type WebSettings, type WebSettingsUpdate } from "../settings";
 import { SettingsSearch } from "./SettingsSearch";
+import { useWebSettingsState } from "../use-workspace-preferences";
 import { SettingsRowIcon } from "./settings-row-icon";
 import styles from "../settings.module.css";
 import { SettingsIcon, SettingsIllustration, type SettingsArtworkName } from "./settings-artwork";
@@ -159,16 +160,29 @@ function moveRadio(event: KeyboardEvent<HTMLButtonElement>, index: number, total
 }
 
 export function SettingsWorkspace() {
+  const { user } = useSession();
+  const username = user?.data.username ?? "anonymous";
+  const state = useWebSettingsState(username);
+  if (state.status !== "ready") return <main className={`page ${styles.page}`} aria-busy={state.status === "loading"}>
+    <h1>Settings</h1>
+    {state.status === "error" ? <div className={styles.persistenceNotice} role="alert"><p>{WEB_SETTINGS_READ_ERROR}</p><Button type="button" onClick={() => notifyWebSettingsChanged(username)}>Try again</Button></div> : <p role="status">Loading saved settings…</p>}
+  </main>;
+  return <LoadedSettingsWorkspace key={username} username={username} settings={state.settings} />;
+}
+
+function LoadedSettingsWorkspace({ username, settings }: { username: string; settings: WebSettings }) {
   const router = useRouter();
   const { user, status, signOut, isDemo } = useSession();
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const username = user?.data.username ?? "anonymous";
   const notebooksAllowed = status === "authenticated" && !isDemo;
-  const [settings, setSettings] = useState<WebSettings>(DEFAULT_WEB_SETTINGS);
   const [saved, setSaved] = useState(false);
+  const [settingsError, setSettingsError] = useState("");
+  const active = useRef(true);
   const [confirmReset, setConfirmReset] = useState(false);
   const [fontError, setFontError] = useState("");
-  const [gravatarEmailInput, setGravatarEmailInput] = useState("");
+  const [gravatarDraft, setGravatarDraft] = useState({ saved: settings.profile.gravatarEmail, value: settings.profile.gravatarEmail });
+  const gravatarEmailInput = gravatarDraft.saved === settings.profile.gravatarEmail ? gravatarDraft.value : settings.profile.gravatarEmail;
+  const setGravatarEmailInput = (value: string) => setGravatarDraft({ saved: settings.profile.gravatarEmail, value });
   const [gravatarEmailError, setGravatarEmailError] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
@@ -178,41 +192,42 @@ export function SettingsWorkspace() {
   }, () => false);
 
   useEffect(() => {
-    const load = () => {
-      const loaded = loadWebSettings(storage, username);
-      setSettings(loaded);
-      setGravatarEmailInput(loaded.profile.gravatarEmail);
-      applyWebSettings(loaded);
-    };
-    const timer = window.setTimeout(load, 0);
-    const onStorage = (event: StorageEvent) => { if (event.key === settingsStorageKey(username)) load(); };
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, [username]);
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
 
   useEffect(() => { void installCustomJitaiFonts(settings.study.jitaiCustomFonts).catch(() => setFontError("A saved custom font could not be loaded by this browser.")); }, [settings.study.jitaiCustomFonts]);
 
-  const update = (next: WebSettings) => {
-    setSettings(next);
-    saveWebSettings(storage, username, next);
-    applyWebSettings(next);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1200);
+  const update = (change: WebSettingsUpdate) => {
+    if (!active.current) return false;
+    try {
+      const next = updateWebSettings(storage, username, change);
+      applyWebSettings(next);
+      setSettingsError("");
+      setSaved(true);
+      window.setTimeout(() => { if (active.current) setSaved(false); }, 1200);
+      return true;
+    } catch {
+      setSaved(false);
+      setSettingsError(WEB_SETTINGS_SAVE_ERROR);
+      return false;
+    }
   };
-  const updateStudy = <Key extends keyof WebSettings["study"],>(key: Key, value: WebSettings["study"][Key]) => update({ ...settings, study: { ...settings.study, [key]: value } });
-  const updateReviewTypePosition = (position: number, value: WebSettings["study"]["reviewTypeOrder"][number]) => {
-    const reviewTypeOrder = [...settings.study.reviewTypeOrder];
+  const changeTheme = (next: ThemeMode) => {
+    try { setTheme(next); setSettingsError(""); return true; }
+    catch { setSaved(false); setSettingsError(WEB_SETTINGS_SAVE_ERROR); return false; }
+  };
+  const updateStudy = <Key extends keyof WebSettings["study"],>(key: Key, value: WebSettings["study"][Key]) => update((settings) => ({ ...settings, study: { ...settings.study, [key]: value } }));
+  const updateReviewTypePosition = (position: number, value: WebSettings["study"]["reviewTypeOrder"][number]) => update((current) => {
+    const reviewTypeOrder = [...current.study.reviewTypeOrder];
     const previousPosition = reviewTypeOrder.indexOf(value);
-    if (previousPosition < 0 || previousPosition === position) return;
+    if (previousPosition < 0 || previousPosition === position) return current;
     [reviewTypeOrder[position], reviewTypeOrder[previousPosition]] = [reviewTypeOrder[previousPosition], reviewTypeOrder[position]];
-    updateStudy("reviewTypeOrder", reviewTypeOrder);
-  };
-  const updateReader = <Key extends keyof WebSettings["reader"],>(key: Key, value: WebSettings["reader"][Key]) => update({ ...settings, reader: { ...settings.reader, [key]: value } });
-  const updateAnimeUsername = (provider: AnimeListProvider, value: string) => update({ ...settings, integrations: { ...settings.integrations, [provider === "myanimelist" ? "myAnimeListUsername" : "aniListUsername"]: value } });
-  const updateSubjectDetails = <Key extends keyof WebSettings["subjectDetails"],>(key: Key, value: WebSettings["subjectDetails"][Key]) => update({ ...settings, subjectDetails: { ...settings.subjectDetails, [key]: value } });
+    return { ...current, study: { ...current.study, reviewTypeOrder } };
+  });
+  const updateReader = <Key extends keyof WebSettings["reader"],>(key: Key, value: WebSettings["reader"][Key]) => update((settings) => ({ ...settings, reader: { ...settings.reader, [key]: value } }));
+  const updateAnimeUsername = (provider: AnimeListProvider, value: string) => update((settings) => ({ ...settings, integrations: { ...settings.integrations, [provider === "myanimelist" ? "myAnimeListUsername" : "aniListUsername"]: value } }));
+  const updateSubjectDetails = <Key extends keyof WebSettings["subjectDetails"],>(key: Key, value: WebSettings["subjectDetails"][Key]) => update((settings) => ({ ...settings, subjectDetails: { ...settings.subjectDetails, [key]: value } }));
   const saveGravatarEmail = () => {
     const trimmedEmail = gravatarEmailInput.trim();
     const gravatarEmail = normalizeGravatarEmail(trimmedEmail);
@@ -222,22 +237,24 @@ export function SettingsWorkspace() {
     }
     setGravatarEmailError("");
     setGravatarEmailInput(gravatarEmail);
-    update({ ...settings, profile: { ...settings.profile, gravatarEmail } });
+    update((settings) => ({ ...settings, profile: { ...settings.profile, gravatarEmail } }));
   };
-  const toggleNav = (id: string) => update({ ...settings, workspace: { ...settings.workspace, visibleNav: settings.workspace.visibleNav.includes(id) ? settings.workspace.visibleNav.filter((item) => item !== id) : [...settings.workspace.visibleNav, id] } });
+  const toggleNav = (id: string) => update((settings) => ({ ...settings, workspace: { ...settings.workspace, visibleNav: settings.workspace.visibleNav.includes(id) ? settings.workspace.visibleNav.filter((item) => item !== id) : [...settings.workspace.visibleNav, id] } }));
   const toggleNavbarTab = (id: NavbarTabId) => {
     if (REQUIRED_NAVBAR_TABS.has(id)) return;
-    const selected = new Set(settings.workspace.navbarTabs);
-    if (selected.has(id)) selected.delete(id);
-    else selected.add(id);
-    update({ ...settings, workspace: { ...settings.workspace, navbarTabs: NAVBAR_TAB_IDS.filter((tabId) => selected.has(tabId)) } });
+    update((current) => {
+      const selected = new Set(current.workspace.navbarTabs);
+      if (selected.has(id)) selected.delete(id);
+      else selected.add(id);
+      return { ...current, workspace: { ...current.workspace, navbarTabs: NAVBAR_TAB_IDS.filter((tabId) => selected.has(tabId)) } };
+    });
   };
   const reset = () => {
+    if (!update(() => DEFAULT_WEB_SETTINGS)) return;
     settings.study.jitaiCustomFonts.forEach((font) => { void deleteCustomJitaiFont(font.id).catch(() => undefined); });
     setGravatarEmailInput(DEFAULT_WEB_SETTINGS.profile.gravatarEmail);
     setGravatarEmailError("");
-    update(DEFAULT_WEB_SETTINGS);
-    setTheme("system");
+    changeTheme("system");
     setConfirmReset(false);
   };
   const handleSignOut = async () => {
@@ -252,11 +269,11 @@ export function SettingsWorkspace() {
       setSigningOut(false);
     }
   };
-  const toggleJitaiFont = (id: string) => {
-    const selected = settings.study.jitaiSelectedFontIds;
-    if (selected.includes(id) && selected.length === 1) return;
-    updateStudy("jitaiSelectedFontIds", selected.includes(id) ? selected.filter((fontId) => fontId !== id) : [...selected, id]);
-  };
+  const toggleJitaiFont = (id: string) => update((current) => {
+    const selected = current.study.jitaiSelectedFontIds;
+    if (selected.includes(id) && selected.length === 1) return current;
+    return { ...current, study: { ...current.study, jitaiSelectedFontIds: selected.includes(id) ? selected.filter((fontId) => fontId !== id) : [...selected, id] } };
+  });
   const importFont = async (file?: File) => {
     if (!file) return;
     setFontError("");
@@ -265,16 +282,21 @@ export function SettingsWorkspace() {
       const font = await readFontFile(file);
       await saveCustomJitaiFont(font);
       await installCustomJitaiFonts([font]);
-      update({ ...settings, study: { ...settings.study, jitaiEnabled: true, jitaiCustomFonts: [...settings.study.jitaiCustomFonts, font], jitaiSelectedFontIds: [...settings.study.jitaiSelectedFontIds, font.id] } });
+      const saved = update((current) => {
+        if (current.study.jitaiCustomFonts.length >= 3) throw new Error("Remove a custom font before adding another (maximum 3).");
+        return { ...current, study: { ...current.study, jitaiEnabled: true, jitaiCustomFonts: [...current.study.jitaiCustomFonts, font], jitaiSelectedFontIds: [...current.study.jitaiSelectedFontIds, font.id] } };
+      });
+      if (!saved) void deleteCustomJitaiFont(font.id).catch(() => undefined);
     } catch (cause) { setFontError(cause instanceof Error ? cause.message : "That font could not be imported."); }
   };
   const removeFont = (id: string) => {
-    update({ ...settings, study: { ...settings.study, jitaiCustomFonts: settings.study.jitaiCustomFonts.filter((font) => font.id !== id), jitaiSelectedFontIds: settings.study.jitaiSelectedFontIds.filter((fontId) => fontId !== id) } });
+    if (!update((settings) => ({ ...settings, study: { ...settings.study, jitaiCustomFonts: settings.study.jitaiCustomFonts.filter((font) => font.id !== id), jitaiSelectedFontIds: settings.study.jitaiSelectedFontIds.filter((fontId) => fontId !== id) } }))) return;
     void deleteCustomJitaiFont(id).catch(() => setFontError("The font was removed from settings, but its browser asset could not be deleted."));
   };
   const groupedAnkiQuestions = settings.study.ankiMode === "both" && settings.study.ankiGroupQuestions;
 
   return <main className={`page ${styles.page}`}>
+    {settingsError ? <div className={styles.persistenceNotice} role="alert"><p>{settingsError}</p></div> : null}
     <SettingsSearch organized actions={<div className={styles.headerActions}><span className={styles.savedStatus} role="status" aria-live="polite">{saved ? <Badge tone="success"><Check size={13} /> Saved</Badge> : null}</span>{confirmReset ? <><Button tone="danger" onClick={reset}>Confirm Reset</Button><Button tone="ghost" onClick={() => setConfirmReset(false)}>Cancel</Button></> : <Button tone="ghost" onClick={() => setConfirmReset(true)}><RotateCcw size={16} /> Reset</Button>}</div>}>
     <section data-settings-category="profile" data-settings-search="" className={styles.settingsSection} aria-labelledby="profile-heading">
       <div className={styles.sectionIntro}><UserRound size={19} aria-hidden /><div><h2 id="profile-heading">Profile</h2><SettingsDescription>Use your Gravatar picture in the app header.</SettingsDescription></div></div>
@@ -312,19 +334,19 @@ export function SettingsWorkspace() {
 
     <section data-settings-category="appearance" data-settings-search="" className={styles.settingsSection} aria-labelledby="appearance-heading" data-search-keywords="theme system light dark midnight sepia">
       <div className={styles.sectionIntro}><Moon size={19} /><div><h2 id="appearance-heading">Appearance</h2><SettingsDescription>Choose a base theme. System mode tracks the browser setting.</SettingsDescription></div></div>
-      <Card padding="none" className={styles.optionCard}><div className={styles.themeOptions} role="radiogroup" aria-label="Theme">{THEMES.map((option, index) => <button type="button" role="radio" aria-checked={theme === option.id} tabIndex={theme === option.id ? 0 : -1} key={option.id} onClick={() => setTheme(option.id)} onKeyDown={(event) => moveRadio(event, index, THEMES.length, (next) => setTheme(THEMES[next].id))}><span className={styles.themeSwatch} data-theme-swatch={option.id === "system" ? resolvedTheme : option.id}><SettingsIllustration name={option.id}/></span><span><strong>{option.label}</strong><small>{option.description}</small></span>{theme === option.id ? <Check size={17} aria-hidden /> : null}</button>)}</div></Card>
+      <Card padding="none" className={styles.optionCard}><div className={styles.themeOptions} role="radiogroup" aria-label="Theme">{THEMES.map((option, index) => <button type="button" role="radio" aria-checked={theme === option.id} tabIndex={theme === option.id ? 0 : -1} key={option.id} onClick={() => changeTheme(option.id)} onKeyDown={(event) => moveRadio(event, index, THEMES.length, (next) => changeTheme(THEMES[next].id))}><span className={styles.themeSwatch} data-theme-swatch={option.id === "system" ? resolvedTheme : option.id}><SettingsIllustration name={option.id}/></span><span><strong>{option.label}</strong><small>{option.description}</small></span>{theme === option.id ? <Check size={17} aria-hidden /> : null}</button>)}</div></Card>
     </section>
 
     <section data-settings-category="appearance" data-settings-search="" className={styles.settingsSection} aria-labelledby="text-heading" data-search-keywords="font scale size compact standard large accessibility">
       <div className={styles.sectionIntro}><Type size={19} /><div><h2 id="text-heading">Text size</h2><SettingsDescription>Scale the entire interface without changing browser zoom.</SettingsDescription></div></div>
-      <Card padding="none" className={styles.optionCard}><div className={styles.rowOptions} role="radiogroup" aria-label="Text size">{TEXT_SCALES.map((option, index) => <button type="button" role="radio" aria-checked={settings.textScale === option.value} tabIndex={settings.textScale === option.value ? 0 : -1} key={option.value} onClick={() => update({ ...settings, textScale: option.value })} onKeyDown={(event) => moveRadio(event, index, TEXT_SCALES.length, (next) => update({ ...settings, textScale: TEXT_SCALES[next].value }))}><span><strong>{option.label}</strong><small>{option.description}</small></span><span>{Math.round(option.value * 100)}%</span>{settings.textScale === option.value ? <Check size={17} aria-hidden /> : null}</button>)}</div><div className={styles.textPreview}><strong lang="ja">日本語を学ぶ</strong><p>Kanji, vocabulary, and review details remain comfortable on a larger display.</p></div></Card>
+      <Card padding="none" className={styles.optionCard}><div className={styles.rowOptions} role="radiogroup" aria-label="Text size">{TEXT_SCALES.map((option, index) => <button type="button" role="radio" aria-checked={settings.textScale === option.value} tabIndex={settings.textScale === option.value ? 0 : -1} key={option.value} onClick={() => update((settings) => ({ ...settings, textScale: option.value }))} onKeyDown={(event) => moveRadio(event, index, TEXT_SCALES.length, (next) => update((settings) => ({ ...settings, textScale: TEXT_SCALES[next].value })))}><span><strong>{option.label}</strong><small>{option.description}</small></span><span>{Math.round(option.value * 100)}%</span>{settings.textScale === option.value ? <Check size={17} aria-hidden /> : null}</button>)}</div><div className={styles.textPreview}><strong lang="ja">日本語を学ぶ</strong><p>Kanji, vocabulary, and review details remain comfortable on a larger display.</p></div></Card>
     </section>
 
     <section data-settings-category="appearance" data-settings-search="" className={styles.settingsSection} aria-labelledby="colors-heading" data-search-keywords="radical kanji vocabulary palette color colour">
       <div className={styles.sectionIntro}><Palette size={19} /><div><h2 id="colors-heading">Subject colors</h2><SettingsDescription>Customize the three visual anchors used across search, lists, and progress.</SettingsDescription></div></div>
       <Card className={styles.colorCard}>
-        <div className={styles.presetButtons}>{Object.entries(SUBJECT_COLOR_PRESETS).map(([name, colors]) => <button type="button" key={name} onClick={() => update({ ...settings, colors: { ...colors } })}><span>{Object.values(colors).map((color) => <i key={color} style={{ background: color }} />)}</span><strong>{name[0].toUpperCase() + name.slice(1)}</strong></button>)}</div>
-        <div className={styles.colorInputs}>{(["radical", "kanji", "vocabulary"] as const).map((key) => <label key={key}><span><i style={{ background: settings.colors[key] }} /><strong>{key[0].toUpperCase() + key.slice(1)}</strong></span><span><input type="color" value={settings.colors[key]} onChange={(event) => update({ ...settings, colors: { ...settings.colors, [key]: event.target.value } })} aria-label={`${key} color picker`} /><input type="text" value={settings.colors[key].toLocaleUpperCase()} readOnly aria-label={`${key} hexadecimal color`} /></span></label>)}</div>
+        <div className={styles.presetButtons}>{Object.entries(SUBJECT_COLOR_PRESETS).map(([name, colors]) => <button type="button" key={name} onClick={() => update((settings) => ({ ...settings, colors: { ...colors } }))}><span>{Object.values(colors).map((color) => <i key={color} style={{ background: color }} />)}</span><strong>{name[0].toUpperCase() + name.slice(1)}</strong></button>)}</div>
+        <div className={styles.colorInputs}>{(["radical", "kanji", "vocabulary"] as const).map((key) => <label key={key}><span><i style={{ background: settings.colors[key] }} /><strong>{key[0].toUpperCase() + key.slice(1)}</strong></span><span><input type="color" value={settings.colors[key]} onChange={(event) => update((settings) => ({ ...settings, colors: { ...settings.colors, [key]: event.target.value } }))} aria-label={`${key} color picker`} /><input type="text" value={settings.colors[key].toLocaleUpperCase()} readOnly aria-label={`${key} hexadecimal color`} /></span></label>)}</div>
       </Card>
     </section>
 
@@ -344,7 +366,7 @@ export function SettingsWorkspace() {
 
     <section data-settings-category="reviews" className={styles.settingsSection} aria-labelledby="reviews-heading">
       <div className={styles.sectionIntro}><ReviewQueue size={19} aria-hidden /><div><h2 id="reviews-heading">Reviews</h2><SettingsDescription>Match the mobile app’s review order, prompt, answer, and Anki behavior.</SettingsDescription></div></div>
-      <ReviewAnswerModeCards study={settings.study} onChange={patch=>update({...settings,study:{...settings.study,...patch}})}/><Card padding="none" className={styles.preferenceCard}><ToggleRow setting="pause-wrong" label="Pause on wrong answer" description="Wait so you can inspect the correct answer before continuing." checked={settings.study.pauseOnWrong} onChange={(value) => updateStudy("pauseOnWrong", value)} />
+      <ReviewAnswerModeCards study={settings.study} onChange={patch=>update((settings) => ({...settings,study:{...settings.study,...patch}}))}/><Card padding="none" className={styles.preferenceCard}><ToggleRow setting="pause-wrong" label="Pause on wrong answer" description="Wait so you can inspect the correct answer before continuing." checked={settings.study.pauseOnWrong} onChange={(value) => updateStudy("pauseOnWrong", value)} />
 <ToggleRow setting="feedback-sound" label="Answer feedback sounds" description="Enable or mute the feedback sound after submitting a correct or incorrect answer." checked={settings.study.answerFeedbackSoundEnabled} onChange={(value) => updateStudy("answerFeedbackSoundEnabled", value)} />
 <ToggleRow setting="autoplay-vocabulary" label="Autoplay vocabulary audio" keywords="voice actor pronunciation Kyoko Kenichi female male" description="Play pronunciation after a correct reading or when an Anki reading is revealed." checked={settings.study.autoplayAudio} onChange={(value) => updateStudy("autoplayAudio", value)} /></Card><div className={styles.disclosureStack}><SettingsDisclosure title="Review order" description="Priority, subject groups and question order" icon="order"><label data-settings-search="" className={styles.selectRow} htmlFor="settings-review-subject-order"><span className={styles.preferenceLabel}><SettingsRowIcon setting="subject-order"/><span><strong>Review subject order</strong><SettingsDescription>Used by regular WaniKani review sessions.</SettingsDescription></span></span><select aria-label="Review subject order" value={settings.study.reviewOrder} onChange={(event) => updateStudy("reviewOrder", event.target.value as WebSettings["study"]["reviewOrder"])} id="settings-review-subject-order">{REVIEW_ORDER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
 <label data-settings-search="" className={styles.selectRow} htmlFor="settings-custom-review-subject-order"><span className={styles.preferenceLabel}><SettingsRowIcon setting="subject-order"/><span><strong>Custom review subject order</strong><SettingsDescription>Used by custom reviews.</SettingsDescription></span></span><select aria-label="Custom review subject order" value={settings.study.customReviewOrder} onChange={(event) => updateStudy("customReviewOrder", event.target.value as WebSettings["study"]["customReviewOrder"])} id="settings-custom-review-subject-order">{REVIEW_ORDER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -433,7 +455,7 @@ export function SettingsWorkspace() {
       <Card padding="none" className={styles.preferenceCard}>
         <label data-settings-search="" className={styles.selectRow} htmlFor="settings-word-details"><span className={styles.preferenceLabel}><SettingsRowIcon setting="word-interaction"/><span><strong>Word details</strong><SettingsDescription>Click keeps hover as a visual highlight only. Hover opens details as soon as the pointer enters a word.</SettingsDescription></span></span><select aria-label="Word details" value={settings.reader.detailsInteraction} onChange={(event) => updateReader("detailsInteraction", event.target.value as WebSettings["reader"]["detailsInteraction"])} id="settings-word-details"><option value="click">Click</option><option value="hover">Hover</option></select></label>
         <ReaderRecognitionCards value={settings.reader.recognitionMode} onChange={(value) => updateReader("recognitionMode", value)} />
-        {isDemo ? <div id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span><strong>JPDB included in the demo</strong><SettingsDescription>Word readings, definitions, and Japanese-to-English translations are ready to try. No personal API key is needed.</SettingsDescription></span></div> : <label data-settings-search="" id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span className={styles.preferenceLabel}><SettingsRowIcon setting="jpdb-key"/><span><strong>JPDB API key</strong><SettingsDescription>Saved only in this browser and sent through Kakehashi when you analyze Japanese, translate a manga selection, song lyrics, or a video transcript. Copy your free key from JPDB account settings.</SettingsDescription></span></span><input className={styles.textInput} type="password" autoComplete="off" spellCheck={false} value={settings.integrations.jpdbApiKey} onChange={(event) => update({ ...settings, integrations: { ...settings.integrations, jpdbApiKey: event.target.value } })} placeholder="Paste JPDB key" /></label>}
+        {isDemo ? <div id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span><strong>JPDB included in the demo</strong><SettingsDescription>Word readings, definitions, and Japanese-to-English translations are ready to try. No personal API key is needed.</SettingsDescription></span></div> : <label data-settings-search="" id="jpdb-api-key" className={`${styles.selectRow} ${styles.settingsAnchor}`}><span className={styles.preferenceLabel}><SettingsRowIcon setting="jpdb-key"/><span><strong>JPDB API key</strong><SettingsDescription>Saved only in this browser and sent through Kakehashi when you analyze Japanese, translate a manga selection, song lyrics, or a video transcript. Copy your free key from JPDB account settings.</SettingsDescription></span></span><input className={styles.textInput} type="password" autoComplete="off" spellCheck={false} value={settings.integrations.jpdbApiKey} onChange={(event) => update((settings) => ({ ...settings, integrations: { ...settings.integrations, jpdbApiKey: event.target.value } }))} placeholder="Paste JPDB key" /></label>}
         <ToggleRow setting="lyric-translation" label="English lyric translations" description={isDemo || settings.integrations.jpdbApiKey.trim() ? "Show JPDB machine translations beneath each Japanese lyric line." : "Save a JPDB API key to enable line-by-line song translations."} checked={settings.study.songsLyricsLineTranslationsEnabled} disabled={!isDemo && !settings.integrations.jpdbApiKey.trim()} onChange={(value) => updateStudy("songsLyricsLineTranslationsEnabled", value)} />
       </Card>
     </section>
@@ -456,7 +478,7 @@ export function SettingsWorkspace() {
       </div>
     </section>
 
-    <div data-settings-category="bunpro"><BunproSettings><BunproReviewPreferences study={settings.study} onChange={(patch) => update({ ...settings, study: { ...settings.study, ...patch } })} /></BunproSettings></div>
+    <div data-settings-category="bunpro"><BunproSettings><BunproReviewPreferences study={settings.study} onChange={(patch) => update((settings) => ({ ...settings, study: { ...settings.study, ...patch } }))} /></BunproSettings></div>
 
     <section data-settings-category="account" data-settings-search="" className={styles.settingsSection} aria-labelledby="account-heading">
       <div className={styles.sectionIntro}><ShieldUser size={19} aria-hidden /><div><h2 id="account-heading">Account</h2><SettingsDescription>Manage the active WaniKani session on this browser.</SettingsDescription></div></div>
@@ -478,7 +500,7 @@ export function SettingsWorkspace() {
   </main>;
 }
 
-function DashboardLayoutEditor({ settings, onChange, customSrsAccessible, studyPacePlannerAccessible }: { settings: WebSettings; onChange: (settings: WebSettings) => void; customSrsAccessible: boolean; studyPacePlannerAccessible: boolean }) {
+function DashboardLayoutEditor({ settings, onChange, customSrsAccessible, studyPacePlannerAccessible }: { settings: WebSettings; onChange: (change: WebSettingsUpdate) => boolean; customSrsAccessible: boolean; studyPacePlannerAccessible: boolean }) {
   const [draggedId, setDraggedId] = useState<DashboardSectionId | null>(null);
   const draggedIdRef = useRef<DashboardSectionId | null>(null);
   const [dropTargetId, setDropTargetId] = useState<DashboardSectionId | "available" | "end" | null>(null);
@@ -497,7 +519,7 @@ function DashboardLayoutEditor({ settings, onChange, customSrsAccessible, studyP
     settings.workspace.dashboardOrder.forEach((id, index) => {
       if (!isEditableSection(id)) nextOrder.splice(index, 0, id);
     });
-    onChange({
+    const saved = onChange((settings) => ({
       ...settings,
       workspace: {
         ...settings.workspace,
@@ -505,8 +527,8 @@ function DashboardLayoutEditor({ settings, onChange, customSrsAccessible, studyP
         hiddenDashboard: [...nextAvailable, ...settings.workspace.hiddenDashboard.filter((id) => !isEditableSection(id))],
         dashboardRowStarts: [...new Set([...nextRowStarts.filter((id) => nextActive.includes(id) && id !== nextActive[0]), ...rowStarts.filter((id) => !isEditableSection(id))])],
       },
-    });
-    setAnnouncement(message);
+    }));
+    if (saved) setAnnouncement(message);
   };
   const addSection = (id: DashboardSectionId, beforeId?: DashboardSectionId) => {
     const nextActive = [...activeIds];
@@ -525,12 +547,12 @@ function DashboardLayoutEditor({ settings, onChange, customSrsAccessible, studyP
     saveLayout(next, availableIds, `${DASHBOARD_DEFINITION_BY_ID.get(id)?.label} moved ${offset < 0 ? "up" : "down"}.`);
   };
   const resizeSection = (id: DashboardSectionId, width: DashboardSectionWidth) => {
-    onChange({ ...settings, workspace: { ...settings.workspace, dashboardWidths: { ...settings.workspace.dashboardWidths, [id]: width } } });
-    setAnnouncement(`${DASHBOARD_DEFINITION_BY_ID.get(id)?.label} set to ${DASHBOARD_WIDTH_NAMES[width]}.`);
+    const saved = onChange((settings) => ({ ...settings, workspace: { ...settings.workspace, dashboardWidths: { ...settings.workspace.dashboardWidths, [id]: width } } }));
+    if (saved) setAnnouncement(`${DASHBOARD_DEFINITION_BY_ID.get(id)?.label} set to ${DASHBOARD_WIDTH_NAMES[width]}.`);
   };
   const restoreDashboard = () => {
-    onChange({ ...settings, workspace: { ...settings.workspace, dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], studyPacePlannerEnabled: false } });
-    setAnnouncement("Dashboard layout restored to its default sections and sizes.");
+    const saved = onChange((settings) => ({ ...settings, workspace: { ...settings.workspace, dashboardOrder: [...DEFAULT_DASHBOARD_SECTION_ORDER], hiddenDashboard: [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS], dashboardWidths: { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }, dashboardRowStarts: [], studyPacePlannerEnabled: false } }));
+    if (saved) setAnnouncement("Dashboard layout restored to its default sections and sizes.");
   };
   const startDrag = (event: DragEvent<HTMLElement>, id: DashboardSectionId) => {
     draggedIdRef.current = id;
@@ -615,7 +637,7 @@ function DashboardLayoutEditor({ settings, onChange, customSrsAccessible, studyP
                 </span>
               </div>
               <DashboardWidgetPreview id={id} />
-              {id === "forecast" && studyPacePlannerAccessible ? <ToggleRow setting="pace" label="Plan your pace" description="Show the pace planner inside Review forecast." checked={settings.workspace.studyPacePlannerEnabled} onChange={(value) => onChange({ ...settings, workspace: { ...settings.workspace, studyPacePlannerEnabled: value } })} /> : null}
+              {id === "forecast" && studyPacePlannerAccessible ? <ToggleRow setting="pace" label="Plan your pace" description="Show the pace planner inside Review forecast." checked={settings.workspace.studyPacePlannerEnabled} onChange={(value) => onChange((settings) => ({ ...settings, workspace: { ...settings.workspace, studyPacePlannerEnabled: value } }))} /> : null}
             </li>;
           })}
           {draggedId && canvasDropTarget ? <li className={styles.dashboardDropIndicator} data-drop-kind={canvasDropTarget.kind} aria-hidden style={{ left: canvasDropTarget.indicator.left, top: canvasDropTarget.indicator.top, width: canvasDropTarget.indicator.width, height: canvasDropTarget.indicator.height }} /> : null}

@@ -1,5 +1,7 @@
 export type CommunityAuthorIdentity = { id: string; username: string };
 
+export { isPortegoUsername as canViewCommunityLikes } from "../../../../src/utils/portegoAccess";
+
 // Only use an identity verified by the server, never request-body profile data.
 export function canModerateCommunityStatus(identity: CommunityAuthorIdentity) {
   return identity.username === "Portego";

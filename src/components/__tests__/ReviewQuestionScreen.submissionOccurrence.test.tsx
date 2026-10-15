@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/react-
 import { router } from "expo-router";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
-import { Alert, AppState, Dimensions, Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Alert, AppState, Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 import ReviewPromptCharacters from "../ReviewPromptCharacters";
@@ -158,7 +158,7 @@ jest.mock("../../features/custom-srs/audio-cache", () => ({
 
 jest.mock("react-native-reanimated", () => {
   const React = jest.requireActual<typeof import("react")>("react");
-  const { View } =
+  const { View, ScrollView } =
     jest.requireActual<typeof import("react-native")>("react-native");
   const transition = {
     duration: () => transition,
@@ -167,7 +167,7 @@ jest.mock("react-native-reanimated", () => {
 
   return {
     __esModule: true,
-    default: { View },
+    default: { View, ScrollView },
     Easing: {
       cubic: "cubic",
       ease: "ease",
@@ -689,6 +689,21 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(screen.getAllByText(/^(JLPT N2|Level 37|Guru I)$/).map(
       ({ props }) => React.Children.toArray(props.children).join(""),
     )).toEqual(["JLPT N2", "Level 37", "Guru I"]);
+
+    if (anki) {
+      let overlay = screen.getByLabelText("JLPT level N2");
+      while (!(overlay.props.onLayout && StyleSheet.flatten(overlay.props.style)?.position === "absolute")) {
+        if (!overlay.parent) throw new Error("Missing metadata overlay");
+        overlay = overlay.parent;
+      }
+      fireEvent(overlay, "layout", { nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 94 } } });
+      const prompt = screen.UNSAFE_getAllByType(ScrollView).find(
+        (scroll) => StyleSheet.flatten(scroll.props.style)?.minHeight === 224,
+      );
+      expect(prompt).toBeTruthy();
+      expect(StyleSheet.flatten(prompt!.props.contentContainerStyle).paddingBottom).toBe(104);
+      expect(overlay.props.pointerEvents).toBe("box-none");
+    }
 
     mockSettings.showJLPTLevel = false;
     screen.rerender(<ReviewQuestionScreen item={item} questionType="meaning" onAnswer={jest.fn()} />);
@@ -1850,6 +1865,62 @@ describe("ReviewQuestionScreen question occurrences", () => {
   });
 
   describe("Anki background reveal gestures", () => {
+    it("lets drags on revealed answer text reach its scroll view", () => {
+      mockSettings.ankiCardMode = true;
+      const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={jest.fn()} />);
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      const start = { nativeEvent: { pageX: 200, pageY: 500, target: 1 }, target: 1 };
+      let claims = 0;
+      let answerScroll;
+      for (let node = screen.getByText("Cat"); node; node = node.parent!) {
+        if (node.type === ScrollView) answerScroll = node;
+        if (typeof node.type === "string" && node.props.onStartShouldSetResponder?.(start)) claims += 1;
+      }
+      expect(answerScroll?.props.scrollEnabled).toBe(true);
+      expect(claims).toBe(0);
+    });
+
+    it.each(["wrong", "correct", "details", "skip"] as const)(
+      "lets a gesture on the revealed answer reach buttonless %s controls",
+      async (action) => {
+        mockSettings.ankiCardMode = true;
+        mockSettings.ankiButtonlessMode = true;
+        const onAnswer = jest.fn();
+        const onSkip = jest.fn();
+        const onViewSubjectDetails = jest.fn();
+        const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} onSkip={onSkip} onViewSubjectDetails={onViewSubjectDetails} />);
+        fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+        fireEvent(screen.getByLabelText("Buttonless anki controls"), "layout", {
+          nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 800 } },
+        });
+
+        const start = { nativeEvent: { pageX: action === "wrong" ? 0 : 300, pageY: 300, target: 1 }, target: 1 };
+        const end = { ...start, nativeEvent: { ...start.nativeEvent, pageY: action === "details" ? 230 : action === "skip" ? 370 : 300 } };
+        // Model native responder negotiation from the touched answer outward.
+        // Firing the pane directly misses a TouchableOpacity stealing the touch.
+        let responder = screen.getByText("Cat");
+        while (!(typeof responder.type === "string" && responder.props.onStartShouldSetResponder?.(start))) {
+          if (!responder.parent) throw new Error("The answer touch has no responder");
+          responder = responder.parent;
+        }
+        expect(responder.props.accessibilityLabel).toBe("Buttonless anki controls");
+        fireEvent(responder, "responderGrant", start);
+        fireEvent(responder, "responderMove", end);
+        fireEvent(responder, "responderRelease", end);
+
+        if (action === "details") {
+          await waitFor(() => expect(onViewSubjectDetails).toHaveBeenCalledWith(audioItem.subject.id));
+          expect(onAnswer).not.toHaveBeenCalled();
+        } else if (action === "skip") {
+          await waitFor(() => expect(onSkip).toHaveBeenCalledWith(audioItem, "meaning"));
+          expect(onAnswer).not.toHaveBeenCalled();
+        } else {
+          await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(audioItem, "meaning", action === "correct", false, false));
+          expect(onSkip).not.toHaveBeenCalled();
+        }
+      },
+    );
+
     it("offers the opt-in choices after a buttonless wrong tap without intercepting row presses (#111)", async () => {
       mockSettings.ankiCardMode = true;
       mockSettings.ankiGroupQuestions = true;

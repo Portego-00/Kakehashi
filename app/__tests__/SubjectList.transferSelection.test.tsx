@@ -16,6 +16,12 @@ jest.mock("../../src/utils/store", () => ({
   useAuthStore: Object.assign(() => ({ apiToken: "test-token" }), {
     getState: () => ({ userData: null }),
   }),
+  useSettingsStore: (selector: (state: { showVocabularyFrequency: boolean; setShowVocabularyFrequency: () => void }) => unknown) =>
+    selector({ showVocabularyFrequency: false, setShowVocabularyFrequency: jest.fn() }),
+}));
+jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
+jest.mock("../../src/hooks/useVocabularyFrequencyRanks", () => ({
+  useVocabularyFrequencyRanks: () => ({ ranks: new Map(), canUseResults: true, dataReady: true }),
 }));
 jest.mock("../../src/utils/cache", () => ({ getAllSubjects: jest.fn() }));
 jest.mock("../../src/utils/api", () => ({

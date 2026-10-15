@@ -12,6 +12,30 @@ async function settings(page: Page, username = "Portego", demo = false) {
 async function category(page: Page, name: string) {
   await page.getByRole("complementary", { name: "Settings categories" }).getByRole("button", { name, exact: true }).click();
 }
+test("workspace layout keeps its title above full-width navigation and dashboard controls", async ({ page }, info) => {
+  const widths = info.project.name === "desktop" ? [1024, 1280, 1440] : [320, 375, 414, 768];
+  await settings(page);
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/settings?category=workspace");
+    const workspace = page.locator('[data-settings-category="workspace"]');
+    const title = workspace.getByRole("heading", { name: "Workspace layout", exact: true });
+    await expect(title).toBeVisible();
+    const navigation = workspace.getByRole("heading", { name: "Desktop navbar tabs", exact: true }).locator("..").locator("..");
+    const editor = workspace.locator('[data-settings-search="Dashboard layout"]');
+    const heading = workspace.locator(":scope > div").first();
+    const [sectionBox, headingBox, navBox, editorBox] = await Promise.all([workspace.boundingBox(), heading.boundingBox(), navigation.boundingBox(), editor.boundingBox()]);
+    expect(sectionBox).not.toBeNull(); expect(headingBox).not.toBeNull(); expect(navBox).not.toBeNull(); expect(editorBox).not.toBeNull();
+    expect(headingBox!.y + headingBox!.height, `Title must be above navigation at ${width}px`).toBeLessThanOrEqual(navBox!.y);
+    for (const [name, box] of [["Navigation", navBox!], ["Dashboard editor", editorBox!]] as const) {
+      expect(Math.abs(box.x - sectionBox!.x), `${name} must align with the settings content at ${width}px`).toBeLessThanOrEqual(2);
+      expect(box.width, `${name} must use the entire settings content width at ${width}px`).toBeGreaterThanOrEqual(sectionBox!.width - 2);
+    }
+    expect(editorBox!.y).toBeGreaterThanOrEqual(navBox!.y + navBox!.height);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`workspace-${width}.png`), fullPage: true });
+  }
+});
 test("compact sidebar, animated disclosures, tooltips and section scroll reset", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop");
   await page.setViewportSize({ width: 1440, height: 900 });

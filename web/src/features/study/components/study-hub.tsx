@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, RotateCcw } from "lucide-react";
+import { ArrowRight, RotateCcw, Repeat2, Headphones, LightbulbOff, TextCursorInput } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { STUDY_MODES, type StudyModeGroup } from "../catalog";
 import { sessionKey } from "../storage";
 import { useSession } from "@/lib/session";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
+import { BUNPRO_PRACTICE_MODES, canAccessBunproPractice } from "@/features/bunpro/practice";
 import styles from "../study.module.css";
 
 const GROUPS: StudyModeGroup[] = ["Quick practice", "Language skills", "Games & tools", "Your library"];
 const noopSubscribe = () => () => {};
+const practiceIcons = { "sentence-drill": TextCursorInput, "mastery-loop": Repeat2, "no-hints": LightbulbOff, "listening-cloze": Headphones };
 
 function ResumeFlag({ mode, scope }: { mode: (typeof STUDY_MODES)[number]; scope: string | number }) {
   const saved = useSyncExternalStore(noopSubscribe, () => window.localStorage.getItem(sessionKey(scope, mode.id)), () => null);
@@ -37,6 +39,17 @@ export function StudyHub() {
       </header>
 
       <nav aria-label="Study modes" className={styles.catalog}>
+        {canAccessBunproPractice(user?.data.username) ? <section className={styles.catalogGroup} aria-labelledby="bunpro-practice-heading">
+          <div><h2 id="bunpro-practice-heading">Bunpro grammar practice</h2><p className={styles.modeCopy}>Extra repetitions on your schedule. Your Bunpro SRS stays unchanged.</p></div>
+          <div className={styles.modeGrid}>{BUNPRO_PRACTICE_MODES.map(mode => {
+            const Icon = practiceIcons[mode.id];
+            return <Link key={mode.id} href={`/bunpro-practice/${mode.id}`} className={styles.modeCard}>
+              <span className={styles.modeIcon} aria-hidden="true"><Icon size={21} strokeWidth={1.8} /></span>
+              <span className={styles.modeCopy}><strong>{mode.title}</strong><span>{mode.description}</span></span>
+              <ArrowRight className={styles.modeArrow} size={18} aria-hidden="true" />
+            </Link>;
+          })}</div>
+        </section> : null}
         {GROUPS.map((group) => (
           <section key={group} className={styles.catalogGroup} aria-labelledby={`group-${group}`}>
             <h2 id={`group-${group}`}>{group}</h2>

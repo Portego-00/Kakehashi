@@ -3,9 +3,11 @@ import { z } from "zod";
 import { BUNPRO_CREDENTIAL_HEADER } from "@/features/bunpro/credential";
 import { BUNPRO_COOKIE, BunproError, bunproIdentity, bunproRequest, bunproToken } from "@/lib/server/bunpro";
 import { loadBunproAnalytics } from "@/lib/server/bunpro-analytics";
+import { loadBunproPracticeCatalog } from "@/lib/server/bunpro-practice-catalog";
 import { sealToken } from "@/lib/server/session-crypto";
 import { WANIKANI_SESSION_COOKIE } from "@/lib/server/wanikani-session";
 import { isTrustedMutationOrigin } from "@/lib/server/request-security";
+import { canAccessBunproPractice } from "@/features/bunpro/practice";
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store" };
@@ -24,7 +26,7 @@ async function access(request: NextRequest) {
 }
 export async function GET(request: NextRequest) {
   try {
-    const { token, credential } = await access(request);
+    const { identity, token, credential } = await access(request);
     const action = request.nextUrl.searchParams.get("action");
     if (action === "connection") {
       if (!token) return NextResponse.json({ connected: false }, { headers });
@@ -36,6 +38,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ connected: true }, { headers: { ...headers, [BUNPRO_CREDENTIAL_HEADER]: credential! } });
     }
     if (!token) throw new BunproError("Add your Bunpro API key in Settings first.", 401);
+    if (action === "practice-catalog") {
+      if (!canAccessBunproPractice(identity.username)) throw new BunproError("Bunpro practice is not available for this account.", 403);
+      return NextResponse.json(await loadBunproPracticeCatalog(token), { headers });
+    }
+    if (action === "practice-search") {
+      if (!canAccessBunproPractice(identity.username)) throw new BunproError("Bunpro practice is not available for this account.", 403);
+      const query = z.string().trim().min(1).max(100).safeParse(request.nextUrl.searchParams.get("q"));
+      if (!query.success) throw new BunproError("Enter a grammar point or meaning to search.", 400);
+      return NextResponse.json(await bunproRequest(token, "/search/reviewables_v1_1", {
+        query: query.data, options: { include_reviews: true, include_bookmarks: false, include_notes: false, only_bookmarks: false },
+        is_searching_grammar: true, is_searching_vocab: false,
+      }), { headers });
+    }
     if (action === "analytics") return NextResponse.json(await loadBunproAnalytics(token), { headers });
     if (action === "lesson-queue") return NextResponse.json(await bunproRequest(token, "/user/queue"), { headers });
     if (action === "learn") {

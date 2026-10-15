@@ -71,6 +71,7 @@ describe("browser study time", () => {
 
   it("maps only study surfaces and formats compact durations", () => {
     expect(studyTimeCategoryForPathname("/study/listening")).toBe("extra-study");
+    expect(studyTimeCategoryForPathname("/bunpro-practice/mastery-loop")).toBe("extra-study");
     expect(studyTimeCategoryForPathname("/dashboard")).toBeNull();
     expect(formatStudyTime(5_460)).toBe("1h 31m");
   });

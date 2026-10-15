@@ -95,6 +95,14 @@ The option is off by default and works with grouped, meaning, and reading Anki
 cards. Components appear in word order, using the saved subject catalog for
 offline review; unavailable components are omitted.
 
+## Subject list word frequency
+
+When creating or editing a mobile Subject List, open **Browse → Filters → Word
+Frequency** and enter a maximum rank. The list editor uses the same frequency
+filter as Custom Review, including kana vocabulary. **Select Filtered** adds all
+confirmed matches, including those beyond the displayed results. Cached ranks
+work offline; remaining words can be checked with Jiten and retried if interrupted.
+
 ## Review character size
 
 Use **Settings → Review Settings → Review Character Size** on mobile, or

@@ -501,156 +501,177 @@ function validCustomFonts(value: unknown): WebJitaiFont[] {
   }).slice(0, 3);
 }
 
-export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username: string): WebSettings {
-  try {
-    const raw = storage.getItem(settingsStorageKey(username));
-    if (!raw) return DEFAULT_WEB_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<WebSettings> & { schemaVersion?: number };
-    // Legacy settings predate the enabled default. New saves preserve opt-outs.
-    const hasSynonymDefaultMigration = typeof parsed.schemaVersion === "number" && parsed.schemaVersion >= WEB_SETTINGS_SCHEMA_VERSION;
-    const persistedStudy = parsed.study && typeof parsed.study === "object" ? parsed.study as unknown as Record<string, unknown> : undefined;
-    const legacyReviewTypeGrouping = persistedStudy?.reviewOrder === "subject-type";
-    const hasSavedReviewBatchSize = Boolean(persistedStudy && Object.prototype.hasOwnProperty.call(persistedStudy, "reviewBatchSize"));
-    const scale = [0.9, 1, 1.1, 1.2].includes(parsed.textScale ?? 0) ? parsed.textScale as TextScale : DEFAULT_WEB_SETTINGS.textScale;
-    const legacyQuestionOrder = ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.answerOrder ?? "") ? parsed.study!.answerOrder as QuestionOrder : DEFAULT_WEB_SETTINGS.study.answerOrder;
-    const persistedReviewQuestionOrder = ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.reviewQuestionOrder ?? "") ? parsed.study!.reviewQuestionOrder as QuestionOrder : legacyQuestionOrder;
-    const legacyForcedReviewQuestionOrder = Boolean(persistedStudy
-      && (Object.prototype.hasOwnProperty.call(persistedStudy, "reviewQuestionOrder") || Object.prototype.hasOwnProperty.call(persistedStudy, "answerOrder"))
-      && persistedReviewQuestionOrder !== "mixed");
-    const legacyAnswerStopBehavior = ["always", "incorrect", "never"].includes(parsed.study?.answerStopBehavior ?? "") ? parsed.study!.answerStopBehavior as AnswerStopBehavior : null;
-    const migratePreviousDefaultDashboard = isPreviousDefaultDashboard(parsed.workspace);
-    const persistedDashboardOrder = Array.isArray(parsed.workspace?.dashboardOrder)
-      ? parsed.workspace.dashboardOrder.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId))
-      : [];
-    const uniqueDashboardOrder = [...new Set(persistedDashboardOrder)];
-    const newlyAvailableSections = DASHBOARD_SECTIONS.filter((item) => !uniqueDashboardOrder.includes(item));
-    const persistedHiddenDashboard = Array.isArray(parsed.workspace?.hiddenDashboard)
-      ? parsed.workspace.hiddenDashboard.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId))
-      : [];
-    const hiddenDashboard = [...new Set([
-      ...persistedHiddenDashboard,
-      ...newlyAvailableSections.filter((item) => DEFAULT_HIDDEN_DASHBOARD_SECTIONS.includes(item)),
-    ])];
-    const dashboardRowStarts = Array.isArray(parsed.workspace?.dashboardRowStarts)
-      ? [...new Set(parsed.workspace.dashboardRowStarts.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId) && !hiddenDashboard.includes(item as DashboardSectionId)))]
-      : [];
-    return {
-      textScale: scale,
-      profile: {
-        gravatarEmail: normalizeGravatarEmail(parsed.profile?.gravatarEmail),
-      },
-      colors: {
-        radical: validColor(parsed.colors?.radical, DEFAULT_WEB_SETTINGS.colors.radical),
-        kanji: validColor(parsed.colors?.kanji, DEFAULT_WEB_SETTINGS.colors.kanji),
-        vocabulary: validColor(parsed.colors?.vocabulary, DEFAULT_WEB_SETTINGS.colors.vocabulary),
-      },
-      reader: {
-        detailsInteraction: ["click", "hover"].includes(parsed.reader?.detailsInteraction ?? "") ? parsed.reader!.detailsInteraction : DEFAULT_WEB_SETTINGS.reader.detailsInteraction,
-        recognitionMode: ["wk", "wk-jpdb"].includes(parsed.reader?.recognitionMode ?? "") ? parsed.reader!.recognitionMode : DEFAULT_WEB_SETTINGS.reader.recognitionMode,
-      },
-      subjectDetails: {
-        showContextSentences: typeof parsed.subjectDetails?.showContextSentences === "boolean" ? parsed.subjectDetails.showContextSentences : DEFAULT_WEB_SETTINGS.subjectDetails.showContextSentences,
-        showImmersionExamples: typeof parsed.subjectDetails?.showImmersionExamples === "boolean" ? parsed.subjectDetails.showImmersionExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showImmersionExamples,
-        showPitchAccent: typeof parsed.subjectDetails?.showPitchAccent === "boolean" ? parsed.subjectDetails.showPitchAccent : DEFAULT_WEB_SETTINGS.subjectDetails.showPitchAccent,
-        showKanjiReadingExamples: typeof parsed.subjectDetails?.showKanjiReadingExamples === "boolean" ? parsed.subjectDetails.showKanjiReadingExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showKanjiReadingExamples,
-        showStrokeOrder: typeof parsed.subjectDetails?.showStrokeOrder === "boolean" ? parsed.subjectDetails.showStrokeOrder : DEFAULT_WEB_SETTINGS.subjectDetails.showStrokeOrder,
-        showPatternsOfUse: typeof parsed.subjectDetails?.showPatternsOfUse === "boolean" ? parsed.subjectDetails.showPatternsOfUse : DEFAULT_WEB_SETTINGS.subjectDetails.showPatternsOfUse,
-      },
-      integrations: {
-        jpdbApiKey: validApiKey(parsed.integrations?.jpdbApiKey),
-        myAnimeListUsername: validAnimeUsername(parsed.integrations?.myAnimeListUsername),
-        aniListUsername: validAnimeUsername(parsed.integrations?.aniListUsername),
-      },
-      study: {
-        autoplayAudio: typeof parsed.study?.autoplayAudio === "boolean" ? parsed.study.autoplayAudio : DEFAULT_WEB_SETTINGS.study.autoplayAudio,
-        answerFeedbackSoundEnabled: typeof parsed.study?.answerFeedbackSoundEnabled === "boolean" ? parsed.study.answerFeedbackSoundEnabled : DEFAULT_WEB_SETTINGS.study.answerFeedbackSoundEnabled,
-        showSrsIndicator: typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showSrsIndicator,
-        showReviewItemLevelAndSrsStage: typeof parsed.study?.showReviewItemLevelAndSrsStage === "boolean" ? parsed.study.showReviewItemLevelAndSrsStage : typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showReviewItemLevelAndSrsStage,
-        showVocabularyFrequency: typeof parsed.study?.showVocabularyFrequency === "boolean" ? parsed.study.showVocabularyFrequency : DEFAULT_WEB_SETTINGS.study.showVocabularyFrequency,
-        showVocabContextSentencesInReviews: typeof parsed.study?.showVocabContextSentencesInReviews === "boolean" ? parsed.study.showVocabContextSentencesInReviews : DEFAULT_WEB_SETTINGS.study.showVocabContextSentencesInReviews,
-        allowSkippingReviews: typeof parsed.study?.allowSkippingReviews === "boolean" ? parsed.study.allowSkippingReviews : DEFAULT_WEB_SETTINGS.study.allowSkippingReviews,
-        reviewSearchButtonEnabled: typeof parsed.study?.reviewSearchButtonEnabled === "boolean" ? parsed.study.reviewSearchButtonEnabled : DEFAULT_WEB_SETTINGS.study.reviewSearchButtonEnabled,
-        bunproHideFurigana: typeof parsed.study?.bunproHideFurigana === "boolean" ? parsed.study.bunproHideFurigana : DEFAULT_WEB_SETTINGS.study.bunproHideFurigana,
-        compactReviews: typeof parsed.study?.compactReviews === "boolean" ? parsed.study.compactReviews : DEFAULT_WEB_SETTINGS.study.compactReviews,
-        reviewDefaultDetailsTab: ["question", "meaning", "reading", "stroke"].includes(parsed.study?.reviewDefaultDetailsTab ?? "") ? parsed.study!.reviewDefaultDetailsTab : DEFAULT_WEB_SETTINGS.study.reviewDefaultDetailsTab,
-        reviewCharacterFontScale: REVIEW_CHARACTER_FONT_SCALES.includes(parsed.study?.reviewCharacterFontScale ?? 0) ? parsed.study!.reviewCharacterFontScale : DEFAULT_WEB_SETTINGS.study.reviewCharacterFontScale,
-        pauseOnWrong: typeof parsed.study?.pauseOnWrong === "boolean" ? parsed.study.pauseOnWrong : legacyAnswerStopBehavior ? legacyAnswerStopBehavior !== "never" : DEFAULT_WEB_SETTINGS.study.pauseOnWrong,
-        pauseOnClose: typeof parsed.study?.pauseOnClose === "boolean" ? parsed.study.pauseOnClose : DEFAULT_WEB_SETTINGS.study.pauseOnClose,
-        pauseOnCorrect: typeof parsed.study?.pauseOnCorrect === "boolean" ? parsed.study.pauseOnCorrect : legacyAnswerStopBehavior ? legacyAnswerStopBehavior === "always" : DEFAULT_WEB_SETTINGS.study.pauseOnCorrect,
-        srsProgressionCardDisplayMode: ["normal", "compact", "hidden"].includes(parsed.study?.srsProgressionCardDisplayMode ?? "") ? parsed.study!.srsProgressionCardDisplayMode : DEFAULT_WEB_SETTINGS.study.srsProgressionCardDisplayMode,
-        acceptUserSynonymsAsAnswers: hasSynonymDefaultMigration && typeof parsed.study?.acceptUserSynonymsAsAnswers === "boolean" ? parsed.study.acceptUserSynonymsAsAnswers : DEFAULT_WEB_SETTINGS.study.acceptUserSynonymsAsAnswers,
-        showAddSynonymButton: typeof parsed.study?.showAddSynonymButton === "boolean" ? parsed.study.showAddSynonymButton : DEFAULT_WEB_SETTINGS.study.showAddSynonymButton,
-        keyboardShortcuts: typeof parsed.study?.keyboardShortcuts === "boolean" ? parsed.study.keyboardShortcuts : DEFAULT_WEB_SETTINGS.study.keyboardShortcuts,
-        shuffleSubjects: typeof parsed.study?.shuffleSubjects === "boolean" ? parsed.study.shuffleSubjects : DEFAULT_WEB_SETTINGS.study.shuffleSubjects,
-        lessonsBatchSize: LESSON_BATCH_SIZE_VALUES.includes(parsed.study?.lessonsBatchSize ?? 0) ? parsed.study!.lessonsBatchSize : [15, 20].includes(parsed.study?.lessonsBatchSize ?? 0) ? 10 : DEFAULT_WEB_SETTINGS.study.lessonsBatchSize,
-        answerOrder: ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.answerOrder ?? "") ? parsed.study!.answerOrder : DEFAULT_WEB_SETTINGS.study.answerOrder,
-        dailyLessonLimit: Number.isInteger(parsed.study?.dailyLessonLimit) && parsed.study!.dailyLessonLimit >= 0 && parsed.study!.dailyLessonLimit <= 500 ? parsed.study!.dailyLessonLimit : DEFAULT_WEB_SETTINGS.study.dailyLessonLimit,
-        minimumRadicalKanjiPerBatchEnabled: typeof parsed.study?.minimumRadicalKanjiPerBatchEnabled === "boolean" ? parsed.study.minimumRadicalKanjiPerBatchEnabled : DEFAULT_WEB_SETTINGS.study.minimumRadicalKanjiPerBatchEnabled,
-        lessonOrder: normalizeLessonOrder(parsed.study?.lessonOrder),
-        excludeKanaVocabularyFromLessons: typeof parsed.study?.excludeKanaVocabularyFromLessons === "boolean" ? parsed.study.excludeKanaVocabularyFromLessons : DEFAULT_WEB_SETTINGS.study.excludeKanaVocabularyFromLessons,
-        apprenticeLessonThreshold: normalizeLessonSrsThreshold(parsed.study?.apprenticeLessonThreshold ?? 0),
-        guruLessonThreshold: normalizeLessonSrsThreshold(parsed.study?.guruLessonThreshold ?? 0),
-        reviewOrder: normalizeReviewOrder(persistedStudy?.reviewOrder, DEFAULT_WEB_SETTINGS.study.reviewOrder),
-        customReviewOrder: normalizeReviewOrder(persistedStudy?.customReviewOrder, DEFAULT_WEB_SETTINGS.study.customReviewOrder),
-        reviewTypeOrderEnabled: legacyReviewTypeGrouping || (typeof parsed.study?.reviewTypeOrderEnabled === "boolean" ? parsed.study.reviewTypeOrderEnabled : DEFAULT_WEB_SETTINGS.study.reviewTypeOrderEnabled),
-        reviewTypeOrder: normalizeReviewTypeOrder(persistedStudy?.reviewTypeOrder),
-        prioritizeCriticalItems: typeof parsed.study?.prioritizeCriticalItems === "boolean" ? parsed.study.prioritizeCriticalItems : DEFAULT_WEB_SETTINGS.study.prioritizeCriticalItems,
-        reviewBatchSizeEnabled: typeof parsed.study?.reviewBatchSizeEnabled === "boolean" ? parsed.study.reviewBatchSizeEnabled : hasSavedReviewBatchSize,
-        reviewBatchSize: REVIEW_BATCH_SIZE_VALUES.includes(parsed.study?.reviewBatchSize ?? 0) ? parsed.study!.reviewBatchSize : DEFAULT_WEB_SETTINGS.study.reviewBatchSize,
-        reviewPresetsEnabled: parsed.study?.reviewPresetsEnabled === true,
-        reviewPresets: normalizeReviewPresets(parsed.study?.reviewPresets),
-        reviewWrapUpSize: [5, 10, 15, 20].includes(parsed.study?.reviewWrapUpSize ?? 0) ? parsed.study!.reviewWrapUpSize : DEFAULT_WEB_SETTINGS.study.reviewWrapUpSize,
-        lessonQuestionOrder: ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.lessonQuestionOrder ?? "") ? parsed.study!.lessonQuestionOrder : legacyQuestionOrder,
-        reviewQuestionOrderEnabled: typeof parsed.study?.reviewQuestionOrderEnabled === "boolean" ? parsed.study.reviewQuestionOrderEnabled : legacyForcedReviewQuestionOrder,
-        reviewQuestionOrder: persistedReviewQuestionOrder,
-        backToBackQuestions: typeof parsed.study?.backToBackQuestions === "boolean" ? parsed.study.backToBackQuestions : DEFAULT_WEB_SETTINGS.study.backToBackQuestions,
-        backToBackImmediateRetryIncorrect: typeof parsed.study?.backToBackImmediateRetryIncorrect === "boolean" ? parsed.study.backToBackImmediateRetryIncorrect : DEFAULT_WEB_SETTINGS.study.backToBackImmediateRetryIncorrect,
-        reviewAnimatePreviousQuestion: typeof parsed.study?.reviewAnimatePreviousQuestion === "boolean" ? parsed.study.reviewAnimatePreviousQuestion : DEFAULT_WEB_SETTINGS.study.reviewAnimatePreviousQuestion,
-        answerStopBehavior: legacyAnswerStopBehavior ?? DEFAULT_WEB_SETTINGS.study.answerStopBehavior,
-        showAnswerStopSubjectDetails: typeof parsed.study?.showAnswerStopSubjectDetails === "boolean" ? parsed.study.showAnswerStopSubjectDetails : DEFAULT_WEB_SETTINGS.study.showAnswerStopSubjectDetails,
-        showDetailsOnWrongAnswer: typeof parsed.study?.showDetailsOnWrongAnswer === "boolean" ? parsed.study.showDetailsOnWrongAnswer : DEFAULT_WEB_SETTINGS.study.showDetailsOnWrongAnswer,
-        showListeningTranslation: typeof parsed.study?.showListeningTranslation === "boolean" ? parsed.study.showListeningTranslation : DEFAULT_WEB_SETTINGS.study.showListeningTranslation,
-        vocabularyAudioVoice: ["female", "male", "random", "both"].includes(parsed.study?.vocabularyAudioVoice ?? "") ? parsed.study!.vocabularyAudioVoice : DEFAULT_WEB_SETTINGS.study.vocabularyAudioVoice,
-        ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,
-        reviewMultipleChoiceEnabled: typeof parsed.study?.reviewMultipleChoiceEnabled === "boolean" ? parsed.study.reviewMultipleChoiceEnabled : DEFAULT_WEB_SETTINGS.study.reviewMultipleChoiceEnabled,
-        ankiHideAnswerCompletely: typeof parsed.study?.ankiHideAnswerCompletely === "boolean" ? parsed.study.ankiHideAnswerCompletely : DEFAULT_WEB_SETTINGS.study.ankiHideAnswerCompletely,
-        ankiGroupQuestions: typeof parsed.study?.ankiGroupQuestions === "boolean" ? parsed.study.ankiGroupQuestions : DEFAULT_WEB_SETTINGS.study.ankiGroupQuestions,
-        ankiCombinedDetailsTab: ["meaning", "reading", "stroke"].includes(parsed.study?.ankiCombinedDetailsTab ?? "") ? parsed.study!.ankiCombinedDetailsTab : DEFAULT_WEB_SETTINGS.study.ankiCombinedDetailsTab,
-        studyShortcuts: normalizeStudyShortcuts(parsed.study?.studyShortcuts),
-        ankiShowOtherAcceptedAnswersAndUserSynonyms: typeof parsed.study?.ankiShowOtherAcceptedAnswersAndUserSynonyms === "boolean" ? parsed.study.ankiShowOtherAcceptedAnswersAndUserSynonyms : DEFAULT_WEB_SETTINGS.study.ankiShowOtherAcceptedAnswersAndUserSynonyms,
-        ankiShowWaniKaniGrammarTags: typeof parsed.study?.ankiShowWaniKaniGrammarTags === "boolean" ? parsed.study.ankiShowWaniKaniGrammarTags : DEFAULT_WEB_SETTINGS.study.ankiShowWaniKaniGrammarTags,
-        ankiShowPitchAccentNumbers: typeof parsed.study?.ankiShowPitchAccentNumbers === "boolean" ? parsed.study.ankiShowPitchAccentNumbers : DEFAULT_WEB_SETTINGS.study.ankiShowPitchAccentNumbers,
-        ankiShowPitchAccentGraph: typeof parsed.study?.ankiShowPitchAccentGraph === "boolean" ? parsed.study.ankiShowPitchAccentGraph : DEFAULT_WEB_SETTINGS.study.ankiShowPitchAccentGraph,
-        ankiButtonlessMode: typeof parsed.study?.ankiButtonlessMode === "boolean" ? parsed.study.ankiButtonlessMode : DEFAULT_WEB_SETTINGS.study.ankiButtonlessMode,
-        ankiShowReplayAudioButton: typeof parsed.study?.ankiShowReplayAudioButton === "boolean" ? parsed.study.ankiShowReplayAudioButton : DEFAULT_WEB_SETTINGS.study.ankiShowReplayAudioButton,
-        acceptAnyKanjiOnyomiReading: typeof parsed.study?.acceptAnyKanjiOnyomiReading === "boolean" ? parsed.study.acceptAnyKanjiOnyomiReading : DEFAULT_WEB_SETTINGS.study.acceptAnyKanjiOnyomiReading,
-        voiceAnswers: typeof parsed.study?.voiceAnswers === "boolean" ? parsed.study.voiceAnswers : DEFAULT_WEB_SETTINGS.study.voiceAnswers,
-        jitaiEnabled: typeof parsed.study?.jitaiEnabled === "boolean" ? parsed.study.jitaiEnabled : DEFAULT_WEB_SETTINGS.study.jitaiEnabled,
-        jitaiSelectedFontIds: validStringArray(parsed.study?.jitaiSelectedFontIds, 16).length ? validStringArray(parsed.study?.jitaiSelectedFontIds, 16) : [...DEFAULT_WEB_SETTINGS.study.jitaiSelectedFontIds],
-        jitaiCustomFonts: validCustomFonts(parsed.study?.jitaiCustomFonts),
-        immersionKitAnimeSources: validStringArray(parsed.study?.immersionKitAnimeSources, 100).length ? validStringArray(parsed.study?.immersionKitAnimeSources, 100) : [ALL_ANIME_SOURCE],
-        epubDailyGoalMinutes: [5, 10, 15, 20, 30, 45, 60].includes(parsed.study?.epubDailyGoalMinutes ?? 0) ? parsed.study!.epubDailyGoalMinutes : DEFAULT_WEB_SETTINGS.study.epubDailyGoalMinutes,
-        songsLyricsLineTranslationsEnabled: typeof parsed.study?.songsLyricsLineTranslationsEnabled === "boolean" ? parsed.study.songsLyricsLineTranslationsEnabled : DEFAULT_WEB_SETTINGS.study.songsLyricsLineTranslationsEnabled,
-      },
-      workspace: {
-        navbarTabs: navbarTabsFromSettings(parsed.workspace),
-        visibleNav: Array.isArray(parsed.workspace?.visibleNav) ? OPTIONAL_NAV_ITEMS.filter((item) => parsed.workspace!.visibleNav.includes(item)) : [...DEFAULT_WEB_SETTINGS.workspace.visibleNav],
-        dashboardOrder: migratePreviousDefaultDashboard ? [...DEFAULT_DASHBOARD_SECTION_ORDER] : uniqueDashboardOrder.length ? [...uniqueDashboardOrder, ...newlyAvailableSections] : [...DEFAULT_WEB_SETTINGS.workspace.dashboardOrder],
-        hiddenDashboard: migratePreviousDefaultDashboard ? [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS] : uniqueDashboardOrder.length ? hiddenDashboard : [...DEFAULT_WEB_SETTINGS.workspace.hiddenDashboard],
-        dashboardWidths: migratePreviousDefaultDashboard
-          ? { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }
-          : Object.fromEntries(DASHBOARD_SECTIONS.map((id) => [id, dashboardSectionWidth(id, parsed.workspace?.dashboardWidths?.[id])])) as Record<DashboardSectionId, DashboardSectionWidth>,
-        dashboardRowStarts: migratePreviousDefaultDashboard ? [] : dashboardRowStarts,
-        forecastViewMode: parsed.workspace?.forecastViewMode === "list" ? "list" : "chart",
-        forecastChartMode: parsed.workspace?.forecastChartMode === "daily" ? "daily" : "hourly",
-        forecastBreakdown: parsed.workspace?.forecastBreakdown === "subject" || parsed.workspace?.forecastBreakdown === "srs" ? parsed.workspace.forecastBreakdown : "off",
-        studyPacePlannerEnabled: parsed.workspace?.studyPacePlannerEnabled === true,
-      },
-    };
-  } catch {
-    return DEFAULT_WEB_SETTINGS;
-  }
+/** Strict reads are required before writing so a read error cannot become a reset. */
+export function readWebSettings(storage: Pick<ListStorage, "getItem">, username: string): WebSettings {
+  const raw = storage.getItem(settingsStorageKey(username));
+  if (raw === null) return DEFAULT_WEB_SETTINGS;
+  const value: unknown = JSON.parse(raw);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Saved settings could not be read.");
+  const parsed = value as Partial<WebSettings> & { schemaVersion?: number };
+  // Legacy settings predate the enabled default. New saves preserve opt-outs.
+  const hasSynonymDefaultMigration = typeof parsed.schemaVersion === "number" && parsed.schemaVersion >= WEB_SETTINGS_SCHEMA_VERSION;
+  const persistedStudy = parsed.study && typeof parsed.study === "object" ? parsed.study as unknown as Record<string, unknown> : undefined;
+  const legacyReviewTypeGrouping = persistedStudy?.reviewOrder === "subject-type";
+  const hasSavedReviewBatchSize = Boolean(persistedStudy && Object.prototype.hasOwnProperty.call(persistedStudy, "reviewBatchSize"));
+  const scale = [0.9, 1, 1.1, 1.2].includes(parsed.textScale ?? 0) ? parsed.textScale as TextScale : DEFAULT_WEB_SETTINGS.textScale;
+  const legacyQuestionOrder = ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.answerOrder ?? "") ? parsed.study!.answerOrder as QuestionOrder : DEFAULT_WEB_SETTINGS.study.answerOrder;
+  const persistedReviewQuestionOrder = ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.reviewQuestionOrder ?? "") ? parsed.study!.reviewQuestionOrder as QuestionOrder : legacyQuestionOrder;
+  const legacyForcedReviewQuestionOrder = Boolean(persistedStudy
+    && (Object.prototype.hasOwnProperty.call(persistedStudy, "reviewQuestionOrder") || Object.prototype.hasOwnProperty.call(persistedStudy, "answerOrder"))
+    && persistedReviewQuestionOrder !== "mixed");
+  const legacyAnswerStopBehavior = ["always", "incorrect", "never"].includes(parsed.study?.answerStopBehavior ?? "") ? parsed.study!.answerStopBehavior as AnswerStopBehavior : null;
+  const migratePreviousDefaultDashboard = isPreviousDefaultDashboard(parsed.workspace);
+  const persistedDashboardOrder = Array.isArray(parsed.workspace?.dashboardOrder)
+    ? parsed.workspace.dashboardOrder.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId))
+    : [];
+  const uniqueDashboardOrder = [...new Set(persistedDashboardOrder)];
+  const newlyAvailableSections = DASHBOARD_SECTIONS.filter((item) => !uniqueDashboardOrder.includes(item));
+  const persistedHiddenDashboard = Array.isArray(parsed.workspace?.hiddenDashboard)
+    ? parsed.workspace.hiddenDashboard.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId))
+    : [];
+  const hiddenDashboard = [...new Set([
+    ...persistedHiddenDashboard,
+    ...newlyAvailableSections.filter((item) => DEFAULT_HIDDEN_DASHBOARD_SECTIONS.includes(item)),
+  ])];
+  const dashboardRowStarts = Array.isArray(parsed.workspace?.dashboardRowStarts)
+    ? [...new Set(parsed.workspace.dashboardRowStarts.filter((item): item is DashboardSectionId => DASHBOARD_SECTIONS.includes(item as DashboardSectionId) && !hiddenDashboard.includes(item as DashboardSectionId)))]
+    : [];
+  return {
+    textScale: scale,
+    profile: {
+      gravatarEmail: normalizeGravatarEmail(parsed.profile?.gravatarEmail),
+    },
+    colors: {
+      radical: validColor(parsed.colors?.radical, DEFAULT_WEB_SETTINGS.colors.radical),
+      kanji: validColor(parsed.colors?.kanji, DEFAULT_WEB_SETTINGS.colors.kanji),
+      vocabulary: validColor(parsed.colors?.vocabulary, DEFAULT_WEB_SETTINGS.colors.vocabulary),
+    },
+    reader: {
+      detailsInteraction: ["click", "hover"].includes(parsed.reader?.detailsInteraction ?? "") ? parsed.reader!.detailsInteraction : DEFAULT_WEB_SETTINGS.reader.detailsInteraction,
+      recognitionMode: ["wk", "wk-jpdb"].includes(parsed.reader?.recognitionMode ?? "") ? parsed.reader!.recognitionMode : DEFAULT_WEB_SETTINGS.reader.recognitionMode,
+    },
+    subjectDetails: {
+      showContextSentences: typeof parsed.subjectDetails?.showContextSentences === "boolean" ? parsed.subjectDetails.showContextSentences : DEFAULT_WEB_SETTINGS.subjectDetails.showContextSentences,
+      showImmersionExamples: typeof parsed.subjectDetails?.showImmersionExamples === "boolean" ? parsed.subjectDetails.showImmersionExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showImmersionExamples,
+      showPitchAccent: typeof parsed.subjectDetails?.showPitchAccent === "boolean" ? parsed.subjectDetails.showPitchAccent : DEFAULT_WEB_SETTINGS.subjectDetails.showPitchAccent,
+      showKanjiReadingExamples: typeof parsed.subjectDetails?.showKanjiReadingExamples === "boolean" ? parsed.subjectDetails.showKanjiReadingExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showKanjiReadingExamples,
+      showStrokeOrder: typeof parsed.subjectDetails?.showStrokeOrder === "boolean" ? parsed.subjectDetails.showStrokeOrder : DEFAULT_WEB_SETTINGS.subjectDetails.showStrokeOrder,
+      showPatternsOfUse: typeof parsed.subjectDetails?.showPatternsOfUse === "boolean" ? parsed.subjectDetails.showPatternsOfUse : DEFAULT_WEB_SETTINGS.subjectDetails.showPatternsOfUse,
+    },
+    integrations: {
+      jpdbApiKey: validApiKey(parsed.integrations?.jpdbApiKey),
+      myAnimeListUsername: validAnimeUsername(parsed.integrations?.myAnimeListUsername),
+      aniListUsername: validAnimeUsername(parsed.integrations?.aniListUsername),
+    },
+    study: {
+      autoplayAudio: typeof parsed.study?.autoplayAudio === "boolean" ? parsed.study.autoplayAudio : DEFAULT_WEB_SETTINGS.study.autoplayAudio,
+      answerFeedbackSoundEnabled: typeof parsed.study?.answerFeedbackSoundEnabled === "boolean" ? parsed.study.answerFeedbackSoundEnabled : DEFAULT_WEB_SETTINGS.study.answerFeedbackSoundEnabled,
+      showSrsIndicator: typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showSrsIndicator,
+      showReviewItemLevelAndSrsStage: typeof parsed.study?.showReviewItemLevelAndSrsStage === "boolean" ? parsed.study.showReviewItemLevelAndSrsStage : typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showReviewItemLevelAndSrsStage,
+      showVocabularyFrequency: typeof parsed.study?.showVocabularyFrequency === "boolean" ? parsed.study.showVocabularyFrequency : DEFAULT_WEB_SETTINGS.study.showVocabularyFrequency,
+      showVocabContextSentencesInReviews: typeof parsed.study?.showVocabContextSentencesInReviews === "boolean" ? parsed.study.showVocabContextSentencesInReviews : DEFAULT_WEB_SETTINGS.study.showVocabContextSentencesInReviews,
+      allowSkippingReviews: typeof parsed.study?.allowSkippingReviews === "boolean" ? parsed.study.allowSkippingReviews : DEFAULT_WEB_SETTINGS.study.allowSkippingReviews,
+      reviewSearchButtonEnabled: typeof parsed.study?.reviewSearchButtonEnabled === "boolean" ? parsed.study.reviewSearchButtonEnabled : DEFAULT_WEB_SETTINGS.study.reviewSearchButtonEnabled,
+      bunproHideFurigana: typeof parsed.study?.bunproHideFurigana === "boolean" ? parsed.study.bunproHideFurigana : DEFAULT_WEB_SETTINGS.study.bunproHideFurigana,
+      compactReviews: typeof parsed.study?.compactReviews === "boolean" ? parsed.study.compactReviews : DEFAULT_WEB_SETTINGS.study.compactReviews,
+      reviewDefaultDetailsTab: ["question", "meaning", "reading", "stroke"].includes(parsed.study?.reviewDefaultDetailsTab ?? "") ? parsed.study!.reviewDefaultDetailsTab : DEFAULT_WEB_SETTINGS.study.reviewDefaultDetailsTab,
+      reviewCharacterFontScale: REVIEW_CHARACTER_FONT_SCALES.includes(parsed.study?.reviewCharacterFontScale ?? 0) ? parsed.study!.reviewCharacterFontScale : DEFAULT_WEB_SETTINGS.study.reviewCharacterFontScale,
+      pauseOnWrong: typeof parsed.study?.pauseOnWrong === "boolean" ? parsed.study.pauseOnWrong : legacyAnswerStopBehavior ? legacyAnswerStopBehavior !== "never" : DEFAULT_WEB_SETTINGS.study.pauseOnWrong,
+      pauseOnClose: typeof parsed.study?.pauseOnClose === "boolean" ? parsed.study.pauseOnClose : DEFAULT_WEB_SETTINGS.study.pauseOnClose,
+      pauseOnCorrect: typeof parsed.study?.pauseOnCorrect === "boolean" ? parsed.study.pauseOnCorrect : legacyAnswerStopBehavior ? legacyAnswerStopBehavior === "always" : DEFAULT_WEB_SETTINGS.study.pauseOnCorrect,
+      srsProgressionCardDisplayMode: ["normal", "compact", "hidden"].includes(parsed.study?.srsProgressionCardDisplayMode ?? "") ? parsed.study!.srsProgressionCardDisplayMode : DEFAULT_WEB_SETTINGS.study.srsProgressionCardDisplayMode,
+      acceptUserSynonymsAsAnswers: hasSynonymDefaultMigration && typeof parsed.study?.acceptUserSynonymsAsAnswers === "boolean" ? parsed.study.acceptUserSynonymsAsAnswers : DEFAULT_WEB_SETTINGS.study.acceptUserSynonymsAsAnswers,
+      showAddSynonymButton: typeof parsed.study?.showAddSynonymButton === "boolean" ? parsed.study.showAddSynonymButton : DEFAULT_WEB_SETTINGS.study.showAddSynonymButton,
+      keyboardShortcuts: typeof parsed.study?.keyboardShortcuts === "boolean" ? parsed.study.keyboardShortcuts : DEFAULT_WEB_SETTINGS.study.keyboardShortcuts,
+      shuffleSubjects: typeof parsed.study?.shuffleSubjects === "boolean" ? parsed.study.shuffleSubjects : DEFAULT_WEB_SETTINGS.study.shuffleSubjects,
+      lessonsBatchSize: LESSON_BATCH_SIZE_VALUES.includes(parsed.study?.lessonsBatchSize ?? 0) ? parsed.study!.lessonsBatchSize : [15, 20].includes(parsed.study?.lessonsBatchSize ?? 0) ? 10 : DEFAULT_WEB_SETTINGS.study.lessonsBatchSize,
+      answerOrder: ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.answerOrder ?? "") ? parsed.study!.answerOrder : DEFAULT_WEB_SETTINGS.study.answerOrder,
+      dailyLessonLimit: Number.isInteger(parsed.study?.dailyLessonLimit) && parsed.study!.dailyLessonLimit >= 0 && parsed.study!.dailyLessonLimit <= 500 ? parsed.study!.dailyLessonLimit : DEFAULT_WEB_SETTINGS.study.dailyLessonLimit,
+      minimumRadicalKanjiPerBatchEnabled: typeof parsed.study?.minimumRadicalKanjiPerBatchEnabled === "boolean" ? parsed.study.minimumRadicalKanjiPerBatchEnabled : DEFAULT_WEB_SETTINGS.study.minimumRadicalKanjiPerBatchEnabled,
+      lessonOrder: normalizeLessonOrder(parsed.study?.lessonOrder),
+      excludeKanaVocabularyFromLessons: typeof parsed.study?.excludeKanaVocabularyFromLessons === "boolean" ? parsed.study.excludeKanaVocabularyFromLessons : DEFAULT_WEB_SETTINGS.study.excludeKanaVocabularyFromLessons,
+      apprenticeLessonThreshold: normalizeLessonSrsThreshold(parsed.study?.apprenticeLessonThreshold ?? 0),
+      guruLessonThreshold: normalizeLessonSrsThreshold(parsed.study?.guruLessonThreshold ?? 0),
+      reviewOrder: normalizeReviewOrder(persistedStudy?.reviewOrder, DEFAULT_WEB_SETTINGS.study.reviewOrder),
+      customReviewOrder: normalizeReviewOrder(persistedStudy?.customReviewOrder, DEFAULT_WEB_SETTINGS.study.customReviewOrder),
+      reviewTypeOrderEnabled: legacyReviewTypeGrouping || (typeof parsed.study?.reviewTypeOrderEnabled === "boolean" ? parsed.study.reviewTypeOrderEnabled : DEFAULT_WEB_SETTINGS.study.reviewTypeOrderEnabled),
+      reviewTypeOrder: normalizeReviewTypeOrder(persistedStudy?.reviewTypeOrder),
+      prioritizeCriticalItems: typeof parsed.study?.prioritizeCriticalItems === "boolean" ? parsed.study.prioritizeCriticalItems : DEFAULT_WEB_SETTINGS.study.prioritizeCriticalItems,
+      reviewBatchSizeEnabled: typeof parsed.study?.reviewBatchSizeEnabled === "boolean" ? parsed.study.reviewBatchSizeEnabled : hasSavedReviewBatchSize,
+      reviewBatchSize: REVIEW_BATCH_SIZE_VALUES.includes(parsed.study?.reviewBatchSize ?? 0) ? parsed.study!.reviewBatchSize : DEFAULT_WEB_SETTINGS.study.reviewBatchSize,
+      reviewPresetsEnabled: parsed.study?.reviewPresetsEnabled === true,
+      reviewPresets: normalizeReviewPresets(parsed.study?.reviewPresets),
+      reviewWrapUpSize: [5, 10, 15, 20].includes(parsed.study?.reviewWrapUpSize ?? 0) ? parsed.study!.reviewWrapUpSize : DEFAULT_WEB_SETTINGS.study.reviewWrapUpSize,
+      lessonQuestionOrder: ["meaning-first", "reading-first", "mixed"].includes(parsed.study?.lessonQuestionOrder ?? "") ? parsed.study!.lessonQuestionOrder : legacyQuestionOrder,
+      reviewQuestionOrderEnabled: typeof parsed.study?.reviewQuestionOrderEnabled === "boolean" ? parsed.study.reviewQuestionOrderEnabled : legacyForcedReviewQuestionOrder,
+      reviewQuestionOrder: persistedReviewQuestionOrder,
+      backToBackQuestions: typeof parsed.study?.backToBackQuestions === "boolean" ? parsed.study.backToBackQuestions : DEFAULT_WEB_SETTINGS.study.backToBackQuestions,
+      backToBackImmediateRetryIncorrect: typeof parsed.study?.backToBackImmediateRetryIncorrect === "boolean" ? parsed.study.backToBackImmediateRetryIncorrect : DEFAULT_WEB_SETTINGS.study.backToBackImmediateRetryIncorrect,
+      reviewAnimatePreviousQuestion: typeof parsed.study?.reviewAnimatePreviousQuestion === "boolean" ? parsed.study.reviewAnimatePreviousQuestion : DEFAULT_WEB_SETTINGS.study.reviewAnimatePreviousQuestion,
+      answerStopBehavior: legacyAnswerStopBehavior ?? DEFAULT_WEB_SETTINGS.study.answerStopBehavior,
+      showAnswerStopSubjectDetails: typeof parsed.study?.showAnswerStopSubjectDetails === "boolean" ? parsed.study.showAnswerStopSubjectDetails : DEFAULT_WEB_SETTINGS.study.showAnswerStopSubjectDetails,
+      showDetailsOnWrongAnswer: typeof parsed.study?.showDetailsOnWrongAnswer === "boolean" ? parsed.study.showDetailsOnWrongAnswer : DEFAULT_WEB_SETTINGS.study.showDetailsOnWrongAnswer,
+      showListeningTranslation: typeof parsed.study?.showListeningTranslation === "boolean" ? parsed.study.showListeningTranslation : DEFAULT_WEB_SETTINGS.study.showListeningTranslation,
+      vocabularyAudioVoice: ["female", "male", "random", "both"].includes(parsed.study?.vocabularyAudioVoice ?? "") ? parsed.study!.vocabularyAudioVoice : DEFAULT_WEB_SETTINGS.study.vocabularyAudioVoice,
+      ankiMode: ["off", "both", "meaning", "reading"].includes(parsed.study?.ankiMode ?? "") ? parsed.study!.ankiMode : DEFAULT_WEB_SETTINGS.study.ankiMode,
+      reviewMultipleChoiceEnabled: typeof parsed.study?.reviewMultipleChoiceEnabled === "boolean" ? parsed.study.reviewMultipleChoiceEnabled : DEFAULT_WEB_SETTINGS.study.reviewMultipleChoiceEnabled,
+      ankiHideAnswerCompletely: typeof parsed.study?.ankiHideAnswerCompletely === "boolean" ? parsed.study.ankiHideAnswerCompletely : DEFAULT_WEB_SETTINGS.study.ankiHideAnswerCompletely,
+      ankiGroupQuestions: typeof parsed.study?.ankiGroupQuestions === "boolean" ? parsed.study.ankiGroupQuestions : DEFAULT_WEB_SETTINGS.study.ankiGroupQuestions,
+      ankiCombinedDetailsTab: ["meaning", "reading", "stroke"].includes(parsed.study?.ankiCombinedDetailsTab ?? "") ? parsed.study!.ankiCombinedDetailsTab : DEFAULT_WEB_SETTINGS.study.ankiCombinedDetailsTab,
+      studyShortcuts: normalizeStudyShortcuts(parsed.study?.studyShortcuts),
+      ankiShowOtherAcceptedAnswersAndUserSynonyms: typeof parsed.study?.ankiShowOtherAcceptedAnswersAndUserSynonyms === "boolean" ? parsed.study.ankiShowOtherAcceptedAnswersAndUserSynonyms : DEFAULT_WEB_SETTINGS.study.ankiShowOtherAcceptedAnswersAndUserSynonyms,
+      ankiShowWaniKaniGrammarTags: typeof parsed.study?.ankiShowWaniKaniGrammarTags === "boolean" ? parsed.study.ankiShowWaniKaniGrammarTags : DEFAULT_WEB_SETTINGS.study.ankiShowWaniKaniGrammarTags,
+      ankiShowPitchAccentNumbers: typeof parsed.study?.ankiShowPitchAccentNumbers === "boolean" ? parsed.study.ankiShowPitchAccentNumbers : DEFAULT_WEB_SETTINGS.study.ankiShowPitchAccentNumbers,
+      ankiShowPitchAccentGraph: typeof parsed.study?.ankiShowPitchAccentGraph === "boolean" ? parsed.study.ankiShowPitchAccentGraph : DEFAULT_WEB_SETTINGS.study.ankiShowPitchAccentGraph,
+      ankiButtonlessMode: typeof parsed.study?.ankiButtonlessMode === "boolean" ? parsed.study.ankiButtonlessMode : DEFAULT_WEB_SETTINGS.study.ankiButtonlessMode,
+      ankiShowReplayAudioButton: typeof parsed.study?.ankiShowReplayAudioButton === "boolean" ? parsed.study.ankiShowReplayAudioButton : DEFAULT_WEB_SETTINGS.study.ankiShowReplayAudioButton,
+      acceptAnyKanjiOnyomiReading: typeof parsed.study?.acceptAnyKanjiOnyomiReading === "boolean" ? parsed.study.acceptAnyKanjiOnyomiReading : DEFAULT_WEB_SETTINGS.study.acceptAnyKanjiOnyomiReading,
+      voiceAnswers: typeof parsed.study?.voiceAnswers === "boolean" ? parsed.study.voiceAnswers : DEFAULT_WEB_SETTINGS.study.voiceAnswers,
+      jitaiEnabled: typeof parsed.study?.jitaiEnabled === "boolean" ? parsed.study.jitaiEnabled : DEFAULT_WEB_SETTINGS.study.jitaiEnabled,
+      jitaiSelectedFontIds: validStringArray(parsed.study?.jitaiSelectedFontIds, 16).length ? validStringArray(parsed.study?.jitaiSelectedFontIds, 16) : [...DEFAULT_WEB_SETTINGS.study.jitaiSelectedFontIds],
+      jitaiCustomFonts: validCustomFonts(parsed.study?.jitaiCustomFonts),
+      immersionKitAnimeSources: validStringArray(parsed.study?.immersionKitAnimeSources, 100).length ? validStringArray(parsed.study?.immersionKitAnimeSources, 100) : [ALL_ANIME_SOURCE],
+      epubDailyGoalMinutes: [5, 10, 15, 20, 30, 45, 60].includes(parsed.study?.epubDailyGoalMinutes ?? 0) ? parsed.study!.epubDailyGoalMinutes : DEFAULT_WEB_SETTINGS.study.epubDailyGoalMinutes,
+      songsLyricsLineTranslationsEnabled: typeof parsed.study?.songsLyricsLineTranslationsEnabled === "boolean" ? parsed.study.songsLyricsLineTranslationsEnabled : DEFAULT_WEB_SETTINGS.study.songsLyricsLineTranslationsEnabled,
+    },
+    workspace: {
+      navbarTabs: navbarTabsFromSettings(parsed.workspace),
+      visibleNav: Array.isArray(parsed.workspace?.visibleNav) ? OPTIONAL_NAV_ITEMS.filter((item) => parsed.workspace!.visibleNav.includes(item)) : [...DEFAULT_WEB_SETTINGS.workspace.visibleNav],
+      dashboardOrder: migratePreviousDefaultDashboard ? [...DEFAULT_DASHBOARD_SECTION_ORDER] : uniqueDashboardOrder.length ? [...uniqueDashboardOrder, ...newlyAvailableSections] : [...DEFAULT_WEB_SETTINGS.workspace.dashboardOrder],
+      hiddenDashboard: migratePreviousDefaultDashboard ? [...DEFAULT_HIDDEN_DASHBOARD_SECTIONS] : uniqueDashboardOrder.length ? hiddenDashboard : [...DEFAULT_WEB_SETTINGS.workspace.hiddenDashboard],
+      dashboardWidths: migratePreviousDefaultDashboard
+        ? { ...DEFAULT_DASHBOARD_SECTION_WIDTHS }
+        : Object.fromEntries(DASHBOARD_SECTIONS.map((id) => [id, dashboardSectionWidth(id, parsed.workspace?.dashboardWidths?.[id])])) as Record<DashboardSectionId, DashboardSectionWidth>,
+      dashboardRowStarts: migratePreviousDefaultDashboard ? [] : dashboardRowStarts,
+      forecastViewMode: parsed.workspace?.forecastViewMode === "list" ? "list" : "chart",
+      forecastChartMode: parsed.workspace?.forecastChartMode === "daily" ? "daily" : "hourly",
+      forecastBreakdown: parsed.workspace?.forecastBreakdown === "subject" || parsed.workspace?.forecastBreakdown === "srs" ? parsed.workspace.forecastBreakdown : "off",
+      studyPacePlannerEnabled: parsed.workspace?.studyPacePlannerEnabled === true,
+    },
+  };
 }
+
+/** Read-only consumers can still render safely while browser storage is unavailable. */
+export function loadWebSettings(storage: Pick<ListStorage, "getItem">, username: string): WebSettings {
+  try { return readWebSettings(storage, username); }
+  catch { return DEFAULT_WEB_SETTINGS; }
+}
+
+export type WebSettingsUpdate = (current: WebSettings) => WebSettings;
+
+/** Apply an edit to the latest saved preferences, and publish only after persistence succeeds. */
+export function updateWebSettings(storage: Pick<ListStorage, "getItem" | "setItem">, username: string, change: WebSettingsUpdate): WebSettings {
+  const next = change(readWebSettings(storage, username));
+  saveWebSettings(storage, username, next);
+  return next;
+}
+
+export function notifyWebSettingsChanged(username: string) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(WEB_SETTINGS_EVENT, { detail: { username } }));
+}
+
+export const WEB_SETTINGS_READ_ERROR = "Your saved settings could not be read. Try again before making changes.";
+export const WEB_SETTINGS_SAVE_ERROR = "This change could not be saved. Your previous settings are still in use. Allow site data or free up browser storage, then try again.";
 
 export function reorderDashboardSections(order: string[], source: string, target: string) {
   if (source === target) return order;
@@ -673,7 +694,7 @@ export function saveWebSettings(storage: Pick<ListStorage, "setItem">, username:
     },
   };
   storage.setItem(settingsStorageKey(username), JSON.stringify(serializable));
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(WEB_SETTINGS_EVENT, { detail: { username } }));
+  notifyWebSettingsChanged(username);
 }
 
 export function applyWebSettings(settings: WebSettings, root: HTMLElement = document.documentElement) {

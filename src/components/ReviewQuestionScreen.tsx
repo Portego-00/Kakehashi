@@ -129,6 +129,7 @@ import { getNoteVisualEditorRunsSignature } from "./note-visual-editor-model";
 const { width, height } = Dimensions.get("window");
 const ANSWER_INPUT_HEIGHT = 52;
 const ANDROID_AUTOFOCUS_DELAY_MS = 200;
+const ANKI_REVEAL_DURATION_MS = 200;
 const SKIP_CUE_VISIBLE_MS = 2000;
 const SRS_CARD_WIDTH = 170;
 const SRS_CARD_COMPACT_WIDTH = 138;
@@ -1178,6 +1179,7 @@ export default function ReviewQuestionScreen({
     "correct" | "incorrect" | "close" | null
   >(null);
   const [ankiAnswerRevealed, setAnkiAnswerRevealed] = useState(false);
+  const [ankiPreCardOverlayHeight, setAnkiPreCardOverlayHeight] = useState(0);
   const [ankiWrongOptionsVisible, setAnkiWrongOptionsVisible] = useState(false);
   useEffect(() => {
     if (ankiAskIncorrectPart !== true || !effectiveAnkiGroupQuestions) {
@@ -1780,6 +1782,7 @@ export default function ReviewQuestionScreen({
   const useContentSizedAnkiCard =
     effectiveAnkiCardMode &&
     (ankiWrongOptionsVisible || !isCurrentQuestionAnkiRevealed || !effectiveAnkiButtonlessMode);
+  const PromptScrollView = effectiveAnkiCardMode ? Animated.ScrollView : ScrollView;
   const shouldShowReviewItemMetadataInLayout =
     subjectJLPTLevel !== null ||
     (shouldShowReviewItemMetadata && !isContextHintVisible);
@@ -4576,8 +4579,8 @@ export default function ReviewQuestionScreen({
 
     // Animate container height expansion using Reanimated with timing for less bounce
     ankiContainerHeight.value = withTiming(1, {
-      duration: 250,
-      easing: Easing.out(Easing.ease),
+      duration: ANKI_REVEAL_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
     });
   };
 
@@ -5446,6 +5449,10 @@ export default function ReviewQuestionScreen({
   const pausedDetailsLayoutTransition = LinearTransition.duration(260).easing(
     Easing.out(Easing.cubic),
   );
+  const ankiLayoutTransition = useMemo(
+    () => LinearTransition.duration(ANKI_REVEAL_DURATION_MS).easing(Easing.out(Easing.cubic)),
+    [],
+  );
   const pausedDetailsEntering = SlideInDown.duration(320).easing(
     Easing.out(Easing.cubic),
   );
@@ -5563,6 +5570,9 @@ export default function ReviewQuestionScreen({
     canReplayAnkiAudio &&
     isCurrentQuestionAnkiRevealed &&
     !effectiveAnkiButtonlessMode;
+  const ankiPreCardOverlayInset =
+    effectiveAnkiCardMode && (shouldShowAnkiReviewItemMetadata || showAnkiSkipChip)
+      ? ankiPreCardOverlayHeight : 0;
   const ankiPreCardOverlayJustification =
     shouldShowAnkiReviewItemMetadata && showAnkiSkipChip
       ? "space-between"
@@ -5995,19 +6005,22 @@ export default function ReviewQuestionScreen({
           ]}
         >
         {/* Character display (or overridden prompt) */}
-        <ScrollView
+        <PromptScrollView
           key={currentQuestionKey}
+          layout={effectiveAnkiCardMode ? ankiLayoutTransition : undefined}
           style={[
             styles.characterScrollView,
             ankiWrongOptionsVisible && { display: "none" },
             useContentSizedAnkiCard && styles.ankiContentSizedPrompt,
             useContentSizedAnkiCard && isContextHintVisible && styles.ankiContextHintPrompt,
+            useContentSizedAnkiCard && ankiPreCardOverlayInset > 0 && { minHeight: 120 + ankiPreCardOverlayInset },
             hideTypedAnswerInput && !isPausedOnAnswer && { minHeight: Math.max(110, windowHeight * 0.17) },
           ]}
           contentContainerStyle={[
             styles.characterWrapper,
             isContextHintVisible && styles.characterWrapperWithOpenHint,
             shouldShowPausedSubjectDetails && styles.characterWrapperWithDetails,
+            ankiPreCardOverlayInset > 0 && { paddingBottom: ankiPreCardOverlayInset + (isContextHintVisible ? 8 : 0) },
           ]}
           alwaysBounceVertical={false}
           bounces={isContextHintVisible}
@@ -6154,11 +6167,13 @@ export default function ReviewQuestionScreen({
               )}
             </View>
           )}
-        </ScrollView>
+        </PromptScrollView>
 
         {effectiveAnkiCardMode ? (
           /* Anki Card Mode */
-          <View
+          <Animated.View
+            key={`anki-card-${currentQuestionKey}`}
+            layout={ankiLayoutTransition}
             style={[
               styles.ankiCardContainer,
               useContentSizedAnkiCard && styles.ankiContentSizedCard,
@@ -6177,6 +6192,7 @@ export default function ReviewQuestionScreen({
                 !isCurrentQuestionAnkiRevealed ? handleAnkiRevealAnswer : undefined
               }
               activeOpacity={1}
+              disabled={isCurrentQuestionAnkiRevealed}
               accessible={!isCurrentQuestionAnkiRevealed}
               accessibilityRole={isCurrentQuestionAnkiRevealed ? undefined : "button"}
               accessibilityLabel={isCurrentQuestionAnkiRevealed ? undefined : "Reveal answer"}
@@ -6185,6 +6201,11 @@ export default function ReviewQuestionScreen({
               showAnkiSkipChip ||
               shouldShowAnkiReviewItemMetadata) && (
               <View
+                pointerEvents="box-none"
+                onLayout={(event) => {
+                  const nextHeight = Math.ceil(event.nativeEvent.layout.height) + styles.ankiPreCardOverlayRow.marginBottom;
+                  setAnkiPreCardOverlayHeight((current) => current === nextHeight ? current : nextHeight);
+                }}
                 style={[
                   styles.ankiPreCardOverlayRow,
                   { justifyContent: ankiPreCardOverlayJustification },
@@ -6319,6 +6340,7 @@ export default function ReviewQuestionScreen({
             </View>
 
             <Animated.View
+              layout={ankiLayoutTransition}
               style={[
                 styles.ankiContentContainer,
                 ankiContainerStyle,
@@ -6337,6 +6359,7 @@ export default function ReviewQuestionScreen({
                 contentContainerStyle={styles.ankiAnswerSection}
                 scrollEnabled={isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode}
                 keyboardShouldPersistTaps="always"
+                nestedScrollEnabled
                 bounces={false}
               >
                 <View style={styles.ankiBlurContainer}>
@@ -6689,7 +6712,7 @@ export default function ReviewQuestionScreen({
 
             </Animated.View>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         ) : (
           /* Traditional WaniKani Mode */
           <Animated.View
@@ -7656,6 +7679,8 @@ const styles = StyleSheet.create({
   reviewMetadataStackInRow: {
     marginBottom: 0,
     marginLeft: 0,
+    alignItems: "flex-start",
+    backgroundColor: "transparent",
   },
   reviewMetadataPill: {
     flexDirection: "row",
@@ -8049,7 +8074,10 @@ const styles = StyleSheet.create({
     flexBasis: "auto",
   },
   ankiContextHintPrompt: {
-    maxHeight: "50%",
+    // Fill the space above the card, yielding to its contents as it expands.
+    flexBasis: 0,
+    flexShrink: 1,
+    minHeight: 120,
   },
   ankiContentSizedCard: {
     flex: 0,
@@ -8087,7 +8115,11 @@ const styles = StyleSheet.create({
     }),
   },
   ankiPreCardOverlayRow: {
-    position: "relative",
+    position: "absolute",
+    bottom: "100%",
+    left: 0,
+    right: 0,
+    backgroundColor: "transparent",
     flexDirection: "row",
     alignItems: "flex-end",
     marginBottom: 10,

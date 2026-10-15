@@ -27,6 +27,7 @@ export type ReviewForecastProps = {
   onChartModeChange: (value: "hourly" | "daily") => void;
   onBreakdownChange: (value: Breakdown) => void;
   title?: string;
+  settingsError?: string;
   embedded?: boolean;
   includeBunpro?: boolean;
   loading?: boolean;
@@ -173,7 +174,7 @@ function ForecastDay({ day, dueNow, breakdown, expanded, onToggle }: {
   </div>;
 }
 
-export function ReviewForecast({ forecast, viewMode, chartMode, breakdown, onViewModeChange, onChartModeChange, onBreakdownChange, title = "Review forecast", embedded = false, loading = false, unavailable, includeBunpro = false }: ReviewForecastProps) {
+export function ReviewForecast({ forecast, viewMode, chartMode, breakdown, onViewModeChange, onChartModeChange, onBreakdownChange, settingsError, title = "Review forecast", embedded = false, loading = false, unavailable, includeBunpro = false }: ReviewForecastProps) {
   const headingId = useId();
   const wide = useSyncExternalStore(subscribeToScreenSize, isWideScreen, narrowServerSnapshot);
   // Date-keyed overrides preserve the user's expanded days through minute refreshes.
@@ -187,6 +188,7 @@ export function ReviewForecast({ forecast, viewMode, chartMode, breakdown, onVie
 
   return <section className={styles.forecast} data-embedded={embedded || undefined} aria-labelledby={headingId} aria-busy={loading || undefined}>
     <Heading id={headingId} className={styles.heading}>{title}</Heading>
+    {settingsError ? <p role="alert">{settingsError}</p> : null}
     {loading ? <div className={styles.placeholder} role="status">Loading review forecast…</div> : unavailable ? <div className={styles.placeholder}>{unavailable}</div> : <>
       <div className={styles.toolbar}>
         <div className={styles.segmented} role="group" aria-label="Forecast view">

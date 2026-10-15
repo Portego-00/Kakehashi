@@ -1,0 +1,23 @@
+.page { max-width: 60rem; display: grid; gap: var(--space-xl); }
+.header { display: grid; gap: var(--space-sm); }
+.header h1 { font-size: var(--text-2xl); overflow-wrap: anywhere; }
+.header p, .selection > p, .startRow p { color: var(--color-muted); }
+.back { display: inline-flex; align-items: center; gap: var(--space-xs); width: max-content; min-height: 2.75rem; color: var(--color-muted); }
+.selection { display: grid; gap: var(--space-lg); border-top: 1px solid var(--color-rule); padding-top: var(--space-lg); min-width: 0; }
+.sectionHeading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-sm); flex-wrap: wrap; }
+.selection h2 { font-size: var(--text-lg); }
+.filters { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--space-lg); }
+.field, .startRow label { display: grid; gap: var(--space-xs); font-size: var(--text-sm); }
+.field { max-width: 32rem; }
+.field select, .field > input, .startRow select { min-height: 2.75rem; min-width: 0; border: 1px solid var(--color-rule); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink); padding: var(--space-xs) var(--space-sm); font: inherit; width: 100%; }
+.filters input:focus-visible, .filters select:focus-visible, .filters summary:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.choices { border: 0; padding: 0; margin: 0; min-width: 0; }
+.choices legend { font-size: var(--text-sm); margin-bottom: var(--space-xs); }
+.choices div { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-lg); }
+.choices label { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: 2.75rem; font-size: var(--text-sm); cursor: pointer; }
+.choices input { width: 1rem; height: 1rem; accent-color: var(--color-accent); }
+.choices details { margin-top: var(--space-xs); }
+.choices summary { color: var(--color-muted); cursor: pointer; font-size: var(--text-sm); min-height: 2.75rem; align-content: center; width: fit-content; }
+.startRow { display: flex; gap: var(--space-md); align-items: end; flex-wrap: wrap; }
+.startRow p { width: 100%; flex: 0 0 auto; font-size: var(--text-sm); }
+@media (max-width: 30rem) { .startRow { align-items: stretch; flex-direction: column; } }

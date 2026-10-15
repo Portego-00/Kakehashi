@@ -121,10 +121,10 @@
 .open { color: var(--color-success); }
 .closed { color: var(--color-muted); }
 .counts { justify-content: flex-end; color: var(--color-muted); }
-.counts > span, .counts > button { min-height: 2rem; display: inline-flex; align-items: center; gap: var(--space-2xs); border: 0; background: transparent; color: inherit; padding: var(--space-2xs); font-variant-numeric: tabular-nums; }
-.counts > button { cursor: pointer; }
-.counts > button[aria-pressed="true"] { color: var(--color-danger); }
-.counts > button:disabled { opacity: .6; cursor: wait; }
+.counts > span:first-child, .boardLike { min-height: 2rem; display: inline-flex; align-items: center; gap: var(--space-2xs); border: 0; background: transparent; color: inherit; padding: var(--space-2xs); font-variant-numeric: tabular-nums; }
+button.boardLike { cursor: pointer; }
+.boardLike[aria-pressed="true"] { color: var(--color-danger); }
+.boardLike:disabled { opacity: .6; cursor: wait; }
 .readonlyCount { min-height: 2.25rem; display: inline-flex; align-items: center; gap: var(--space-2xs); color: var(--color-muted); padding-inline: var(--space-sm); font-variant-numeric: tabular-nums; }
 .meta { color: var(--color-muted); font-size: var(--text-sm); }
 .authorMeta { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs); }
@@ -219,7 +219,7 @@
   .primary:hover { filter: brightness(1.08); }
   .secondary:hover { background: var(--color-paper-2); }
   .dangerButton:hover { background: var(--color-danger-soft); }
-  .textButton:hover, .counts > button:hover { color: var(--color-danger); }
+  .textButton:hover, .boardLike:hover { color: var(--color-danger); }
 }
 
 @media (max-width: 46rem) {
@@ -235,7 +235,7 @@
   .thread > header { align-items: flex-start; }
   .threadTitle { flex-direction: column; }
   .threadTitle .actions { align-items: stretch; width: 100%; }
-  .threadTitle .actions > button { flex: 1; }
+  .threadTitle .actions > button, .threadTitle .actions > span:has(> button) { flex: 1; }
   .notice, .error { align-items: flex-start; flex-direction: column; }
   .composer .actions { align-items: stretch; }
   .composer .actions > * { flex: 1; }

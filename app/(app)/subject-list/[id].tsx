@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsFocused } from "@react-navigation/native";
 import { SvgXml } from "react-native-svg";
 import {
   createDefaultSearchFilters,
@@ -27,6 +28,9 @@ import {
 } from "../../../src/components/SearchFilterModal";
 import { CommonFilterModal } from "../../../src/components/CommonFilterModal";
 import { matchesVocabularyTypes } from "../../../src/utils/vocabularyTypeFilter";
+import { useVocabularyFrequencyRanks } from "../../../src/hooks/useVocabularyFrequencyRanks";
+import { matchesMaximumFrequencyRank } from "../../../src/utils/customReviewFrequencyFilter";
+import { FrequencyLookupProgress } from "../../../src/components/FrequencyLookupProgress";
 import { GlassButton } from "../../../src/components/GlassButton";
 import TransferSubjectListsModal from "../../../src/components/TransferSubjectListsModal";
 import { WaniKaniItemType } from "../../../src/types/wanikani";
@@ -54,7 +58,7 @@ import {
   SubjectList,
   type SubjectListTransferResult,
 } from "../../../src/utils/subjectLists";
-import { useAuthStore } from "../../../src/utils/store";
+import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
 import {
   rankSubjectsByQuery,
   sortSubjectsByLevelAndType,
@@ -99,6 +103,9 @@ export default function SubjectListEditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { apiToken } = useAuthStore();
+  const showVocabularyFrequency = useSettingsStore((state) => state.showVocabularyFrequency);
+  const setShowVocabularyFrequency = useSettingsStore((state) => state.setShowVocabularyFrequency);
+  const isScreenFocused = useIsFocused();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Subject>>(null);
@@ -140,8 +147,6 @@ export default function SubjectListEditorScreen() {
   const [isRenaming, setIsRenaming] = useState(false);
 
   const [allSubjects, setAllSubjects] = useState<Subject[] | null>(null);
-  const [filteredSubjects, setFilteredSubjects] = useState<Subject[]>([]);
-  const [matchingSubjectIds, setMatchingSubjectIds] = useState<number[]>([]);
   const [subjectSrsStageMap, setSubjectSrsStageMap] = useState<
     Map<number, number>
   >(new Map());
@@ -324,16 +329,20 @@ export default function SubjectListEditorScreen() {
   }, [apiToken]);
 
   useEffect(() => {
-    if (!allSubjects) {
-      setFilteredSubjects([]);
-      setMatchingSubjectIds([]);
-      return;
-    }
+    if (showVocabularyFrequency) return;
+    setFilters((previous) => previous.maxFrequencyRank === null
+      ? previous
+      : { ...previous, maxFrequencyRank: null });
+  }, [showVocabularyFrequency]);
 
-    const filteredByFacets = allSubjects
+  const hasActiveFrequencyFilter = showVocabularyFrequency && filters.maxFrequencyRank !== null;
+  const subjectsMatchingNonFrequencyFilters = useMemo(() => {
+    const filteredByFacets = (allSubjects ?? [])
       .filter((subject) => matchesVocabularyTypes(subject, filters.vocabularyTypes))
       .filter((subject) =>
-        filters.types.has(subject.object as WaniKaniItemType)
+        hasActiveFrequencyFilter
+          ? subject.object === "vocabulary" || subject.object === "kana_vocabulary"
+          : filters.types.has(subject.object as WaniKaniItemType)
       )
       .filter(
         (subject) =>
@@ -350,24 +359,57 @@ export default function SubjectListEditorScreen() {
       });
 
     const query = searchQuery.trim();
-    let filtered = query
+    return query
       ? rankSubjectsByQuery(filteredByFacets, query).map(({ subject }) => subject)
       : sortSubjectsByLevelAndType(filteredByFacets);
+  }, [allSubjects, filters, hasActiveFrequencyFilter, searchQuery, subjectSrsStageMap]);
 
-    setMatchingSubjectIds(filtered.map((subject) => subject.id));
+  const frequencyCandidates = useMemo(
+    () => hasActiveFrequencyFilter ? subjectsMatchingNonFrequencyFilters : [],
+    [hasActiveFrequencyFilter, subjectsMatchingNonFrequencyFilters],
+  );
+  const {
+    ranks: frequencyRanks,
+    isScanningCache: isScanningFrequencyCache,
+    progress: frequencyProgress,
+    dataReady: frequencyDataReady,
+    canUseResults: canUseFrequencyResults,
+    resolvedCount: resolvedFrequencyCount,
+    needsApproval: needsFrequencyLookupApproval,
+    unresolvedCount: unresolvedFrequencyCount,
+    lookupError: frequencyLookupError,
+    approveLookup: approveFrequencyLookup,
+    retryLookup: retryFrequencyLookup,
+    resetLookupState: resetFrequencyLookupState,
+  } = useVocabularyFrequencyRanks({
+    subjects: frequencyCandidates,
+    enabled: isScreenFocused && activeTab === "browse" && hasActiveFrequencyFilter,
+  });
 
-    if (filtered.length > 250) {
-      filtered = filtered.slice(0, 250);
-    }
+  // Keep bulk selection in sync with the current rank before limiting visible rows.
+  const { filteredSubjects, matchingSubjectIds } = useMemo(() => {
+    const matchingSubjects = hasActiveFrequencyFilter
+      ? isScanningFrequencyCache || !canUseFrequencyResults
+        ? []
+        : subjectsMatchingNonFrequencyFilters.filter((subject) =>
+            frequencyRanks.has(subject.id) &&
+            matchesMaximumFrequencyRank(frequencyRanks.get(subject.id), filters.maxFrequencyRank),
+          )
+      : subjectsMatchingNonFrequencyFilters;
 
-    setFilteredSubjects(filtered);
+    return {
+      filteredSubjects: matchingSubjects.slice(0, 250),
+      matchingSubjectIds: matchingSubjects.map((subject) => subject.id),
+    };
   }, [
-    allSubjects,
-    filters,
-    searchQuery,
-    subjectSrsStageMap,
+    canUseFrequencyResults, filters.maxFrequencyRank, frequencyRanks,
+    hasActiveFrequencyFilter, isScanningFrequencyCache, subjectsMatchingNonFrequencyFilters,
   ]);
 
+  const clearFrequencyFilter = () => {
+    resetFrequencyLookupState();
+    setFilters((previous) => ({ ...previous, maxFrequencyRank: null }));
+  };
   const hasUnsavedChanges = useMemo(() => {
     const normalizedName = listName.trim();
     const effectiveName = normalizedName.length > 0 ? normalizedName : "Untitled List";
@@ -536,7 +578,8 @@ export default function SubjectListEditorScreen() {
     filters.types.size < 4 ||
     hasNonDefaultSrsSelection ||
     filters.jlptLevels.size > 0 ||
-    filters.vocabularyTypes.length > 0;
+    filters.vocabularyTypes.length > 0 ||
+    hasActiveFrequencyFilter;
 
   const toggleSelectAllMatching = () => {
     if (matchingSubjectIds.length === 0) return;
@@ -1266,8 +1309,11 @@ export default function SubjectListEditorScreen() {
             accessibilityLabel={filters.vocabularyTypes.length > 0
               ? `Filters, ${filters.vocabularyTypes.length} vocabulary types selected`
               : "Filters"}
+            accessibilityHint={activeTab === "browse" && hasActiveFrequencyFilter
+              ? `Maximum word frequency rank ${filters.maxFrequencyRank!.toLocaleString()}`
+              : undefined}
           >
-            <Ionicons name="options" size={20} color={filters.vocabularyTypes.length > 0 ? theme.primary : theme.textSecondary} />
+            <Ionicons name="options" size={20} color={filters.vocabularyTypes.length > 0 || (activeTab === "browse" && hasActiveFrequencyFilter) ? theme.primary : theme.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -1281,6 +1327,9 @@ export default function SubjectListEditorScreen() {
               ]}
               disabled={matchingSubjectIds.length === 0}
               onPress={toggleSelectAllMatching}
+              accessibilityRole="button"
+              accessibilityLabel={allMatchingSelected ? "Deselect matching subjects" : "Select matching subjects"}
+              accessibilityState={{ disabled: matchingSubjectIds.length === 0 }}
             >
               <Ionicons
                 name={
@@ -1383,6 +1432,21 @@ export default function SubjectListEditorScreen() {
           </View>
         )}
 
+        {activeTab === "browse" && hasActiveFrequencyFilter && (!frequencyDataReady || frequencyLookupError) ? (
+          <FrequencyLookupProgress
+            total={frequencyCandidates.length}
+            resolvedCount={resolvedFrequencyCount}
+            unresolvedCount={unresolvedFrequencyCount}
+            isScanningCache={isScanningFrequencyCache}
+            progress={frequencyProgress}
+            needsApproval={needsFrequencyLookupApproval}
+            lookupError={frequencyLookupError}
+            onApprove={approveFrequencyLookup}
+            onRetry={retryFrequencyLookup}
+            onClear={clearFrequencyFilter}
+          />
+        ) : null}
+
         {isLoadingSubjects ? (
           <View style={styles.centerState}>
             <ActivityIndicator size="large" color={theme.primary} />
@@ -1439,7 +1503,9 @@ export default function SubjectListEditorScreen() {
               <View style={styles.emptyState}>
                 <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
                   {activeTab === "browse"
-                    ? "No subjects match your current search and filters."
+                    ? hasActiveFrequencyFilter && !frequencyDataReady
+                      ? "No checked words match yet."
+                      : "No subjects match your current search and filters."
                     : "No subjects in this list match your search."}
                 </Text>
               </View>
@@ -1564,6 +1630,9 @@ export default function SubjectListEditorScreen() {
             setShowFilters(false);
           }}
           showJlptFilters
+          showFrequencyFilters
+          frequencyFiltersEnabled={showVocabularyFrequency}
+          onEnableFrequencyFilters={() => setShowVocabularyFrequency(true)}
           subjects={allSubjects ?? []}
         />
         <CommonFilterModal

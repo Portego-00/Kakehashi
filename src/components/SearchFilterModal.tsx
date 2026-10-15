@@ -4,6 +4,7 @@ import { BlurView } from "expo-blur";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -95,13 +96,42 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const filterSectionsRef = useRef<ScrollView>(null);
   const vocabularySectionY = useRef(0);
+  const frequencySectionY = useRef(0);
+  const focusedSection = useRef<"vocabulary" | "frequency" | null>(null);
 
   const focusVocabularySearch = useCallback(() => {
+    focusedSection.current = "vocabulary";
     filterSectionsRef.current?.scrollTo({
       y: vocabularySectionY.current,
       animated: true,
     });
   }, []);
+
+  const focusFrequencyInput = useCallback(() => {
+    focusedSection.current = "frequency";
+    filterSectionsRef.current?.scrollTo({ y: frequencySectionY.current, animated: true });
+  }, []);
+
+  useEffect(() => {
+    if (!visible) {
+      focusedSection.current = null;
+      return;
+    }
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
+      if (!focusedSection.current) return;
+      filterSectionsRef.current?.scrollTo({
+        y: focusedSection.current === "frequency" ? frequencySectionY.current : vocabularySectionY.current,
+        animated: false,
+      });
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      focusedSection.current = null;
+    });
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [visible]);
 
   // Picker states
   const [showMinLevelPicker, setShowMinLevelPicker] = useState(false);
@@ -370,11 +400,13 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
           </View>
 
           <ScrollView
+            testID="search-filter-sections"
             ref={filterSectionsRef}
             style={styles.filterSectionsScroll}
             contentContainerStyle={styles.filterSectionsContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           >
 
           <View style={styles.filterSection}>
@@ -482,14 +514,6 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
               >
                 Estimated JLPT
               </Text>
-              <Text
-                style={[
-                  styles.filterSectionDescription,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                Select one or more kanji and vocabulary levels
-              </Text>
               <View style={styles.jlptFiltersRow}>
                 {JLPT_LEVELS.map((level) => {
                   const isSelected = filtersToDisplay.jlptLevels.has(level);
@@ -527,7 +551,11 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
           )}
 
           {showFrequencyFilters && (
-            <View style={styles.filterSection}>
+            <View
+              testID="frequency-filter-section"
+              style={styles.filterSection}
+              onLayout={(event) => { frequencySectionY.current = event.nativeEvent.layout.y; }}
+            >
               <Text
                 style={[
                   styles.filterSectionTitle,
@@ -535,16 +563,6 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                 ]}
               >
                 Word Frequency
-              </Text>
-              <Text
-                style={[
-                  styles.filterSectionDescription,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                Include vocabulary ranked at or below the number you choose.
-                While active, only vocabulary is included; lower ranks are more
-                common.
               </Text>
               {frequencyFiltersEnabled ? (
                 <>
@@ -573,6 +591,10 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                         ]}
                         value={frequencyRankInput}
                         onChangeText={handleMaximumFrequencyRankChange}
+                        onFocus={focusFrequencyInput}
+                        onBlur={() => {
+                          if (focusedSection.current === "frequency") focusedSection.current = null;
+                        }}
                         keyboardType="number-pad"
                         inputMode="numeric"
                         placeholder="Any"
@@ -582,17 +604,18 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
                         accessibilityHint="Leave blank to include vocabulary at any frequency rank"
                       />
                     </View>
-                    {frequencyRankInput.length > 0 ? (
-                      <TouchableOpacity
-                        style={styles.frequencyClearButton}
-                        onPress={() => handleMaximumFrequencyRankChange("")}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel="Clear maximum word frequency rank"
-                      >
-                        <Text style={{ color: theme.primary }}>Clear</Text>
-                      </TouchableOpacity>
-                    ) : null}
+                    <TouchableOpacity
+                      style={[styles.frequencyClearButton, frequencyRankInput.length === 0 && { opacity: 0 }]}
+                      onPress={() => handleMaximumFrequencyRankChange("")}
+                      disabled={frequencyRankInput.length === 0}
+                      accessibilityElementsHidden={frequencyRankInput.length === 0}
+                      importantForAccessibility={frequencyRankInput.length === 0 ? "no-hide-descendants" : "auto"}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear maximum word frequency rank"
+                    >
+                      <Ionicons name="close-circle" size={22} color={theme.textSecondary} />
+                    </TouchableOpacity>
                   </View>
                   {frequencyRankInputError ? (
                     <Text
@@ -1072,7 +1095,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 36,
     borderTopRightRadius: 36,
     overflow: "hidden",
-    maxHeight: "85%",
+    height: "85%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -10 },
     shadowOpacity: 0.1,
@@ -1081,7 +1104,7 @@ const styles = StyleSheet.create({
     zIndex: 100000,
   },
   filterPanelContent: {
-    flexShrink: 1,
+    flex: 1,
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: 40,
@@ -1111,7 +1134,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   filterSectionsScroll: {
-    flexShrink: 1,
+    flex: 1,
   },
   filterSectionsContent: {
     paddingBottom: 4,
@@ -1122,12 +1145,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-  },
-  filterSectionDescription: {
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: -10,
-    marginBottom: 12,
   },
   typeFiltersRow: {
     flexDirection: "row",
@@ -1230,7 +1247,7 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   frequencyClearButton: {
-    minWidth: 52,
+    width: 44,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",

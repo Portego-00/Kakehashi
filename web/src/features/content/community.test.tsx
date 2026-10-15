@@ -6,6 +6,7 @@ const router = vi.hoisted(() => ({
   push: vi.fn<(href: string) => void>(),
   replace: vi.fn<(href: string) => void>(),
 }));
+const session = vi.hoisted(() => ({ username: "Viewer" }));
 
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { children: ReactNode; href: string }) => (
@@ -16,7 +17,7 @@ vi.mock("next/link", () => ({
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ user: { data: { username: "Viewer" } } }),
+  useSession: () => ({ user: { data: { username: session.username } }, isDemo: false }),
 }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
@@ -263,5 +264,31 @@ describe("community status controls", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("The status could not be changed.");
     expect(screen.getByRole("button", { name: "Close issue" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Reopen issue" })).not.toBeInTheDocument();
+  });
+});
+
+describe("liker tooltips across community views", () => {
+  beforeEach(() => { session.username = "Portego"; });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); session.username = "Viewer"; });
+
+  it.each([
+    { view: "board", kind: "issue", id: "issue-1", label: "Like Tooltip issue, 2 likes" },
+    { view: "thread", kind: "issue", id: "issue-1", label: "Like issue, 2 likes" },
+    { view: "thread", kind: "comment", id: "comment-1", label: "Like reply by Author, 1 likes" },
+  ])("shows $kind liker names in the $view view", async ({ view, kind, id, label }) => {
+    const issue = { id: "issue-1", user_username: "Author", title: "Tooltip issue", content: "Hover over a like button.", status: "open", created_at: CREATED_AT, updated_at: CREATED_AT, likes_count: 2, reply_count: 1 };
+    const comment = { id: "comment-1", issue_id: issue.id, user_username: "Author", content: "Hover over this reply's like button.", created_at: CREATED_AT, likes_count: 1 };
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input), "http://localhost");
+      if (url.searchParams.get("action") === "likes") return jsonResponse({ items: [{ id: "like-1", username: "Liker" }], hasMore: false });
+      return jsonResponse({ configured: true, writable: true, items: [issue], issue, comments: [comment] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(view === "board" ? <CommunityWorkspace /> : <IssueDetailWorkspace id={issue.id} />);
+    fireEvent.mouseEnter(await screen.findByRole("button", { name: label }));
+    await waitFor(() => expect(screen.getByRole("tooltip")).toHaveTextContent("Liker"));
+    const request = fetchMock.mock.calls.map(([url]) => new URL(String(url), "http://localhost")).find((url) => url.searchParams.get("action") === "likes");
+    expect(request?.searchParams.get("kind")).toBe(kind);
+    expect(request?.searchParams.get("id")).toBe(id);
   });
 });

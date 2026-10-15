@@ -6,7 +6,8 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/lib/session";
 import { useTheme, type ThemeMode } from "@/lib/theme";
-import { loadWebSettings, saveWebSettings, REVIEW_CHARACTER_FONT_SCALES, type WebStudyPreferences } from "@/features/settings/settings";
+import { DEFAULT_WEB_SETTINGS, updateWebSettings, notifyWebSettingsChanged, WEB_SETTINGS_READ_ERROR, WEB_SETTINGS_SAVE_ERROR, REVIEW_CHARACTER_FONT_SCALES, type WebStudyPreferences } from "@/features/settings/settings";
+import { useWebSettingsState } from "@/features/settings/use-workspace-preferences";
 import type { ReviewSettingsButtonProps } from "./ReviewSettingsButton";
 import styles from "./review-settings.module.css";
 
@@ -26,7 +27,9 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
   const { user } = useSession();
   const username = user?.data.username ?? "anonymous";
   const { theme, setTheme } = useTheme();
-  const [study, setStudy] = useState(() => loadWebSettings(window.localStorage, username).study);
+  const settingsState = useWebSettingsState(username);
+  const ready = settingsState.status === "ready";
+  const study = ready ? settingsState.settings.study : DEFAULT_WEB_SETTINGS.study;
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -42,27 +45,32 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
   }
 
   function update<K extends keyof WebStudyPreferences>(key: K, value: WebStudyPreferences[K]) {
-    const settings = loadWebSettings(window.localStorage, username);
-    const next = { ...settings.study, [key]: value };
-    if (key === "ankiMode" && value !== "both") next.ankiGroupQuestions = false;
+    if (!ready) return;
+    let previous = study;
     try {
-      saveWebSettings(window.localStorage, username, { ...settings, study: next });
-      setStudy(next);
+      const settings = updateWebSettings(window.localStorage, username, (current) => {
+        previous = current.study;
+        const next = { ...current.study, [key]: value };
+        if (key === "ankiMode" && value !== "both") next.ankiGroupQuestions = false;
+        return { ...current, study: next };
+      });
       setError("");
-    } catch {
-      setError("Settings could not be saved. Please try again.");
-      return;
-    }
-    onStudyChange?.(next, settings.study);
+      onStudyChange?.(settings.study, previous);
+    } catch { setError(WEB_SETTINGS_SAVE_ERROR); }
+  }
+  function changeTheme(next: ThemeMode) {
+    try { setTheme(next); setError(""); }
+    catch { setError(WEB_SETTINGS_SAVE_ERROR); }
   }
   const toggle = (key: BooleanPreference, label: string, disabled = false) => <Field key={key} label={label}><input type="checkbox" checked={study[key]} disabled={disabled} onChange={(event) => update(key, event.target.checked)} /></Field>;
   return createPortal(<dialog ref={dialog} className={styles.dialog} aria-label="Review settings" onCancel={(event) => { event.preventDefault(); close(); }} onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
     <div className={styles.content}>
       <header className={styles.header}><h2>Review settings</h2><Button type="button" tone="ghost" aria-label="Close review settings" onClick={close} autoFocus><X size={20} aria-hidden /></Button></header>
       <div className={styles.body}>
+        {ready ? <>
         <p className={styles.hint}>Changes save automatically. Your current question and answers stay in place; ordering changes apply to the remaining questions.</p>
         <fieldset><legend>Appearance</legend>
-          <Field label="Theme"><select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>{["system", "light", "dark", "midnight", "sepia"].map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></Field>
+          <Field label="Theme"><select value={theme} onChange={(event) => changeTheme(event.target.value as ThemeMode)}>{["system", "light", "dark", "midnight", "sepia"].map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></Field>
           {toggle("compactReviews", "Compact review layout")}
           <Field label="Default review panel"><select value={study.reviewDefaultDetailsTab} onChange={(event) => update("reviewDefaultDetailsTab", event.target.value as WebStudyPreferences["reviewDefaultDetailsTab"])}><option value="question">Follow the question</option><option value="meaning">Meaning</option><option value="reading">Reading</option><option value="stroke">Stroke</option></select></Field>
           <p className={styles.hint}>Compact layout keeps core information below your answer. Show more expands notes, hints, and other extras. Details stay hidden until an answer is revealed. Unavailable panels open on Meaning.</p>
@@ -103,6 +111,7 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
           <Field label="Voice actor"><select value={study.vocabularyAudioVoice} onChange={(event) => update("vocabularyAudioVoice", event.target.value as WebStudyPreferences["vocabularyAudioVoice"])}><option value="female">Female · Kyoko</option><option value="male">Male · Kenichi</option><option value="random">Random</option><option value="both">Both</option></select></Field>
           {toggle("showListeningTranslation", "Show listening translation")}
         </fieldset>
+        </> : <div><p role="alert">{settingsState.status === "error" ? WEB_SETTINGS_READ_ERROR : "Loading saved settings…"}</p>{settingsState.status === "error" ? <Button type="button" onClick={() => notifyWebSettingsChanged(username)}>Try again</Button> : null}</div>}
         {error ? <p role="alert">{error}</p> : null}
       </div>
       <footer className={styles.footer}><Button type="button" tone="primary" onClick={close}>Done</Button></footer>

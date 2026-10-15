@@ -182,7 +182,8 @@ const fixtures = vi.hoisted(() => {
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user }) }));
 vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 
-vi.mock("@/features/settings/use-workspace-preferences", () => ({
+vi.mock("@/features/settings/use-workspace-preferences", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/features/settings/use-workspace-preferences")>(),
   useWebSettings: () => fixtures.settings,
 }));
 

@@ -11,7 +11,7 @@ import { useBunproAudio } from "@/features/bunpro/use-bunpro-audio";
 import type { SessionResult, SessionResultsData } from "./session-results";
 import styles from "./session-results.module.css";
 
-type ResultsProps = SessionResultsData & { title: string; mixed?: boolean; onContinue?: () => void; onRestart?: () => void; progression?: ReactNode };
+type ResultsProps = SessionResultsData & { title: string; mixed?: boolean; onContinue?: () => void; onRestart?: () => void; progression?: ReactNode; practice?: boolean; onRetryMissed?: () => void; onConfigure?: () => void };
 export function SessionResults(props: ResultsProps) {
   if (!props.mixed) return <BunproSessionResults {...props} />;
   const bunproItems = props.items.filter(item => item.source === "bunpro");
@@ -21,7 +21,7 @@ export function SessionResults(props: ResultsProps) {
     <BunproSessionResults {...props} title="Bunpro results" items={bunproItems} pendingCount={0} error={undefined} embedded />
   </div>;
 }
-function BunproSessionResults({ items, durationMs, pendingCount = 0, error, title, onContinue, onRestart, progression, embedded = false }: ResultsProps & { embedded?: boolean }) {
+function BunproSessionResults({ items, durationMs, pendingCount = 0, error, title, onContinue, onRestart, progression, embedded = false, practice, onRetryMissed, onConfigure }: ResultsProps & { embedded?: boolean }) {
   const Heading = embedded ? "h2" : "h1";
   const id = useId();
   const [filter, setFilter] = useState<"All" | "Correct" | "Missed">("All");
@@ -33,17 +33,19 @@ function BunproSessionResults({ items, durationMs, pendingCount = 0, error, titl
   const seconds = Math.floor(Math.max(0, durationMs) / 1000);
   const time = seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
   return <section className={styles.results} aria-labelledby={id}>
-    <header className={styles.header}><div><Heading id={id}>{title}</Heading><p>{items.length ? `${items.length} subjects reviewed${embedded ? "" : ` · ${time}`}` : "You're all caught up."}</p></div><ButtonLink href="/dashboard" tone="primary">Back to home</ButtonLink></header>
+    <header className={styles.header}><div><Heading id={id}>{title}</Heading><p>{items.length ? `${items.length} ${practice ? "sentences practiced" : "subjects reviewed"}${embedded ? "" : ` · ${time}`}` : "You're all caught up."}</p>{practice ? <p>Bunpro SRS is unchanged.</p> : null}</div><ButtonLink href={practice ? "/study" : "/dashboard"} tone="primary">{practice ? "Extra study" : "Back to home"}</ButtonLink></header>
     {pendingCount > 0 ? <p role="status" className={styles.notice}>{pendingCount} WaniKani {pendingCount === 1 ? "submission is" : "submissions are"} saved on this device and waiting to sync.</p> : null}
     {error ? <p role="alert">{error}</p> : null}
     <BunproSaveWarning count={items.filter(item => item.saveFailed).length} />
     {progression}
     <div className={styles.layout}><aside className={styles.summary} aria-label="Session summary">
-      <div className={styles.accuracy}><strong>{items.length ? `${percent}%` : "—"}</strong><span>First-try accuracy</span><small>Subjects correct without a missed answer</small></div>
+      <div className={styles.accuracy}><strong>{items.length ? `${percent}%` : "—"}</strong><span>First-try accuracy</span><small>{practice ? "Sentences correct on the first attempt" : "Subjects correct without a missed answer"}</small></div>
       <div className={styles.counts}><div data-correct="true"><strong>{correct}</strong><span>Correct</span></div><div data-correct="false"><strong>{missed}</strong><span>Missed</span></div></div>
       <div className={styles.bar} role="img" aria-label={`${correct} correct and ${missed} missed`}><span style={{ width: `${percent}%` }} /></div>
       <dl className={styles.stats}>{!embedded ? <div><dt>Time studied</dt><dd>{time}</dd></div> : null}<div><dt>Grammar</dt><dd>{items.filter(item => item.kind === "grammar").length}</dd></div><div><dt>Vocabulary</dt><dd>{items.filter(item => item.kind === "vocab").length}</dd></div></dl>
-      {onContinue ? <Button onClick={onContinue} tone="primary">Continue lessons</Button> : onRestart ? <Button onClick={onRestart}><RotateCcw size={16} />Check for more</Button> : null}
+      {onContinue ? <Button onClick={onContinue} tone="primary">Continue lessons</Button> : onRestart ? <Button onClick={onRestart}><RotateCcw size={16} />{practice ? "Practice again" : "Check for more"}</Button> : null}
+      {onRetryMissed && missed > 0 ? <Button onClick={onRetryMissed}>Practice missed sentences</Button> : null}
+      {onConfigure ? <Button tone="ghost" onClick={onConfigure}>Change filters</Button> : null}
     </aside><div className={styles.items}>
       <div className={styles.filters}><h2>This session</h2><div className={styles.segmented} role="group" aria-label="Filter results">{(["All", "Correct", "Missed"] as const).map(value => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}</div></div>
       {audio.error ? <p role="status">{audio.error}</p> : null}

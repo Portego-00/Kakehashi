@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import PagerView from "react-native-pager-view";
 import { SvgXml } from "react-native-svg";
+import SrsStageIcon from "../../../src/components/SrsStageIcon";
 import {
   SRS_COLORS,
   getSRSColorByStage,
@@ -25,6 +26,7 @@ import {
 } from "../../../src/utils/levelProgress";
 import { pickBestImage, useRemoteSvg } from "../../../src/utils/radicalSvg";
 import { getSubjectTypeColor } from "../../../src/utils/subjectColors";
+import { getSrsStageDisplayLabel } from "../../../src/utils/srsStageLabel";
 import { useTheme } from "../../../src/utils/theme";
 
 interface SubjectItemData {
@@ -37,6 +39,46 @@ interface SubjectItemData {
   level: number;
   isLocked: boolean;
   character_images?: any[] | null;
+}
+
+const SRS_LEGEND = [
+  { stage: 0, label: "Not Started" },
+  { stage: 1, label: "Apprentice" },
+  { stage: 5, label: "Guru" },
+  { stage: 7, label: "Master" },
+  { stage: 8, label: "Enlightened" },
+  { stage: 9, label: "Burned" },
+];
+
+function SrsBadge({
+  stage,
+  isDark,
+}: {
+  stage: number;
+  isDark: boolean;
+}) {
+  const hasStarted = stage > 0;
+  const borderColor = isDark ? "#b0b0b0" : "#fff";
+  const stageColor = isDark && stage >= 9
+    ? borderColor
+    : getSRSColorByStage(stage, isDark);
+  const backgroundColor = hasStarted
+    ? stageColor
+    : isDark
+      ? "#555"
+      : "#ccc";
+  const useDarkIcon = hasStarted ? isDark && stage >= 9 : !isDark;
+  const iconColor = useDarkIcon ? SRS_COLORS.burned.light : "#fff";
+
+  return (
+    <View style={[styles.srsBadge, { backgroundColor, borderColor }]}>
+      {hasStarted ? (
+        <SrsStageIcon stage={stage} size={16} color={iconColor} />
+      ) : (
+        <Ionicons name="remove" size={16} color={iconColor} />
+      )}
+    </View>
+  );
 }
 
 const SubjectStatItem = ({ label, value, total, color, theme }: any) => (
@@ -229,11 +271,6 @@ export default function LevelProgressScreen() {
     type: "radical" | "kanji" | "vocabulary" | "kana_vocabulary"
   ) => {
     return getSubjectTypeColor(type);
-  };
-
-  const getSRSColor = (srsStage: number, isLocked: boolean) => {
-    if (isLocked) return theme.isDark ? "#555" : "#ccc";
-    return getSRSColorByStage(srsStage, theme.isDark);
   };
 
   const renderProgressOverview = (progressData: LevelProgress) => {
@@ -531,9 +568,17 @@ export default function LevelProgressScreen() {
     const baseItemStyle = isVocabulary
       ? styles.subjectItemVocabulary
       : styles.subjectItem;
+    const srsStage = item.isLocked ? 0 : item.srsStage;
+    const accessibilityLabel = [
+      item.characters !== "?" ? item.characters : null,
+      item.meanings[0],
+      getSrsStageDisplayLabel(srsStage),
+    ].filter(Boolean).join(", ");
 
     return (
       <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
         style={[
           baseItemStyle,
           {
@@ -546,12 +591,9 @@ export default function LevelProgressScreen() {
         }}
       >
         <SubjectCharacter item={item} />
-        <View
-          style={[
-            styles.typeIndicator,
-            { backgroundColor: getSRSColor(item.srsStage, item.isLocked) },
-          ]}
-        />
+        <View style={styles.typeIndicator}>
+          <SrsBadge stage={srsStage} isDark={theme.isDark} />
+        </View>
       </TouchableOpacity>
     );
   };
@@ -626,84 +668,18 @@ export default function LevelProgressScreen() {
               SRS Progress
             </Text>
             <View style={styles.legendItems}>
-              <View style={styles.legendItem}>
-                <View
-                  style={[
-                    styles.legendColor,
-                    { backgroundColor: theme.isDark ? "#555" : "#ccc" },
-                  ]}
-                />
-                <Text
-                  style={[styles.legendText, { color: theme.textSecondary }]}
-                >
-                  Not Started
-                </Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View
-                  style={[
-                    styles.legendColor,
-                    { backgroundColor: SRS_COLORS.apprentice.hex },
-                  ]}
-                />
-                <Text
-                  style={[styles.legendText, { color: theme.textSecondary }]}
-                >
-                  Apprentice
-                </Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View
-                  style={[
-                    styles.legendColor,
-                    { backgroundColor: SRS_COLORS.guru.hex },
-                  ]}
-                />
-                <Text
-                  style={[styles.legendText, { color: theme.textSecondary }]}
-                >
-                  Guru
-                </Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View
-                  style={[
-                    styles.legendColor,
-                    { backgroundColor: SRS_COLORS.master.hex },
-                  ]}
-                />
-                <Text
-                  style={[styles.legendText, { color: theme.textSecondary }]}
-                >
-                  Master
-                </Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View
-                  style={[
-                    styles.legendColor,
-                    { backgroundColor: SRS_COLORS.enlightened.hex },
-                  ]}
-                />
-                <Text
-                  style={[styles.legendText, { color: theme.textSecondary }]}
-                >
-                  Enlightened
-                </Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View
-                  style={[
-                    styles.legendColor,
-                    { backgroundColor: SRS_COLORS.burned.hex },
-                  ]}
-                />
-                <Text
-                  style={[styles.legendText, { color: theme.textSecondary }]}
-                >
-                  Burned
-                </Text>
-              </View>
+              {SRS_LEGEND.map(({ stage, label }) => (
+                <View key={stage} style={styles.legendItem}>
+                  <View style={styles.legendBadge}>
+                    <SrsBadge stage={stage} isDark={theme.isDark} />
+                  </View>
+                  <Text
+                    style={[styles.legendText, { color: theme.textSecondary }]}
+                  >
+                    {label}
+                  </Text>
+                </View>
+              ))}
             </View>
           </View>
 
@@ -1018,10 +994,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  legendColor: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
+  legendBadge: {
     marginRight: 6,
   },
   legendText: {
@@ -1072,11 +1045,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -8,
     right: -8,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "#fff",
+  },
+  srsBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorText: {
     fontSize: 16,

@@ -1,0 +1,19 @@
+.control { display: inline-flex; align-items: center; }
+.control > button { flex: 1; }
+.tooltip {
+  z-index: 1000;
+  max-width: min(18rem, calc(100vw - 24px));
+  max-height: min(20rem, calc(100dvh - 24px));
+  overflow-y: auto;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .1);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.tooltip strong { display: block; margin-bottom: var(--space-2xs); }
+.tooltip ul { display: grid; gap: var(--space-2xs); margin: 0; padding: 0; list-style: none; }
