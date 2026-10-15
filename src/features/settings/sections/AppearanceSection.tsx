@@ -11,6 +11,7 @@ import { Platform, Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
+import { LearningPagesSetting } from "../components/learning-pages-setting";
 import { formatAppTextSizeScale, useSettingsStore } from "../../../utils/store";
 
 const APP_TEXT_SIZE_SETTINGS_ROUTE = "/app-text-size-settings" as Href;
@@ -168,6 +169,7 @@ export function AppearanceSection() {
             color={theme.textSecondary}
           />
         </TouchableOpacity>
+        <LearningPagesSetting />
       </SettingsSectionSurface>
     </>
   );
