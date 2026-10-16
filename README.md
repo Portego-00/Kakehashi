@@ -112,6 +112,19 @@ app text keep their own sizes. On the web, you can also change **Question text
 size** from the review session's settings button, including on a phone with the
 keyboard open.
 
+## Review keyboard shortcuts
+
+In the native app, including on a Mac with a keyboard, press **D** to open
+subject details from an Anki review, then press **D** again to return to the
+revealed review. If you customize the details shortcut, that key also returns
+to the review. The shortcut pauses while editing a note or using another dialog.
+
+On the web, press **D** after revealing an answer to open or close subject
+details, including while a details button, tab, or link has keyboard focus.
+Closing details returns focus to the review so you can continue grading from
+the keyboard. This also works with a custom details key set in **Custom study
+keys**. Typing in notes and other editable fields keeps its normal behavior.
+
 ## Connecting Spotify
 
 The mobile app includes a personal Spotify setup guide in **Settings → Music

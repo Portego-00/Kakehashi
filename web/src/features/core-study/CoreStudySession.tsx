@@ -89,6 +89,7 @@ const noopSubscribe = () => () => {};
 const singleKanji = /^[\u3400-\u4DBF\u4E00-\u9FFF]$/;
 const reviewShortcutInteractiveSelector = "input, textarea, select, button, a, audio, video, [contenteditable]:not([contenteditable=\"false\"])";
 const reviewAdvanceNativeEnterSelector = "input, textarea, select, a, audio, video, [contenteditable]:not([contenteditable=\"false\"])";
+const reviewDetailsEditingSelector = "input, textarea, select, audio, video, [role=\"slider\"], [contenteditable]:not([contenteditable=\"false\"])";
 const coreStudyIdsPerRequest = 500;
 const lessonTeachingTabs = new Set<SubjectDetailTab>(["meaning", "reading", "stroke", "context"]);
 
@@ -142,9 +143,9 @@ function formatNextReviewInterval(availableAt: string | null | undefined, stage:
   return `${months} ${months === 1 ? "month" : "months"}`;
 }
 
-function shouldIgnoreReviewShortcut(event: KeyboardEvent) {
+function shouldIgnoreReviewShortcut(event: KeyboardEvent, selector = reviewShortcutInteractiveSelector) {
   if (event.defaultPrevented) return true;
-  return event.target instanceof Element && Boolean(event.target.closest(reviewShortcutInteractiveSelector));
+  return event.target instanceof Element && Boolean(event.target.closest(selector));
 }
 
 function shouldIgnoreReviewAdvance(event: KeyboardEvent) {
@@ -932,13 +933,20 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
       const action = studyShortcutAction(event.key, studyKeys);
       const fromAnsweredInput = event.target === inputRef.current && Boolean(feedback && feedback.status !== "blocked");
       if (action === "skip" && !feedback && !shouldIgnoreReviewShortcut(event)) { event.preventDefault(); skipCurrentQuestion(); return; }
-      if ((action === "details" || action === "replayAudio" || action === "markCorrect" || action === "markIncorrect" || action === "addSynonym") && (fromAnsweredInput || !shouldIgnoreReviewShortcut(event)) && !(ankiRevealed && !feedback && (action === "markCorrect" || action === "markIncorrect"))) {
+      if ((action === "details" || action === "replayAudio" || action === "markCorrect" || action === "markIncorrect" || action === "addSynonym") && (fromAnsweredInput || !shouldIgnoreReviewShortcut(event, action === "details" ? reviewDetailsEditingSelector : undefined)) && !(ankiRevealed && !feedback && (action === "markCorrect" || action === "markIncorrect"))) {
         if (revealStudyDetails && !advancingQuestion && !addSynonymMutation.isPending) {
           if (action === "markCorrect") { event.preventDefault(); markAnswer(true); }
           if (action === "markIncorrect") { event.preventDefault(); markAnswer(false); }
           if (action === "addSynonym") { event.preventDefault(); if (canAddSynonym && current) addSynonymMutation.mutate({ subject: current.subject, assignmentId: current.assignment.id, kind: current.kind, synonym: synonymCandidate, existingMaterial: material }); }
         }
-        if (action === "details" && revealStudyDetails) { event.preventDefault(); toggleStudyDetails(); }
+        if (action === "details" && revealStudyDetails) {
+          event.preventDefault();
+          toggleStudyDetails();
+          // Keep grading shortcuts available after leaving a focused details control.
+          if (studyDetailsOpen && event.target instanceof Element) {
+            event.target.closest<HTMLElement>('[data-study-session="active"]')?.focus({ preventScroll: true });
+          }
+        }
         if (action === "replayAudio" && current && revealStudyDetails) { event.preventDefault(); void playAudio(current.subject); }
         return;
       }
@@ -1207,7 +1215,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
           {sessionError ? <p className={styles.error} role="alert">{sessionError}</p> : null}
         </div> : null;
 
-  return <div ref={reviewViewportRef} className={`${quiz.quizShell} ${!selfAssessment ? quiz.typedReviewShell : ""}`} data-study-session="active" data-review-layout={preferences.compactReviews ? "compact" : undefined} data-multiple-choice={hideTypedAnswer || undefined} data-details-open={studyDetailsExpanded || undefined} data-advancing={advancingQuestion || undefined} data-type={current.subject.object} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} role="region" aria-labelledby="study-prompt-title">
+  return <div ref={reviewViewportRef} className={`${quiz.quizShell} ${!selfAssessment ? quiz.typedReviewShell : ""}`} data-study-session="active" data-review-layout={preferences.compactReviews ? "compact" : undefined} data-multiple-choice={hideTypedAnswer || undefined} data-details-open={studyDetailsExpanded || undefined} data-advancing={advancingQuestion || undefined} data-type={current.subject.object} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} role="region" aria-labelledby="study-prompt-title" tabIndex={-1}>
         <ReviewExitGuard pendingSubjects={pendingSubjectIds.size} />
         <div className={quiz.quizTopbar}>
           <div className={styles.sessionProgress}><span>{mixed ? "Mixed reviews" : mode === "lessons" ? "Lesson Quiz" : "Reviews"}</span><strong>{Math.min(displayTotal, displayCompleted + 1)} / {displayTotal}</strong></div>

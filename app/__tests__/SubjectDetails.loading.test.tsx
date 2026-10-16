@@ -2,6 +2,7 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 
 import SubjectDetailsScreen from "../(app)/subject/[id]";
+import { registerOpenNoteSubjectPreview } from "../../src/utils/note-subject-preview-state";
 import {
   createStudyMaterial,
   getAssignmentsForSubjectsCached,
@@ -31,17 +32,23 @@ const mockMaterial = {
 };
 let mockVocabularyProps: any;
 const mockBack = jest.fn();
+const mockRouteParams: { id: string; returnToReview?: string } = { id: "1001" };
+let mockDetailsShortcut: string | undefined;
+let mockScreenFocused = true;
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), back: mockBack }),
-  useLocalSearchParams: () => ({ id: "1001" }),
+  useLocalSearchParams: () => mockRouteParams,
+}));
+jest.mock("../../src/utils/navigation-focus", () => ({
+  useOptionalScreenIsFocused: () => mockScreenFocused,
 }));
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 jest.mock("../../src/utils/store", () => ({
   useAuthStore: () => ({ apiToken: "fixture-token", userData: { level: 1 } }),
-  useSettingsStore: () => ({ visuallySimilarKanjiSource: "wanikani" }),
+  useSettingsStore: () => ({ visuallySimilarKanjiSource: "wanikani", reviewIncorrectKeyboardShortcuts: mockDetailsShortcut ? { openDetails: mockDetailsShortcut } : undefined }),
 }));
 jest.mock("../../src/utils/theme", () => ({ useTheme: () => ({ theme: {} }) }));
 jest.mock("../../src/hooks/useSubjectLists", () => ({
@@ -102,6 +109,10 @@ beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
   mockVocabularyProps = undefined;
+  mockRouteParams.returnToReview = undefined;
+  mockDetailsShortcut = undefined;
+  mockScreenFocused = true;
+  mockSubject.object = "vocabulary";
   jest.mocked(getStudyMaterials).mockReset();
   jest.mocked(createStudyMaterial).mockReset();
   jest.mocked(getSubject).mockResolvedValue(mockSubject as never);
@@ -114,6 +125,75 @@ beforeEach(() => {
   }));
 });
 afterEach(() => { jest.useRealTimers(); });
+
+it.each([[undefined, "d"], [undefined, "D"], ["I", "i"]])(
+  "returns to the review with details shortcut %s (%s)",
+  async (shortcut, key) => {
+    mockRouteParams.returnToReview = "true";
+    mockDetailsShortcut = shortcut;
+    const screen = await openCard();
+    const input = screen.getByTestId("review-details-shortcut-input", { includeHiddenElements: true });
+    expect(input.props.showSoftInputOnFocus).toBe(false);
+    fireEvent(input, "keyPress", { nativeEvent: { key: "x" } });
+    expect(mockBack).not.toHaveBeenCalled();
+    fireEvent(input, "keyPress", { nativeEvent: { key } });
+    fireEvent(input, "keyPress", { nativeEvent: { key } });
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  },
+);
+
+it.each(["radical", "kanji", "vocabulary", "kana_vocabulary"])("closes %s details opened from a review", async (kind) => {
+  mockSubject.object = kind;
+  mockRouteParams.returnToReview = "true";
+  const screen = await openCard();
+  fireEvent(screen.getByTestId("review-details-shortcut-input", { includeHiddenElements: true }), "keyPress", { nativeEvent: { key: "d" } });
+  expect(mockBack).toHaveBeenCalledTimes(1);
+});
+
+it("leaves ordinary subject browsing without a review return shortcut", async () => {
+  const screen = await openCard();
+  expect(screen.queryByTestId("review-details-shortcut-input", { includeHiddenElements: true })).toBeNull();
+});
+
+it("suspends the return shortcut while adding the subject to a list", async () => {
+  mockRouteParams.returnToReview = "true";
+  const screen = await openCard();
+  act(() => mockVocabularyProps.onAddToList());
+  expect(screen.queryByTestId("review-details-shortcut-input", { includeHiddenElements: true })).toBeNull();
+  expect(mockBack).not.toHaveBeenCalled();
+});
+
+it("suspends the return shortcut while editing a note and restores it after closing", async () => {
+  mockRouteParams.returnToReview = "true";
+  const screen = await openCard();
+  fireEvent.press(screen.getByText("Edit meaning note"));
+  expect(screen.queryByTestId("review-details-shortcut-input", { includeHiddenElements: true })).toBeNull();
+  fireEvent(screen.getByLabelText("Meaning note text"), "keyPress", { nativeEvent: { key: "d" } });
+  expect(mockBack).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByText("Cancel"));
+  await act(async () => {});
+  fireEvent(screen.getByTestId("review-details-shortcut-input", { includeHiddenElements: true }), "keyPress", { nativeEvent: { key: "d" } });
+  expect(mockBack).toHaveBeenCalledTimes(1);
+});
+
+it("suspends the return shortcut behind another screen or a subject preview", async () => {
+  mockRouteParams.returnToReview = "true";
+  mockScreenFocused = false;
+  const screen = await openCard();
+  expect(screen.queryByTestId("review-details-shortcut-input", { includeHiddenElements: true })).toBeNull();
+  mockScreenFocused = true;
+  screen.rerender(<SubjectDetailsScreen />);
+  let closePreview!: () => void;
+  act(() => { closePreview = registerOpenNoteSubjectPreview(); });
+  try {
+    expect(screen.queryByTestId("review-details-shortcut-input", { includeHiddenElements: true })).toBeNull();
+    expect(mockBack).not.toHaveBeenCalled();
+  } finally {
+    act(() => closePreview());
+  }
+  fireEvent(screen.getByTestId("review-details-shortcut-input", { includeHiddenElements: true }), "keyPress", { nativeEvent: { key: "d" } });
+  expect(mockBack).toHaveBeenCalledTimes(1);
+});
 
 it("shows synonyms and opens the existing note while review statistics are still pending (#83/#84)", async () => {
   jest.mocked(getReviewStatistics).mockReturnValue(deferred<any>().promise);

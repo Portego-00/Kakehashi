@@ -530,6 +530,35 @@ describe("core study prompt layout", () => {
   });
 
   it.each([
+    { control: "toggle", detailsKey: "d" },
+    { control: "tab", detailsKey: "d" },
+    { control: "link", detailsKey: "d" },
+    { control: "tab", detailsKey: "i" },
+  ])("toggles Anki details with $detailsKey from a focused $control and resumes keyboard grading", async ({ control, detailsKey }) => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    fixtures.settings.study.studyShortcuts = { ...DEFAULT_STUDY_SHORTCUTS, details: detailsKey };
+    renderSession("reviews");
+    await screen.findByRole("button", { name: "Reveal answer" });
+    fireEvent.keyDown(document.body, { key: "Enter" });
+    fireEvent.keyDown(document.body, { key: detailsKey });
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeVisible();
+    const focusedControl = control === "toggle" ? screen.getByRole("button", { name: "Hide subject details" })
+      : control === "tab" ? screen.getByRole("tab", { name: "Meaning" })
+      : screen.getByRole("link", { name: /Open full subject/ });
+    focusedControl.focus();
+    fireEvent.keyDown(document.activeElement!, { key: detailsKey.toUpperCase() });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Show subject details" })).toHaveAttribute("aria-expanded", "false"));
+    expect(screen.getByRole("region", { name: "meaning" })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: detailsKey });
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeVisible();
+    fireEvent.keyDown(document.activeElement!, { key: detailsKey });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Show subject details" })).toHaveAttribute("aria-expanded", "false"));
+    fireEvent.keyDown(document.activeElement!, { key: DEFAULT_STUDY_SHORTCUTS.markCorrect });
+    expect(await screen.findByRole("heading", { name: "Reviews Complete" })).toBeVisible();
+  });
+
+  it.each([
     [true, true, "やま", true],
     [true, false, "やま", false],
     [false, true, "かわ", false],
@@ -1234,6 +1263,8 @@ describe("core study prompt layout", () => {
     expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit meaning note" }));
     const meaningNote = screen.getByRole("textbox", { name: "Meaning note" });
+    fireEvent.keyDown(meaningNote, { key: "d" });
+    expect(screen.getByRole("button", { name: /Hide subject details/ })).toHaveAttribute("aria-expanded", "true");
     fireEvent.keyDown(meaningNote, { key: "Enter" });
     expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Subject details" })).toBeInTheDocument();
