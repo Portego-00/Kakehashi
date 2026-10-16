@@ -22,6 +22,8 @@
 .character { display: grid; place-items: center; min-width: 2.75rem; min-height: 2.75rem; padding: var(--space-xs); border-radius: var(--radius-sm); background: var(--lesson-color); color: var(--color-subject-text); font-family: var(--font-japanese); font-size: var(--text-xl); white-space: nowrap; max-width: 100%; }
 .copy { display: grid; gap: var(--space-2xs); min-width: 0; overflow-wrap: break-word; font-size: var(--text-sm); }
 .copy > span { color: var(--color-ink-2); }
+.copy > .unlockBadge { width: fit-content; padding: var(--space-2xs) var(--space-xs); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-sm); font-size: var(--text-xs); font-weight: 600; color: var(--color-ink); }
+.unlockNote { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); color: var(--color-ink-2); font-size: var(--text-sm); }
 .check { flex: 0 0 1.1rem; height: 1.1rem; margin-inline-start: auto; border: var(--rule-thin) solid var(--color-rule); border-radius: 3px; line-height: 1; text-align: center; }
 .item[aria-pressed="true"] .check { background: var(--lesson-color); color: var(--color-subject-text); border-color: var(--lesson-color); }
 .items[data-view="list"] { grid-template-columns: 1fr; }

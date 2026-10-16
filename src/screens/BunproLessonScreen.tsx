@@ -36,6 +36,7 @@ export default function BunproLessonScreen() {
   const controller = useRef<AbortController | null>(null);
   const items = pool.slice(0, size);
   const current = items[index];
+  const goHome = () => router.replace({ pathname: "/", params: { refreshLessonsReviews: "true" } });
 
   const load = useCallback(async (preferredDeck?: number) => {
     if (!allowed) return;
@@ -108,6 +109,6 @@ export default function BunproLessonScreen() {
     <View style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: theme.border, paddingHorizontal: 12 }}>
       {button("Back", () => router.back())}<View style={{ flex: 1 }}><Text style={{ color: theme.textColor, fontWeight: "600" }}>Bunpro lessons</Text><Text style={{ color: theme.textSecondary }}>{deck?.title ?? ""} · Batch {batchNumber}{items.length ? ` · ${index + 1}/${items.length}` : ""}</Text></View>
     </View>
-    {phase === "loading" || phase === "quiz-loading" ? <View style={{ flex: 1, justifyContent: "center", gap: 16 }}><ActivityIndicator color={theme.textColor} /><Text style={{ color: theme.textSecondary, textAlign: "center" }}>{phase === "loading" ? "Loading Bunpro lessons…" : "Preparing quiz…"}</Text></View> : phase === "error" ? <View style={{ padding: 24 }}><Text accessibilityRole="alert" style={{ color: theme.error }}>{error}</Text>{button("Retry lessons", () => { void load(requestedDeck); })}</View> : phase === "done" || !current ? <View style={{ padding: 24 }}><Text style={{ color: theme.textColor, fontSize: 24 }}>Lessons complete</Text><Text style={{ color: theme.textSecondary }}>No more lessons are available in your learn queue.</Text>{button("Back to home", () => router.back())}</View> : null}
+    {phase === "loading" || phase === "quiz-loading" ? <View style={{ flex: 1, justifyContent: "center", gap: 16 }}><ActivityIndicator color={theme.textColor} /><Text style={{ color: theme.textSecondary, textAlign: "center" }}>{phase === "loading" ? "Loading Bunpro lessons…" : "Preparing quiz…"}</Text></View> : phase === "error" ? <View style={{ padding: 24 }}><Text accessibilityRole="alert" style={{ color: theme.error }}>{error}</Text>{button("Retry lessons", () => { void load(requestedDeck); })}</View> : phase === "done" || !current ? <View style={{ padding: 24 }}><Text style={{ color: theme.textColor, fontSize: 24 }}>Lessons complete</Text><Text style={{ color: theme.textSecondary }}>No more lessons are available in your learn queue.</Text>{button("Back to home", goHome)}</View> : null}
   </SafeAreaView>;
 }

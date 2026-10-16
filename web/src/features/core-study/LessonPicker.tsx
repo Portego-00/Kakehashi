@@ -12,7 +12,15 @@ const labels = { radical: "Radicals", kanji: "Kanji", vocabulary: "Vocabulary" }
 function typeOf(subject: Subject) { return subject.object === "kana_vocabulary" ? "vocabulary" : subject.object; }
 function meaningOf(subject: Subject) { return subject.data.meanings.find((meaning) => meaning.primary)?.meaning ?? subject.data.meanings[0]?.meaning ?? subject.data.slug; }
 
-export function LessonPicker({ subjects, limit, batchSize = 5, onStart }: { subjects: Subject[]; limit: number; batchSize?: number; onStart: (ids: number[]) => void }) {
+export function LessonPicker({ subjects, limit, batchSize = 5, onStart, vocabularyUnlockCounts, vocabularyUnlockStatus, onRetryVocabularyUnlockCounts }: {
+  subjects: Subject[];
+  limit: number;
+  batchSize?: number;
+  onStart: (ids: number[]) => void;
+  vocabularyUnlockCounts?: ReadonlyMap<number, number>;
+  vocabularyUnlockStatus?: "loading" | "error";
+  onRetryVocabularyUnlockCounts?: () => void;
+}) {
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all");
@@ -41,6 +49,10 @@ export function LessonPicker({ subjects, limit, batchSize = 5, onStart }: { subj
         <div className={styles.views} aria-label="Lesson layout"><Button aria-label="Grid view" aria-pressed={view === "grid"} tone="ghost" onClick={() => setView("grid")}><LayoutGrid size={18} /></Button><Button aria-label="List view" aria-pressed={view === "list"} tone="ghost" onClick={() => setView("list")}><List size={18} /></Button></div>
       </div>
       <div className={styles.heading}><p aria-live="polite">{selectedIds.length} selected · {subjects.length} available</p><Button tone="ghost" disabled={!filtered.length || limit === 0} onClick={() => toggleGroup(filtered)}>{allSelected ? "Deselect all" : "Select all"}</Button></div>
+      {vocabularyUnlockCounts || vocabularyUnlockStatus ? <div className={styles.unlockNote}>
+        <p role="status">{vocabularyUnlockStatus === "loading" ? "Loading vocabulary unlock counts…" : vocabularyUnlockStatus === "error" ? "Vocabulary unlock counts could not load." : "Counts show same-level vocabulary. All kanji in a word must reach Guru to unlock it."}</p>
+        {vocabularyUnlockStatus === "error" ? <Button tone="ghost" onClick={onRetryVocabularyUnlockCounts}>Retry counts</Button> : null}
+      </div> : null}
     </header>
     {limit === 0 ? <p role="status">You have reached your daily lesson limit.</p> : null}
     {!subjects.length ? <p role="status">No lessons are available right now.</p> : !filtered.length ? <p role="status">No lessons match your search and filters.</p> : levels.map((level) => {
@@ -54,9 +66,12 @@ export function LessonPicker({ subjects, limit, batchSize = 5, onStart }: { subj
             const checked = selected.has(subject.id);
             const meaning = meaningOf(subject);
             const reading = subject.data.readings?.find((reading) => reading.primary)?.reading ?? subject.data.readings?.[0]?.reading;
-            return <button key={subject.id} type="button" className={styles.item} style={{ "--lesson-color": `var(--color-${subjectType})` } as CSSProperties} aria-label={`${subject.data.characters ?? meaning}: ${meaning}`} aria-pressed={checked} disabled={!checked && selectedIds.length >= limit} onClick={() => toggleGroup([subject])}>
+            const unlockCount = subject.object === "kanji" ? vocabularyUnlockCounts?.get(subject.id) : undefined;
+            const unlockLabel = unlockCount !== undefined ? `${unlockCount} same-level vocabulary ${unlockCount === 1 ? "word depends" : "words depend"} on this kanji reaching Guru` : undefined;
+            const unlockDescriptionId = unlockCount !== undefined ? `lesson-vocabulary-unlocks-${subject.id}` : undefined;
+            return <button key={subject.id} type="button" className={styles.item} style={{ "--lesson-color": `var(--color-${subjectType})` } as CSSProperties} aria-label={`${subject.data.characters ?? meaning}: ${meaning}`} aria-describedby={unlockDescriptionId} aria-pressed={checked} disabled={!checked && selectedIds.length >= limit} onClick={() => toggleGroup([subject])}>
               <SubjectCharacter subject={subject} imageSize="2rem" imageTone="subject" className={styles.character} />
-              <span className={styles.copy}><strong>{meaning}</strong>{reading ? <span lang="ja">{reading}</span> : null}</span>
+              <span className={styles.copy}><strong>{meaning}</strong>{reading ? <span lang="ja">{reading}</span> : null}{unlockCount !== undefined ? <span className={styles.unlockBadge} title={unlockLabel}><span aria-hidden>{unlockCount} vocab</span><span id={unlockDescriptionId} className="sr-only">{unlockLabel}</span></span> : null}</span>
               <span className={styles.check} aria-hidden>{checked ? "✓" : ""}</span>
             </button>;
           })}</div></div>;

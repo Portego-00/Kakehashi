@@ -32,7 +32,7 @@ export function ReviewPreviousAnswerCard({ answer }: { answer: MixedReviewAnswer
     : answer.subjectType ? colors.getColorForType(answer.subjectType) : "#555555";
   const color = answer.source === "bunpro" ? "#ffffff" : getBestContrastTextColor(backgroundColor, "#101217", "#ffffff");
   const canOpen = Boolean(answer.subjectId || answer.bunproSubject?.slug);
-  return <Animated.View style={[styles.position, animation, answer.source === "bunpro" && { transformOrigin: "left center" }]}>
+  return <Animated.View pointerEvents={answer.source === "bunpro" ? "box-none" : undefined} style={[styles.position, animation, answer.source === "bunpro" && { left: 4, transformOrigin: "left center", backgroundColor: "transparent" }]}>
     <TouchableOpacity
       accessibilityRole={canOpen ? "button" : "text"}
       accessibilityLabel={`Previous ${answer.source === "bunpro" ? "Bunpro" : "WaniKani"} answer: ${answer.title}, ${answer.correct ? "correct" : "incorrect"}`}

@@ -75,6 +75,12 @@ function LessonThresholdInput({
 }
 
 export function LessonSettingsSection() {
+  const showLessonVocabularyUnlockCounts = useSettingsStore(
+    (state) => state.showLessonVocabularyUnlockCounts,
+  );
+  const setShowLessonVocabularyUnlockCounts = useSettingsStore(
+    (state) => state.setShowLessonVocabularyUnlockCounts,
+  );
   const lessonSearchButtonEnabled = useSettingsStore(
     (state) => state.lessonSearchButtonEnabled,
   );
@@ -507,6 +513,26 @@ export function LessonSettingsSection() {
             icon="settings"
             accessibilityLabel="Advanced settings"
           >
+            <AdvancedSetting>
+              <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+                <SettingsRowIcon setting="lesson-count" color={theme.primary} />
+                <View style={styles.settingTextContainer}>
+                  <SettingsLabel style={[styles.settingText, { color: theme.textColor }]}>
+                    Vocabulary Unlock Counts
+                  </SettingsLabel>
+                  <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
+                    Show how many same-level vocabulary words depend on each kanji in the lesson picker. All kanji in a word must reach Guru to unlock it.
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Vocabulary Unlock Counts"
+                  value={showLessonVocabularyUnlockCounts}
+                  onValueChange={setShowLessonVocabularyUnlockCounts}
+                  trackColor={{ false: "#767577", true: theme.primary }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+            </AdvancedSetting>
             <AdvancedSetting>
               <View
                 style={[

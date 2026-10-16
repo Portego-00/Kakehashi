@@ -28,7 +28,7 @@ import { fetchImmersionExamples } from "@/features/study/immersion";
 import { playAnswerFeedback } from "@/features/study/feedback-audio";
 import { useSession } from "@/lib/session";
 import { WaniKaniApiError, wkCollection, wkRequest } from "@/lib/wanikani/client";
-import { userQuery, wkKeys } from "@/lib/wanikani/queries";
+import { subjectsQuery as catalogSubjectsQuery, userQuery, wkKeys } from "@/lib/wanikani/queries";
 import type { Assignment, ReviewStatistic, StudyMaterial, Subject } from "@/types/wanikani";
 import quiz from "@/features/study/study.module.css";
 import { AnkiAnswerContent } from "./AnkiAnswerContent";
@@ -59,6 +59,7 @@ import styles from "./core-study.module.css";
 import { reviewSubjectFont } from "./review-subject-font";
 import { useReviewFontReady } from "./use-review-font-ready";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
+import { getLessonVocabularyUnlockCounts } from "../../../../src/utils/lessonVocabularyUnlocks";
 
 import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import { ReviewExitGuard } from "./ReviewExitGuard";
@@ -331,6 +332,16 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     staleTime: 24 * 60 * 60_000,
   });
   const subjects = subjectsQuery.data || EMPTY_SUBJECTS;
+  const vocabularyUnlockLevels = useMemo(() => pickingLessons && preferences.showLessonVocabularyUnlockCounts
+    ? [...new Set(subjects.filter((subject) => subject.object === "kanji" && candidateIds.includes(subject.id)).map((subject) => subject.data.level))].sort((a, b) => a - b)
+    : [], [candidateIds, pickingLessons, preferences.showLessonVocabularyUnlockCounts, subjects]);
+  const vocabularyUnlockQuery = useQuery({
+    ...catalogSubjectsQuery(`types=vocabulary&levels=${vocabularyUnlockLevels.join(",")}&hidden=false`),
+    enabled: pickingLessons && preferences.showLessonVocabularyUnlockCounts && vocabularyUnlockLevels.length > 0 && !isOnVacation,
+  });
+  const vocabularyUnlockCounts = useMemo(() => preferences.showLessonVocabularyUnlockCounts && vocabularyUnlockQuery.data
+    ? getLessonVocabularyUnlockCounts(subjects, vocabularyUnlockQuery.data) : undefined,
+  [preferences.showLessonVocabularyUnlockCounts, subjects, vocabularyUnlockQuery.data]);
   const dailyRemaining = remainingDailyLessons(preferences.dailyLessonLimit, lessonStartsToday);
   const assignmentLimit = mode === "lessons" ? Math.min(preferences.lessonsBatchSize, dailyRemaining) : preferences.reviewBatchSize;
   const plannedAssignments = useMemo(
@@ -1081,6 +1092,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     subjects={subjects.filter((subject) => candidateIds.includes(subject.id))}
     limit={dailyRemaining}
     batchSize={preferences.lessonsBatchSize}
+    vocabularyUnlockCounts={vocabularyUnlockCounts}
+    vocabularyUnlockStatus={preferences.showLessonVocabularyUnlockCounts && vocabularyUnlockLevels.length > 0 ? vocabularyUnlockQuery.isError ? "error" : vocabularyUnlockQuery.isPending ? "loading" : undefined : undefined}
+    onRetryVocabularyUnlockCounts={() => void vocabularyUnlockQuery.refetch()}
     onStart={(subjectIds) => {
       const availableIds = new Set(candidateIds);
       const ids = subjectIds.filter((id) => availableIds.has(id)).slice(0, dailyRemaining);

@@ -91,6 +91,17 @@ function dataTransfer() {
   } as unknown as DataTransfer;
 }
 
+it("saves vocabulary unlock counts from advanced lesson preferences", async () => {
+  localStorage.clear();
+  render(<SettingsWorkspace />);
+  const advanced = screen.getByRole("heading", { name: "Advanced lesson preferences" }).parentElement!;
+  const toggle = within(advanced).getByRole("checkbox", { name: /Vocabulary unlock counts/ });
+  expect(toggle).not.toBeChecked();
+  fireEvent.click(toggle);
+  await waitFor(() => expect(JSON.parse(localStorage.getItem(settingsStorageKey("Tester"))!).study.showLessonVocabularyUnlockCounts).toBe(true));
+  expect(toggle).toBeChecked();
+});
+
 function rect(left: number, top: number, width: number, height: number): DOMRect {
   return { left, top, right: left + width, bottom: top + height, width, height, x: left, y: top, toJSON: () => ({}) } as DOMRect;
 }

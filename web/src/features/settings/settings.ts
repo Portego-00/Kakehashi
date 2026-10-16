@@ -80,6 +80,7 @@ export interface WebStudyPreferences {
   minimumRadicalKanjiPerBatchEnabled: boolean;
   lessonOrder: LessonOrderSetting | "subject-type";
   excludeKanaVocabularyFromLessons: boolean;
+  showLessonVocabularyUnlockCounts: boolean;
   apprenticeLessonThreshold: number;
   guruLessonThreshold: number;
   reviewOrder: ReviewOrderSetting;
@@ -357,6 +358,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     minimumRadicalKanjiPerBatchEnabled: false,
     lessonOrder: DEFAULT_LESSON_ORDER,
     excludeKanaVocabularyFromLessons: false,
+    showLessonVocabularyUnlockCounts: false,
     apprenticeLessonThreshold: 0,
     guruLessonThreshold: 0,
     reviewOrder: "random",
@@ -590,6 +592,7 @@ export function readWebSettings(storage: Pick<ListStorage, "getItem">, username:
       minimumRadicalKanjiPerBatchEnabled: typeof parsed.study?.minimumRadicalKanjiPerBatchEnabled === "boolean" ? parsed.study.minimumRadicalKanjiPerBatchEnabled : DEFAULT_WEB_SETTINGS.study.minimumRadicalKanjiPerBatchEnabled,
       lessonOrder: normalizeLessonOrder(parsed.study?.lessonOrder),
       excludeKanaVocabularyFromLessons: typeof parsed.study?.excludeKanaVocabularyFromLessons === "boolean" ? parsed.study.excludeKanaVocabularyFromLessons : DEFAULT_WEB_SETTINGS.study.excludeKanaVocabularyFromLessons,
+      showLessonVocabularyUnlockCounts: parsed.study?.showLessonVocabularyUnlockCounts === true,
       apprenticeLessonThreshold: normalizeLessonSrsThreshold(parsed.study?.apprenticeLessonThreshold ?? 0),
       guruLessonThreshold: normalizeLessonSrsThreshold(parsed.study?.guruLessonThreshold ?? 0),
       reviewOrder: normalizeReviewOrder(persistedStudy?.reviewOrder, DEFAULT_WEB_SETTINGS.study.reviewOrder),

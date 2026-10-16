@@ -1501,6 +1501,7 @@ export default function BunproReviewScreen({
   const answerAlreadySaved = processedIdsRef.current.has(currentReviewIdString);
   const acceptedDisplayAnswers = [...new Set([canonicalAnswer, sanitizeText(studyQuestionAttributes.answer), ...alternativeAnswers].filter(Boolean))];
   const currentStage = bunproStage(currentReviewAttributes);
+  const metadataStageLabel = pendingOutcome?.stageLabel || currentStage.label;
   const reviewableResource = getIncludedResource(
     currentItem?.included,
     reviewableRelation?.id,
@@ -1679,6 +1680,7 @@ export default function BunproReviewScreen({
           kind: "warning",
           message: alternateFeedbackMessage,
         });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
 
@@ -1944,14 +1946,14 @@ export default function BunproReviewScreen({
       return pendingOutcome?.correct || selfAssessment ? 1 % acceptedDisplayAnswers.length : 0;
     });
   };
-  const undoAnswer = () => {
-    if (commitLockRef.current || isSubmitting || !pendingOutcome || (answerAlreadySaved && !isMasteryRepeat) || saveFailure || outboxState.failure) return;
+  const undoAnswer = (nextText = "") => {
+    if (!activeRef.current || reviewSettingsOpen || commitLockRef.current || isSubmitting || !pendingOutcome || (answerAlreadySaved && !isMasteryRepeat) || saveFailure || outboxState.failure) return;
     setPendingOutcome(null);
     setRevealedAnswerIndex(null);
     setReviewFeedback(null);
     setErrorMessage(null);
     setAnkiRevealed(false);
-    clearReviewInput();
+    clearReviewInput(nextText);
     void stopActiveSound();
     inputRef.current?.focus();
   };
@@ -2129,9 +2131,10 @@ export default function BunproReviewScreen({
 
       {showLevel || pendingOutcome?.stageLabel ? <View testID="bunpro-review-metadata" style={styles.reviewMetadata}>
         {showLevel && reviewableLevel ? <Text style={[styles.metadataLevel, { color: mutedColor }]}>{reviewableLevel.replace(/^JLPT\s*N?([1-5])$/i, "N$1")}</Text> : null}
-        {currentStage.label || pendingOutcome?.stageLabel ? <View style={styles.stageRow}>
-          {pendingOutcome && !saveFailure ? <Ionicons name={pendingOutcome.correct ? "arrow-up" : "arrow-down"} size={18} color={statusColor} /> : <BunproStageIcon color={mutedColor} size={18} />}
-          <Text style={[styles.stageLabel, { color: pendingOutcome && !saveFailure ? statusColor : mutedColor }]}>{pendingOutcome?.stageLabel || currentStage.label}</Text>
+        {showLevel && reviewableLevel && metadataStageLabel ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.metadataDivider, { backgroundColor: inputBorder }]} /> : null}
+        {metadataStageLabel ? <View style={styles.stageRow}>
+          {pendingOutcome && !saveFailure ? <Ionicons name={pendingOutcome.correct ? "arrow-up" : "arrow-down"} size={13} color={statusColor} /> : <BunproStageIcon color={mutedColor} size={13} />}
+          <Text accessibilityLabel={`SRS stage: ${metadataStageLabel}`} style={[styles.stageLabel, { color: pendingOutcome && !saveFailure ? statusColor : mutedColor }]}>{metadataStageLabel}</Text>
         </View> : null}
       </View> : null}
       {!mixed ? <ReviewPreviousAnswerCard answer={previousAnswer} /> : null}
@@ -2143,6 +2146,7 @@ export default function BunproReviewScreen({
       >
         <ScrollView
           ref={promptScrollRef}
+          testID="bunpro-review-prompt"
           style={{ flex: 1 }}
           contentContainerStyle={styles.promptArea}
           keyboardShouldPersistTaps="handled"
@@ -2200,24 +2204,6 @@ export default function BunproReviewScreen({
           <BunproProgressionCard progression={mixed?.bunproProgression ?? progression} />
           {audio.error ? <Text accessibilityRole="alert" style={[styles.inlineError, { color: theme.error }]}>{audio.error}</Text> : null}
 
-          {reviewFeedback ? (
-            <View style={styles.feedbackRow}>
-              <Ionicons
-                name={reviewFeedback.kind === "warning" ? "warning" : "close"}
-                size={18}
-                color={reviewFeedback.kind === "warning" ? warningColor : theme.error}
-              />
-              <Text
-                style={[
-                  styles.feedbackText,
-                  { color: reviewFeedback.kind === "warning" ? warningColor : theme.error },
-                ]}
-              >
-                {reviewFeedback.message}
-              </Text>
-            </View>
-          ) : null}
-
           {errorMessage || questionError ? (
             <Text accessibilityRole="alert" style={[styles.inlineError, { color: theme.error }]}>{errorMessage ?? questionError}</Text>
           ) : null}
@@ -2227,7 +2213,7 @@ export default function BunproReviewScreen({
           </Text> : null}
         </ScrollView>
 
-        <View style={styles.bottomArea}>
+        <View testID="bunpro-review-footer" pointerEvents="box-none" style={styles.bottomArea}>
           {outboxState.pending > 0 && !outboxState.failure ? <Text accessibilityLiveRegion="polite" style={{ color: mutedColor }}>Saving {outboxState.pending} answer{outboxState.pending === 1 ? "" : "s"}…</Text> : null}
           {outboxState.failure ? <View accessibilityRole="alert">
             <Text style={{ color: theme.error }}>Could not save {outboxState.title}. {outboxState.failure.message}</Text>
@@ -2249,15 +2235,15 @@ export default function BunproReviewScreen({
             </TouchableOpacity> : null}
           </View> : null}
           {allowSkipping && currentIndex + 1 < queue.length || pendingOutcome && !answerAlreadySaved ? <View style={styles.bottomActions}>
-            {allowSkipping && currentIndex + 1 < queue.length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Skip Bunpro question" disabled={isSubmitting || answerAlreadySaved} style={styles.secondaryAction} onPress={skipCurrentQuestion}><Text style={{ color: mutedColor }}>Skip</Text></TouchableOpacity> : null}
-            {pendingOutcome && !answerAlreadySaved ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={pendingOutcome.correct ? "Mark incorrect" : "Mark correct"} disabled={isSubmitting || Boolean(saveFailure)} style={styles.secondaryAction} onPress={() => { void submitCurrentAnswer(false, { ...pendingOutcome, correct: !pendingOutcome.correct }); }}><Text style={{ color: mutedColor }}>{pendingOutcome.correct ? "Mark incorrect" : "Mark correct"}</Text></TouchableOpacity> : null}
+            {allowSkipping && currentIndex + 1 < queue.length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Skip Bunpro question" disabled={isSubmitting || answerAlreadySaved} style={styles.secondaryAction} onPress={skipCurrentQuestion}><Ionicons name="play-skip-forward-outline" size={20} color={mutedColor} /></TouchableOpacity> : null}
+            {pendingOutcome && !answerAlreadySaved ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={pendingOutcome.correct ? "Mark incorrect" : "Mark correct"} disabled={isSubmitting || Boolean(saveFailure)} style={styles.secondaryAction} onPress={() => { void submitCurrentAnswer(false, { ...pendingOutcome, correct: !pendingOutcome.correct }); }}><Ionicons name={pendingOutcome.correct ? "close-circle-outline" : "checkmark-circle-outline"} size={20} color={mutedColor} /></TouchableOpacity> : null}
           </View> : null}
           <View testID="bunpro-review-toolbar" style={styles.resultActionsRow}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Hint level ${hintLevel} of 4`} disabled={reviewableKind !== "grammar" || isSubmitting} style={[styles.resultActionSlot, styles.resultActionButton, { backgroundColor: theme.cardBackground, borderColor: inputBorder, opacity: reviewableKind === "grammar" ? 1 : 0.45 }]} onPress={() => setHintLevel(level => (level + 1) % 5)}>
               <Text style={[styles.hintDots, { color: theme.textColor }]}>{"●".repeat(hintLevel)}{"○".repeat(4 - hintLevel)}</Text>
               <Text style={[styles.resultActionButtonText, { color: theme.textColor }]}>Hints</Text>
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Undo answer" disabled={!pendingOutcome || isSubmitting || (answerAlreadySaved && !isMasteryRepeat) || Boolean(saveFailure) || Boolean(outboxState.failure)} style={[styles.resultActionSlot, styles.resultActionButton, { backgroundColor: theme.cardBackground, borderColor: inputBorder, opacity: pendingOutcome && (!answerAlreadySaved || isMasteryRepeat) && !isSubmitting && !saveFailure && !outboxState.failure ? 1 : 0.45 }]} onPress={undoAnswer}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Undo answer" disabled={!pendingOutcome || isSubmitting || (answerAlreadySaved && !isMasteryRepeat) || Boolean(saveFailure) || Boolean(outboxState.failure)} style={[styles.resultActionSlot, styles.resultActionButton, { backgroundColor: theme.cardBackground, borderColor: inputBorder, opacity: pendingOutcome && (!answerAlreadySaved || isMasteryRepeat) && !isSubmitting && !saveFailure && !outboxState.failure ? 1 : 0.45 }]} onPress={() => undoAnswer()}>
               <Ionicons name="arrow-undo-outline" size={17} color={theme.textColor} />
               <Text style={[styles.resultActionButtonText, { color: theme.textColor }]}>Undo</Text>
             </TouchableOpacity>
@@ -2270,6 +2256,24 @@ export default function BunproReviewScreen({
               <Text style={[styles.resultActionButtonText, { color: theme.textColor }]}>{needsAnswerReveal ? "Answer" : "Alts"}</Text>
             </TouchableOpacity>
           </View>
+
+          {reviewFeedback ? (
+            <View accessible accessibilityRole="alert" accessibilityLiveRegion="assertive" style={[styles.feedbackRow, { borderLeftColor: reviewFeedback.kind === "warning" ? warningColor : theme.error }]}>
+              <Ionicons
+                name={reviewFeedback.kind === "warning" ? "warning" : "close"}
+                size={18}
+                color={reviewFeedback.kind === "warning" ? warningColor : theme.error}
+              />
+              <Text
+                style={[
+                  styles.feedbackText,
+                  { color: reviewFeedback.kind === "warning" ? warningColor : theme.error },
+                ]}
+              >
+                {reviewFeedback.message}
+              </Text>
+            </View>
+          ) : null}
 
           {selfAssessment ? <View style={{ gap: 12 }}>
             {!ankiRevealed ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Reveal Bunpro answer" disabled={!isActive || Boolean(questionError)} style={[styles.resultsDoneButton, { flexDirection: "column", paddingVertical: 12, backgroundColor: theme.cardBackground }]} onPress={() => { setAnkiRevealed(true); if (autoplayAudio) void playCurrentAudio(); }}>
@@ -2325,14 +2329,18 @@ export default function BunproReviewScreen({
                   inputRef.current?.setInputText?.(pendingOutcome?.enteredText ?? inputValueRef.current);
                   return;
                 }
-                inputValueRef.current = nextKana;
-                setInputValue(nextKana);
-
                 if (pendingOutcome) {
-                  inputRef.current?.setInputText?.(pendingOutcome.enteredText);
-                  setInputValue(pendingOutcome.enteredText);
+                  if (nextKana.length < pendingOutcome.enteredText.length) {
+                    undoAnswer(nextKana);
+                  } else {
+                    inputRef.current?.setInputText?.(pendingOutcome.enteredText);
+                    inputValueRef.current = pendingOutcome.enteredText;
+                    setInputValue(pendingOutcome.enteredText);
+                  }
                   return;
                 }
+                inputValueRef.current = nextKana;
+                setInputValue(nextKana);
 
                 if (reviewFeedback) {
                   setReviewFeedback(null);
@@ -2350,7 +2358,15 @@ export default function BunproReviewScreen({
               placeholderTextColor={mutedColor}
               style={[styles.answerInput, { fontSize: 22 * inputScale, lineHeight: 28 * inputScale, color: isFrozenOnResult ? statusColor : theme.textColor }]}
               returnKeyType="send"
-              onKeyPress={event => { if (pendingOutcome) handleShortcut(event.nativeEvent.key); }}
+              onKeyPress={event => {
+                if (!pendingOutcome) return;
+                const key = event.nativeEvent.key;
+                if (key === "Backspace" || key === "Delete") {
+                  undoAnswer(Array.from(pendingOutcome.enteredText).slice(0, -1).join(""));
+                } else {
+                  handleShortcut(key);
+                }
+              }}
               onSubmitEditing={() => {
                 void submitCurrentAnswer();
               }}
@@ -2468,15 +2484,16 @@ const styles = StyleSheet.create({
     gap: 10,
     flexShrink: 1,
   },
-  reviewMetadata: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12, paddingHorizontal: 16, paddingVertical: 8 },
+  reviewMetadata: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "transparent" },
   metadataLevel: { fontSize: 13, fontWeight: "600" },
+  metadataDivider: { width: StyleSheet.hairlineWidth, height: 14 },
   stageRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
   },
   stageLabel: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "600",
   },
   headerStatsText: {
@@ -2579,7 +2596,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   feedbackRow: {
-    marginTop: 14,
+    borderLeftWidth: 3,
+    paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -2594,15 +2612,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   bottomArea: {
+    backgroundColor: "transparent",
     paddingHorizontal: 16,
     paddingBottom: Platform.OS === "ios" ? 16 : 12,
     gap: 10,
   },
   bottomActions: {
+    alignSelf: "flex-end",
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
-    gap: 10,
+    backgroundColor: "transparent",
+    gap: 4,
   },
   saveActions: {
     flexDirection: "row",
@@ -2617,7 +2637,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     justifyContent: "center",
   },
-  secondaryAction: { minHeight: 36, justifyContent: "center", paddingHorizontal: 4 },
+  secondaryAction: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
   hintDots: { fontSize: 7, letterSpacing: 1 },
   hintButton: {
     borderWidth: 1,
@@ -2633,6 +2653,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   resultActionsRow: {
+    backgroundColor: "transparent",
     flexDirection: "row",
     alignItems: "center",
     gap: 4,

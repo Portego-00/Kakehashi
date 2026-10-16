@@ -1,7 +1,8 @@
 import React from "react";
 import { Audio } from "../../utils/expoAvCompat";
+import * as Haptics from "../../utils/haptics";
 import { StyleSheet } from "react-native";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import BunproReviewScreen from "../BunproReviewScreen";
 import { getBunproReviewQuizIndex, updateBunproReview } from "../../utils/bunproApi";
 import type { BunproReviewQueueItem } from "../../types/bunpro";
@@ -18,7 +19,7 @@ jest.mock("react-native-reanimated", () => {
   const { View } = jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: { View }, useReducedMotion: () => false, useSharedValue: (value: number) => React.useRef({ value }).current, useAnimatedStyle: (fn: () => object) => fn(), withTiming: (value: number) => value };
 });
-jest.mock("../../utils/haptics", () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: "success", Error: "error" } }));
+jest.mock("../../utils/haptics", () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: "success", Error: "error", Warning: "warning" } }));
 jest.mock("../../hooks/use-bunpro-voice-answer", () => ({ useBunproVoiceAnswer: () => ({ listening: false, error: "", start: jest.fn(), stop: jest.fn() }) }));
 jest.mock("../../hooks/use-bunpro-jitai-font", () => ({ useBunproJitaiFont: () => undefined }));
 jest.mock("../../components/bunpro/bunpro-review-shortcuts", () => ({ BunproReviewShortcuts: () => null }));
@@ -874,4 +875,50 @@ it("loads unseen questions before immediately repeating the final miss in a load
   expect(view.getByLabelText("Bunpro review progress").props.children).toBe("1/3");
   expect(updateBunproReview).toHaveBeenCalledTimes(1);
   expect(getBunproReviewQuizIndex).toHaveBeenCalledTimes(2);
+});
+
+it("backspace removes one character and clears a submitted result without saving", () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  const input = view.getByLabelText("Bunpro answer");
+  fireEvent.changeText(input, "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent(input, "keyPress", { nativeEvent: { key: "Backspace" } });
+  fireEvent.changeText(input, "い");
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("い");
+  expect(view.queryByText("Incorrect")).toBeNull();
+  expect(view.getByLabelText("Check answer")).toBeTruthy();
+  expect(view.getByText("Question 1 ")).toBeTruthy();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+  fireEvent.changeText(input, "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getByText("Correct")).toBeTruthy();
+});
+
+it("accepts a native keyboard deletion even without a key event", () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "い");
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("い");
+  expect(view.queryByText("Incorrect")).toBeNull();
+  expect(view.getByLabelText("Check answer")).toBeTruthy();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("pins close-answer warnings next to the input and gives a warning haptic on every submission", () => {
+  const question = item("1", "a cat");
+  question.included![0].attributes.alternate_answers = { cat: "Include the article." };
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "cat");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(Haptics.notificationAsync).toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Warning);
+  expect(within(view.getByTestId("bunpro-review-footer")).getByText("Include the article.")).toBeTruthy();
+  expect(within(view.getByTestId("bunpro-review-prompt")).queryByText("Include the article.")).toBeNull();
+  expect(view.getByRole("alert")).toBeTruthy();
+  fireEvent(view.getByLabelText("Bunpro answer"), "submitEditing", { nativeEvent: { text: "cat" } });
+  expect(Haptics.notificationAsync).toHaveBeenCalledTimes(2);
+  expect(view.queryByText("Incorrect")).toBeNull();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "a cat");
+  expect(view.queryByText("Include the article.")).toBeNull();
 });

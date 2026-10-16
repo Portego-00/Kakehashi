@@ -289,7 +289,11 @@ export async function getBunproLearnQuiz(options: {
     method: "POST",
     body: {
       deck_id: options.deckId ?? null,
-      reviewables: options.reviewables,
+      // Lesson quizzes use objects; hydration and bulk-action APIs use tuples.
+      reviewables: options.reviewables.map(([type, id]) => ({
+        reviewable_id: id,
+        reviewable_type: type === "GrammarPoint" ? "grammar_point" : "vocab",
+      })),
       ...(options.isOnboarding ? { is_onboarding: true } : {}),
     },
   });

@@ -113,6 +113,7 @@ const fixtures = vi.hoisted(() => {
       showSrsIndicator: true,
       showReviewItemLevelAndSrsStage: false,
       showVocabularyFrequency: false,
+      showLessonVocabularyUnlockCounts: false,
       showVocabContextSentencesInReviews: false,
       allowSkippingReviews: false,
       reviewSearchButtonEnabled: false,
@@ -213,14 +214,15 @@ vi.mock("@/lib/wanikani/client", () => ({
       const ids = endpoint.split("=")[1].split(",").map(Number);
       return [fixtures.subject, fixtures.componentKanji, fixtures.secondSubject].filter((subject) => ids.includes(subject.id));
     }
+    if (endpoint.startsWith("subjects?types=vocabulary&levels=")) return [fixtures.subject];
     if (endpoint.startsWith("study_materials?")) return fixtures.studyMaterialsRequest || [];
     return [];
   }),
 }));
 
-function renderSession(mode: "lessons" | "reviews") {
+function renderSession(mode: "lessons" | "reviews", pickLessons = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
-  return Object.assign(render(<QueryClientProvider client={client}><CoreStudySession mode={mode} /></QueryClientProvider>), { client });
+  return Object.assign(render(<QueryClientProvider client={client}><CoreStudySession mode={mode} pickLessons={pickLessons} /></QueryClientProvider>), { client });
 }
 
 async function submitAnswer(value: string, kind: "meaning" | "reading") {
@@ -231,6 +233,23 @@ async function submitAnswer(value: string, kind: "meaning" | "reading") {
 }
 
 describe("core study prompt layout", () => {
+  it.each([false, true])("loads same-level vocabulary for picker badges only when enabled: %s", async (enabled) => {
+    fixtures.settings.study.showLessonVocabularyUnlockCounts = enabled;
+    fixtures.lessonAssignmentsResponse = [
+      { ...fixtures.lessonAssignment, data: { ...fixtures.lessonAssignment.data, subject_id: 201, subject_type: "kanji" } },
+      fixtures.secondLessonAssignment,
+    ];
+    renderSession("lessons", true);
+    await screen.findByRole("heading", { name: "Pick lessons" });
+    if (enabled) {
+      expect(await screen.findByText("1 vocab")).toBeInTheDocument();
+      expect(screen.getByText("0 vocab")).toBeInTheDocument();
+    } else {
+      expect(screen.queryByText(/vocab$/)).not.toBeInTheDocument();
+    }
+    expect(vi.mocked(wkCollection).mock.calls.some(([endpoint]) => endpoint === "subjects?types=vocabulary&levels=4&hidden=false")).toBe(enabled);
+  });
+
   function enableChoices() {
     fixtures.settings.study.reviewMultipleChoiceEnabled = true;
     fixtures.settings.study.pauseOnCorrect = true;
@@ -585,6 +604,7 @@ describe("core study prompt layout", () => {
       reviewAnimatePreviousQuestion: true,
       showReviewItemLevelAndSrsStage: false,
       showVocabularyFrequency: false,
+      showLessonVocabularyUnlockCounts: false,
       showVocabContextSentencesInReviews: false,
       allowSkippingReviews: false,
       reviewSearchButtonEnabled: false,
