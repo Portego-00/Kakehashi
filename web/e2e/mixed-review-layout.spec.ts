@@ -655,6 +655,31 @@ for (const viewport of [{ width: 1024, height: 768 }, { width: 390, height: 844 
   }
 }
 
+test("Anki details toggle from keyboard-focused controls and return focus for grading", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openMixedReviews(page, { ankiMode: "both", ankiGroupQuestions: true });
+  await page.getByRole("button", { name: "Reveal answer", exact: true }).click();
+  const activeSession = session(page);
+  const disclosure = activeSession.locator('[data-available-on-scroll="true"]');
+  await page.keyboard.press("d");
+  await expect(disclosure).toHaveAttribute("data-open", "true");
+  await page.locator("#study-item-details").getByRole("tab", { name: "Meaning", exact: true }).focus();
+  await page.keyboard.press("Shift+D");
+  await expect(disclosure).toHaveAttribute("data-open", "false");
+  await expect(activeSession).toBeFocused();
+  await page.keyboard.press("d");
+  const hideDetails = activeSession.getByRole("button", { name: "Hide subject details", exact: true });
+  await expect(hideDetails).toHaveAttribute("aria-expanded", "true");
+  await hideDetails.focus();
+  await page.keyboard.press("d");
+  await expect(disclosure).toHaveAttribute("data-open", "false");
+  await expect(activeSession).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.keyboard.press("2");
+  await expect(page.getByRole("button", { name: "Reveal answer", exact: true })).toBeVisible();
+});
+
 for (const width of [390, 1024]) {
   for (const preferred of ["meaning", "reading", "stroke"] as const) {
     test(`combined Anki defaults details to ${preferred} at ${width}`, async ({ page }, testInfo) => {

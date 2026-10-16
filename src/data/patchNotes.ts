@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.5.3",
+    date: "2026-10-16",
+    changes: [
+      {
+        type: "fix",
+        title: "Review Details Shortcut",
+        description:
+          "Press D to open and close review details, including in the Mac app.",
+      },
+    ],
+  },
+  {
     version: "1.5.2",
     date: "2026-10-12",
     changes: [

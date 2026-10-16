@@ -252,7 +252,7 @@ const REVIEW_INCORRECT_SHORTCUT_FIELDS: {
   {
     key: "openDetails",
     label: "Open Details",
-    hint: "Open the current subject details page.",
+    hint: "Open subject details. Press again to return to the review.",
   },
   {
     key: "replayAudio",
