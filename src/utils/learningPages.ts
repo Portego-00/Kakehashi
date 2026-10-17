@@ -3,12 +3,13 @@ import {
   isAssignmentInReviewQueueState,
 } from "./api";
 import {
-  JLPT_LEVELS,
   getJLPTLevelForSubject,
+  sanitizeJLPTLevels,
   type JLPTLevel,
 } from "./jlptClassification";
 import { buildReviewForecastFromAssignments } from "./reviewForecast";
 import type { DayForecast } from "../types/wanikani";
+import { buildBurnedItems, buildCriticalItems, buildRecentUnlocks } from "./dashboardItemLists";
 
 export const MAX_LEARNING_PAGES = 8;
 export const LEARNING_PAGE_NAME_MAX_LENGTH = 20;
@@ -92,7 +93,7 @@ export function normalizeLearningPageFilter(value: unknown): LearningPageFilter 
     subjectTypes: pickAllowed(LEARNING_PAGE_SUBJECT_TYPES, record.subjectTypes),
     minLevel: isReversed ? maxLevel : minLevel,
     maxLevel: isReversed ? minLevel : maxLevel,
-    jlptLevels: pickAllowed(JLPT_LEVELS, record.jlptLevels),
+    jlptLevels: sanitizeJLPTLevels(record.jlptLevels),
     srsGroups: pickAllowed(LEARNING_PAGE_SRS_GROUPS, record.srsGroups),
     criticalOnly: record.criticalOnly === true,
   };
@@ -208,7 +209,7 @@ export function filterAssignmentsForLearningPage<
     matches(subjectsById.get(data.subject_id), data.srs_stage));
 }
 
-type LearningPageDashboardSource = {
+export type LearningPageDashboardSource = {
   lessonCount: number;
   reviewCount: number;
   forecast: DayForecast[];
@@ -221,7 +222,21 @@ type LearningPageDashboardSource = {
   recentLessonCount: number;
   subjects: any[];
   assignments: any[];
+  pendingLessonSyncCount?: number;
+  pendingReviewSyncCount?: number;
   dataLoadingState: { assignments: boolean; subjects: boolean };
+};
+
+export type LearningPageReviewQueue = {
+  assignments: { id: number; data_updated_at?: string; data: Record<string, any> }[];
+  localAssignmentBaseline?: { id: number; data: Record<string, any> }[];
+  capturedAt: string;
+};
+
+export type LearningPageQueueState = {
+  reviewQueue?: LearningPageReviewQueue;
+  pendingLessonAssignmentIds?: ReadonlySet<number>;
+  pendingReviewAssignmentIds?: ReadonlySet<number>;
 };
 
 /** The dashboard as seen through a page: only matching items are counted or listed. */
@@ -229,12 +244,14 @@ export function applyLearningPageToDashboardData<T extends LearningPageDashboard
   dashboardData: T,
   page: LearningPage | null,
   now: Date = new Date(),
+  queueState: LearningPageQueueState = {},
 ): T {
   if (!page) return dashboardData;
 
   const subjectsById = new Map<number, FilterableSubject>(
     dashboardData.subjects.map((subject) => [subject.id, subject]),
   );
+  const subjectsRecord = Object.fromEntries(subjectsById);
   const srsStageBySubjectId = new Map<number, number>(
     dashboardData.assignments.map(({ data }) => [data?.subject_id, data?.srs_stage]),
   );
@@ -244,32 +261,77 @@ export function applyLearningPageToDashboardData<T extends LearningPageDashboard
   const assignments = filterAssignmentsForLearningPage(dashboardData.assignments, subjectsById, matches);
 
   let lessonCount = 0;
-  let reviewCount = 0;
   let nextReviewDate: string | null = null;
-  for (const { data } of assignments) {
-    if (isAssignmentInLessonQueueState(data)) {
+  for (const assignment of assignments) {
+    const { data } = assignment;
+    if (isAssignmentInLessonQueueState(data) && !queueState.pendingLessonAssignmentIds?.has(assignment.id)) {
       lessonCount += 1;
     } else if (isAssignmentInReviewQueueState(data)) {
-      if (Date.parse(data.available_at) <= now.getTime()) {
-        reviewCount += 1;
-      } else if (!nextReviewDate || Date.parse(data.available_at) < Date.parse(nextReviewDate)) {
+      if (Date.parse(data.available_at) > now.getTime() &&
+          !queueState.pendingReviewAssignmentIds?.has(assignment.id) &&
+          (!nextReviewDate || Date.parse(data.available_at) < Date.parse(nextReviewDate))) {
         nextReviewDate = data.available_at;
       }
     }
   }
+
+  // A corrected account total cannot identify the visible items on each page.
+  // Use the same live queue as reviews, retaining it for offline page counts.
+  const reviewAssignments = new Map<number, LearningPageReviewQueue["assignments"][number]>(
+    (queueState.reviewQueue?.assignments ?? dashboardData.assignments).map((assignment) => [assignment.id, assignment]),
+  );
+  if (queueState.reviewQueue) {
+    const capturedAt = Date.parse(queueState.reviewQueue.capturedAt);
+    const baselineById = new Map<number, LearningPageReviewQueue["assignments"][number]>(
+      queueState.reviewQueue.localAssignmentBaseline?.map((assignment) => [assignment.id, assignment]),
+    );
+    for (const assignment of dashboardData.assignments) {
+      const data = assignment.data;
+      if (reviewAssignments.has(assignment.id)) {
+        const baseline = baselineById.get(assignment.id)?.data;
+        const localScheduleChanged = baseline && (
+          data.srs_stage !== baseline.srs_stage || data.available_at !== baseline.available_at ||
+          data.started_at !== baseline.started_at || data.hidden !== baseline.hidden
+        );
+        const serverUpdatedAt = Date.parse(reviewAssignments.get(assignment.id)?.data_updated_at ?? "");
+        const localIsNewer = Date.parse(assignment.data_updated_at ?? "") >
+          Math.max(capturedAt, Number.isFinite(serverUpdatedAt) ? serverUpdatedAt : capturedAt);
+        // Preserve fresh server stages/visibility unless the local schedule
+        // actually changed after capture (optimistic edits lack updated_at).
+        if (!localScheduleChanged && !localIsNewer) continue;
+        if (!isAssignmentInReviewQueueState(data) || Date.parse(data.available_at) > now.getTime()) {
+          reviewAssignments.delete(assignment.id);
+        } else {
+          reviewAssignments.set(assignment.id, assignment);
+        }
+      } else if (isAssignmentInReviewQueueState(data) && Date.parse(data.available_at) > capturedAt) {
+        reviewAssignments.set(assignment.id, assignment);
+      }
+    }
+  }
+  const matchingReviewCount = [...reviewAssignments.values()].filter((assignment) =>
+    isAssignmentInReviewQueueState(assignment.data) &&
+    Date.parse(assignment.data.available_at) <= now.getTime() &&
+    !queueState.pendingReviewAssignmentIds?.has(assignment.id) &&
+    matches(subjectsById.get(assignment.data.subject_id), assignment.data.srs_stage),
+  ).length;
+  // Before a queue is available, never revive an account-wide correction.
+  const reviewCount = queueState.reviewQueue
+    ? matchingReviewCount
+    : Math.min(matchingReviewCount, dashboardData.reviewCount);
   // Until assignments and subjects load there is nothing to filter.
   const isLoaded = dashboardData.dataLoadingState.assignments && dashboardData.dataLoadingState.subjects;
 
   return {
     ...dashboardData,
-    lessonCount: isLoaded ? lessonCount : 0,
+    lessonCount: isLoaded ? Math.min(lessonCount, dashboardData.lessonCount) : 0,
     reviewCount: isLoaded ? reviewCount : 0,
     nextReviewDate: reviewCount === 0 ? nextReviewDate : null,
     forecast: buildReviewForecastFromAssignments(assignments, dashboardData.subjects),
     recentMistakes: dashboardData.recentMistakes.filter(matchesId),
-    criticalItems: dashboardData.criticalItems.filter(matchesId),
-    recentUnlocks: dashboardData.recentUnlocks.filter(matchesId),
-    burnedItems: dashboardData.burnedItems.filter(matchesId),
+    criticalItems: buildCriticalItems(dashboardData.reviewStatistics.filter((statistic) => matchesId({ id: statistic?.data?.subject_id })), subjectsRecord),
+    recentUnlocks: buildRecentUnlocks(assignments, subjectsRecord),
+    burnedItems: buildBurnedItems(assignments, subjectsRecord),
     reviewStatistics: dashboardData.reviewStatistics.filter((statistic) =>
       matchesId({ id: statistic?.data?.subject_id })),
     recentLessonCount: assignments.filter(({ data }) =>

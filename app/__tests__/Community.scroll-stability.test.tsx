@@ -17,7 +17,7 @@ jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("expo-video", () => ({ VideoView: () => null, useVideoPlayer: () => ({}) }));
 jest.mock("expo-image-picker", () => ({}));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
-jest.mock("react-native-markdown-display", () => { const { Text } = jest.requireActual("react-native"); return ({ children }: { children: string }) => { mockMarkdownRendered(children); return <Text>{children}</Text>; }; });
+jest.mock("react-native-markdown-display", () => { const { Text } = jest.requireActual("react-native"); return function MockMarkdown({ children }: { children: string }) { mockMarkdownRendered(children); return <Text>{children}</Text>; }; });
 jest.mock("../../src/contexts/AuthContext", () => ({ useSession: () => ({ isLoading: false }) }));
 jest.mock("../../src/utils/store", () => ({
   useAuthStore: (selector?: (state: unknown) => unknown) => { const state = { apiToken: "test", userData: { id: "1", username: "Viewer" } }; return selector ? selector(state) : state; },
@@ -36,7 +36,7 @@ jest.mock("../../src/services/issueService", () => ({ issueService: {
 } }));
 jest.mock("../../src/components/issue/IssueList", () => {
   const { Text, View, TouchableOpacity } = jest.requireActual("react-native");
-  return ({ issues, onLoadMore }: { issues: { id: string; title: string }[]; onLoadMore: () => void }) => <View><TouchableOpacity onPress={onLoadMore}><Text>Load more</Text></TouchableOpacity>{issues.map((issue) => <Text key={issue.id}>{issue.title}</Text>)}</View>;
+  return function MockIssueList({ issues, onLoadMore }: { issues: { id: string; title: string }[]; onLoadMore: () => void }) { return <View><TouchableOpacity onPress={onLoadMore}><Text>Load more</Text></TouchableOpacity>{issues.map((issue) => <Text key={issue.id}>{issue.title}</Text>)}</View>; };
 });
 jest.mock("../../src/hooks/useIssueActivity", () => ({ useIssueActivity: () => ({ items: [], unreadCount: 0, loading: false, visits: {}, error: "", reload: jest.fn() }) }));
 jest.mock("../../src/components/issue/issue-view-menu", () => ({ IssueViewMenu: () => null }));

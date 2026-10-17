@@ -27,6 +27,7 @@ import BunproHomeStudy from "../../../src/components/bunpro/BunproHomeStudy";
 import { UserAvatar } from "../../../src/components/UserAvatar";
 import { useBackgroundTasks } from "../../../src/contexts/BackgroundTasksContext";
 import { useDashboardData } from "../../../src/hooks/useDashboardData";
+import { useLearningPageDashboardData } from "../../../src/hooks/useLearningPageDashboardData";
 import { useUsageStreak } from "../../../src/hooks/useUsageStreak";
 import { rateAppService } from "../../../src/services/rateAppService";
 import { requestStreakReview } from "../../../src/services/streakReviewPromptService";
@@ -39,7 +40,6 @@ import { apiDebugger } from "../../../src/utils/apiDebugger";
 import { updateBadgeWithReviewCount } from "../../../src/utils/badgeNotifications";
 import { normalizeHomeWidgetOrder } from "../../../src/utils/homeWidgets";
 import {
-  applyLearningPageToDashboardData,
   getLearningPage,
 } from "../../../src/utils/learningPages";
 import LearningPageSwitcher from "../../../src/components/LearningPageSwitcher";
@@ -199,9 +199,8 @@ export default function StudyTab() {
     [activeLearningPageId, learningPages],
   );
   // The OS widget, badge and daily limits keep using account-wide data.
-  const pageDashboardData = useMemo(
-    () => applyLearningPageToDashboardData(dashboardData, activeLearningPage),
-    [activeLearningPage, dashboardData],
+  const pageDashboardData = useLearningPageDashboardData(
+    dashboardData, activeLearningPage, apiToken, userData?.id,
   );
   const params = useLocalSearchParams();
   const refreshTriggeredRef = useRef(false);
