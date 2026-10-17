@@ -1,5 +1,6 @@
 import { useLearningDisplay } from "../../src/features/translation-packages/display";
-import { practiceSentence, practicePrompt } from "../../src/features/translation-packages/practice-display";
+import { practiceSentence, practicePrompt, practiceHintLabels } from "../../src/features/translation-packages/practice-display";
+import { usePracticeSubjects } from "../../src/features/translation-packages/use-practice-subjects";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
@@ -240,6 +241,10 @@ export default function MeaningReadingSessionScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [questions, setQuestions] = useState<MRQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const hintSubjectIds: number[] = display.active && questions[currentIndex]?.subject.object === "kanji"
+    ? (questions[currentIndex].subject.data.amalgamation_subject_ids ?? []).slice(0, KANJI_VOCAB_HINT_CANDIDATE_LIMIT)
+    : [];
+  const hintSubjects = usePracticeSubjects(hintSubjectIds);
   const [reviewItems, setReviewItems] = useState<MRReviewItem[]>([]);
   const [progress, setProgress] = useState<MeaningReadingProgressState>(
     EMPTY_PROGRESS_STATE,
@@ -818,7 +823,7 @@ export default function MeaningReadingSessionScreen() {
     ?.map((m: any) => m.meaning)
     ?.join(", ") || "" : "";
   const vocabularyMeaningHintsForKanji = current.subject.object === "kanji"
-    ? (kanjiVocabularyHintMap[current.subject.id] || [])
+    ? practiceHintLabels(display, kanjiVocabularyHintMap[current.subject.id] || [], hintSubjectIds.map(id => hintSubjects.get(id)))
     : [];
   const defaultContextHints = (current.subject.data as any).context_sentences
     ?.filter((s: any) => s.en)

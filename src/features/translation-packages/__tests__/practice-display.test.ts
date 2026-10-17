@@ -1,7 +1,8 @@
 import data from "../../../../tests/fixtures/translation-packages/tr-learning-pilot.json";
 import { learningDisplay } from "../display";
 import { parseTranslationPackage } from "../resolver";
-import { practiceAlternatives, practiceClue, practicePrompt, practiceSentence } from "../practice-display";
+import { practiceAlternatives, practiceClue, practicePrompt, practiceSentence, practiceHintLabels } from "../practice-display";
+import { selectEnglishJapaneseQuestions } from "../../../utils/englishJapanesePractice";
 
 const packet = parseTranslationPackage(data)!;
 const entry = packet.subjects["2761"];
@@ -27,6 +28,40 @@ it("translates the primary reading prompt but preserves specialized/shared promp
   expect(practicePrompt(display, subject, entry.source.meaningsEn[0])).toBe("Gölet");
   expect(practicePrompt(display, subject, "A special shared prompt")).toBe("A special shared prompt");
   expect(practicePrompt(learningDisplay(packet, false), subject, entry.source.meaningsEn[0])).toBe(entry.source.meaningsEn[0]);
+});
+
+it("displays translations for primary, alternative and whitelisted reading groups without changing accepted answers", () => {
+  const extended = parseTranslationPackage(JSON.parse(JSON.stringify(data)))!;
+  extended.subjects["2761"].source.meaningsEn.push("Small-Pond", "Rejected sense");
+  const current = { ...subject, data: { ...subject.data,
+    meanings: [...subject.data.meanings,
+      { meaning: "Small-Pond", primary: false, accepted_answer: true },
+      { meaning: "Rejected sense", primary: false, accepted_answer: false }],
+    auxiliary_meanings: [{ meaning: "A small pool", type: "whitelist" as const }, { meaning: "Bad pool", type: "blacklist" as const }],
+  }};
+  const display = learningDisplay(extended, true);
+  const questions = selectEnglishJapaneseQuestions([current], 10, () => 0.5);
+  const before = JSON.stringify(questions);
+  const fullLabel = [extended.subjects["2761"].meaning.primary, ...extended.subjects["2761"].meaning.alternatives].map(display.formatMeaning);
+  for (const question of questions) {
+    expect(practicePrompt(display, question.subject, question.promptMeaning)).not.toBe(question.promptMeaning);
+    expect(question.acceptedAnswers.length).toBeGreaterThan(0);
+  }
+  expect(practicePrompt(display, current, "small pond")).toBe([...new Set(fullLabel)].join(", "));
+  expect(practicePrompt(display, current, "Rejected sense")).toBe("Rejected sense");
+  expect(practicePrompt(display, current, "Bad pool")).toBe("Bad pool");
+  expect(practicePrompt(learningDisplay(extended, false), current, "Small-Pond")).toBe("Small-Pond");
+  expect(JSON.stringify(questions)).toBe(before);
+});
+
+it("translates saved kanji vocabulary hints from full cached sources and retains unavailable hints", () => {
+  const originals = ["Pond", "Missing source"];
+  const before = JSON.stringify(originals);
+  expect(practiceHintLabels(learningDisplay(packet, true), originals, [undefined, subject])).toEqual(["Gölet", "Missing source"]);
+  expect(practiceHintLabels(learningDisplay(packet, false), originals, [subject])).toEqual(originals);
+  const changed = { ...subject, data: { ...subject.data, readings: [{ reading: "changed" }] } };
+  expect(practiceHintLabels(learningDisplay(packet, true), originals, [changed])).toEqual(originals);
+  expect(JSON.stringify(originals)).toBe(before);
 });
 
 it("localizes crossword clues while leaving Japanese clues, answers and unsupported sources intact", () => {
