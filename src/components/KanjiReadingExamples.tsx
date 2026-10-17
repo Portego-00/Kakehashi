@@ -1,3 +1,4 @@
+import { useLearningDisplay } from "../features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
@@ -53,6 +54,7 @@ export default function KanjiReadingExamples({
   initialUngroupedExamples = 6,
 }: KanjiReadingExamplesProps) {
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const subjectColors = useSubjectColors();
   const showOnyomiInKatakana = useSettingsStore(
     (state) => state.showOnyomiInKatakana
@@ -84,7 +86,7 @@ export default function KanjiReadingExamples({
     isLast: boolean
   ) => {
     const primaryReading = getPrimaryReading(example);
-    const primaryMeaning = example.meanings[0] ?? "No meaning";
+    const primaryMeaning = display.meaning({...example, object: "vocabulary"}, example.meanings[0] ?? "No meaning");
 
     return (
       <TouchableOpacity

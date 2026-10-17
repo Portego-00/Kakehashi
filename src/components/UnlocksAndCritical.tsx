@@ -1,3 +1,4 @@
+import { useItemMeaning } from "../features/translation-packages/item-display";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SvgXml } from "react-native-svg";
@@ -58,6 +59,7 @@ const UnlockItemCharacter = ({ item }: { item: UnlockItem }) => {
 
 export function RecentUnlocks({ items, onItemPress, onViewAll }: UnlocksProps) {
   const { theme } = useTheme();
+  const itemMeaning = useItemMeaning();
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
@@ -116,7 +118,7 @@ export function RecentUnlocks({ items, onItemPress, onViewAll }: UnlocksProps) {
               <UnlockItemCharacter item={item} />
             </View>
             <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-              {item.meaning}
+              {itemMeaning(item)}
             </Text>
             <Text style={[styles.itemDate, { color: theme.textLight }]}>
               {formatDate(item.dateUnlocked)}
@@ -180,6 +182,7 @@ export function CriticalItems({
   onViewAll,
 }: CriticalItemsProps) {
   const { theme } = useTheme();
+  const itemMeaning = useItemMeaning();
 
   const getItemColor = (type: string): string => {
     if (
@@ -233,7 +236,7 @@ export function CriticalItems({
               <CriticalItemCharacter item={item} />
             </View>
             <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-              {item.meaning}
+              {itemMeaning(item)}
             </Text>
             <View
               style={[
@@ -285,6 +288,7 @@ export function BurnedItems({
   onViewAll,
 }: BurnedItemsProps) {
   const { theme } = useTheme();
+  const itemMeaning = useItemMeaning();
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
@@ -352,7 +356,7 @@ export function BurnedItems({
                 <UnlockItemCharacter item={item as any} />
               </View>
               <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-                {item.meaning}
+                {itemMeaning(item)}
               </Text>
               <Text style={[styles.itemDate, { color: theme.textLight }]}>
                 {formatDate(item.dateBurned)}

@@ -5,11 +5,15 @@ import {
   SettingsIcon as MaterialCommunityIcons,
 } from "../../../ui/settings/settings-icon";
 import React from "react";
-
+import { ContentLanguageSetting } from "../../translation-packages/ContentLanguageSetting";
 import type { Href } from "expo-router";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { styles } from "../styles";
 import { LearningPagesSetting } from "../components/learning-pages-setting";
 import { formatAppTextSizeScale, useSettingsStore } from "../../../utils/store";
@@ -169,7 +173,14 @@ export function AppearanceSection() {
             color={theme.textSecondary}
           />
         </TouchableOpacity>
-        <LearningPagesSetting />
+        <AdvancedSettingsGroup>
+          <AdvancedSetting>
+            <ContentLanguageSetting />
+          </AdvancedSetting>
+          <AdvancedSetting>
+            <LearningPagesSetting />
+          </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </SettingsSectionSurface>
     </>
   );

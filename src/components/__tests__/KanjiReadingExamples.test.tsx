@@ -1,3 +1,7 @@
+import data from "../../../tests/fixtures/translation-packages/tr-learning-pilot.json";
+import {parseTranslationPackage} from "../../features/translation-packages/resolver";
+import {packageManager} from "../../features/translation-packages/package-store";
+import {useLearningContentStore} from "../../features/translation-packages/store";
 import { render } from "@testing-library/react-native";
 import React from "react";
 
@@ -75,4 +79,21 @@ describe("KanjiReadingExamples", () => {
     expect(screen.getByText("大学")).toBeTruthy();
     expect(screen.getByText("大人")).toBeTruthy();
   });
+});
+
+it("shows translated meanings in kanji reading examples and switches back to English", () => {
+  const packet = parseTranslationPackage(data)!;
+  const entry = packet.subjects["2761"];
+  packageManager.state.setState({packet, hydrated: true});
+  useLearningContentStore.setState({enabled: true});
+  const props = {...sharedProps, groupByReading: false,
+    vocabulary: [{id: 2761, characters: entry.source.word!, meanings: entry.source.meaningsEn,
+      readings: entry.source.readingsJa.map(reading => ({reading})), level: 8}]};
+  const screen = render(<KanjiReadingExamples {...props} />);
+  expect(screen.getByText("Gölet")).toBeTruthy();
+  screen.unmount();
+  useLearningContentStore.setState({enabled:false});
+  const english = render(<KanjiReadingExamples {...props} />);
+  expect(english.getByText(entry.source.meaningsEn[0])).toBeTruthy();
+  english.unmount(); packageManager.state.setState({packet: null});
 });

@@ -1,4 +1,6 @@
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
+import { useLearningDisplay } from "../features/translation-packages/display";
+import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -78,6 +80,7 @@ interface RadicalDetailsProps {
       id: number;
       characters: string;
       meanings: string[];
+      readings?: { reading: string; primary?: boolean }[];
       level: number;
     }[];
     userSynonyms?: string[];
@@ -297,10 +300,13 @@ export default function RadicalDetails({
   }, [showMnemonicIllustrations, mnemonicImageUrl, radical.id]);
 
   // Determine the primary meaning
-  const primaryMeaning =
+  const contentDisplay = useLearningDisplay();
+  const translatedMeaning = contentDisplay.resolveMeaning(radical);
+  const originalPrimaryMeaning =
     radical.meanings.find((m) => m.primary)?.meaning ||
     radical.meanings[0]?.meaning ||
     "";
+  const primaryMeaning = contentDisplay.meaning(radical, originalPrimaryMeaning);
 
   // SRS stage name lookup (if available)
   const srsName = (() => {
@@ -576,6 +582,10 @@ export default function RadicalDetails({
           <View
             style={[styles.infoBox, { backgroundColor: theme.cardBackground }]}
           >
+                {translatedMeaning ? <MeaningRows key={JSON.stringify([originalPrimaryMeaning, translatedMeaning])}
+                  primary={translatedMeaning.primary} alternatives={translatedMeaning.alternatives}
+                  english={originalPrimaryMeaning} englishAlternatives={radical.meanings.filter(m => !m.primary && m.meaning !== originalPrimaryMeaning).map(m => m.meaning)}
+                  rowStyle={styles.row} labelStyle={[styles.label, {color: theme.textSecondary}]} valueStyle={[styles.value, {color: theme.textColor}]} /> : <>
             <View style={[styles.row, { marginBottom: 8 }]}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>
                 Primary
@@ -584,6 +594,8 @@ export default function RadicalDetails({
                 {primaryMeaning}
               </Text>
             </View>
+
+                </>}
 
             <View style={styles.row}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>
@@ -740,6 +752,7 @@ export default function RadicalDetails({
                 >
                   {displayKanjiItems?.map((kanji, idx) => {
                     const isAboveUserLevel = kanji.level > userLevel;
+                    const kanjiMeaning = contentDisplay.meaning({...kanji, object: "kanji"}, kanji.meanings[0] || "");
                     return (
                       <Animated.View
                         key={kanji.id}
@@ -758,10 +771,10 @@ export default function RadicalDetails({
                               // Width varies with meaning length; bounded by max width
                               width: Math.min(
                                 gridItemWidth +
-                                  (kanji.meanings?.[0] || "").length * 3,
+                                  kanjiMeaning.length * 3,
                                 gridItemMaxWidth
                               ),
-                              height: smallCardHeight,
+                              ...(translatedMeaning ? {minHeight: smallCardHeight} : {height: smallCardHeight}),
                               margin: gridSpacing / 2,
                               opacity: isAboveUserLevel ? 0.8 : 1,
                             },
@@ -785,7 +798,7 @@ export default function RadicalDetails({
                             numberOfLines={2}
                             ellipsizeMode="tail"
                           >
-                            {kanji.meanings[0]}
+                            {kanjiMeaning}
                           </Text>
                           {isAboveUserLevel && (
                             <View style={styles.itemLevelBadge}>

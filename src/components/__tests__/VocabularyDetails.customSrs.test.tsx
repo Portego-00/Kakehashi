@@ -1,4 +1,7 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import {packageManager} from "../../features/translation-packages/package-store";
+import {parseTranslationPackage} from "../../features/translation-packages/resolver";
+import {SentenceExplanation} from "../../features/translation-packages/SentenceExplanation";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import React from "react";
 import { StyleSheet } from "react-native";
 import PagerView from "react-native-pager-view";
@@ -8,6 +11,8 @@ import VocabularyDetails from "../VocabularyDetails";
 import { Audio } from "../../utils/expoAvCompat";
 import { resolveCustomVocabularyAudioForPlayback } from "../../features/custom-srs/audio-cache";
 import { getWaniKaniVocabularyPatterns } from "../../utils/wanikaniVocabularyPatterns";
+import pilotContent from "../../../tests/fixtures/translation-packages/tr-learning-pilot.json";
+import { useLearningContentStore } from "../../features/translation-packages/store";
 import { getAllSubjects } from "../../utils/cache";
 
 const mockSetPage = jest.fn();
@@ -92,7 +97,9 @@ const vocabulary = {
 };
 
 beforeEach(() => {
+  packageManager.state.setState({packet: parseTranslationPackage(pilotContent), hydrated: true});
   jest.clearAllMocks();
+  useLearningContentStore.setState({enabled: true});
   mockSettings.showJLPTLevel = false;
   mockSettings.showVocabularyFrequency = false;
   mockSettings.hideContextSentenceTranslations = false;
@@ -102,6 +109,53 @@ beforeEach(() => {
   jest.mocked(getAllSubjects).mockResolvedValue([]);
   jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([]);
   jest.mocked(searchImmersionKit).mockResolvedValue({ results: [], nextOffset: 0 });
+});
+
+const turkishFixture = () => {
+  const source = pilotContent.subjects["9208"].source;
+  return {...vocabulary, id: 9208, level: 8, characters: source.word,
+    meanings: source.meaningsEn.map(meaning => ({meaning, primary: true})),
+    readings: source.readingsJa.map(reading => ({reading, primary: true})),
+    contextSentences: pilotContent.subjects["9208"].examples.map(example => example.source)};
+};
+
+it("shows Turkish meaning and checked sentence usage, with optional original English", async () => {
+  const screen = render(<VocabularyDetails vocabulary={turkishFixture()} progressionStatus="success" initialTab="context" />);
+  expect(screen.getAllByText("Hâlâ").length).toBeGreaterThan(0);
+  expect(screen.getByText("Bunu henüz bilmiyorum.")).toBeTruthy();
+  expect(screen.getByText(pilotContent.subjects["9208"].examples[0].usage)).toBeTruthy();
+  expect(screen.queryByText("I don't know that yet.")).toBeNull();
+  const explanation = screen.UNSAFE_getAllByType(SentenceExplanation).find(node => node.props.english === "I don't know that yet.")!;
+  fireEvent.press(within(explanation).getByText("Show original English"));
+  expect(screen.getByText("I don't know that yet.")).toBeTruthy();
+  await waitFor(() => expect(searchImmersionKit).toHaveBeenCalled());
+});
+
+it("uses original English when Turkish content is disabled", async () => {
+  useLearningContentStore.setState({enabled:false});
+  const screen = render(<VocabularyDetails vocabulary={turkishFixture()} progressionStatus="success" initialTab="context" />);
+  expect(screen.getByText("I don't know that yet.")).toBeTruthy();
+  expect(screen.queryByText("Bunu henüz bilmiyorum.")).toBeNull();
+  expect(screen.queryByText(pilotContent.subjects["9208"].examples[0].usage)).toBeNull();
+  await waitFor(() => expect(searchImmersionKit).toHaveBeenCalled());
+});
+
+it("does not leak the Turkish usage explanation before revealing a translation", async () => {
+  mockSettings.hideContextSentenceTranslations = true;
+  const screen = render(<VocabularyDetails vocabulary={turkishFixture()} progressionStatus="success" initialTab="context" />);
+  expect(screen.queryByText(pilotContent.subjects["9208"].examples[0].usage)).toBeNull();
+  fireEvent.press(screen.getAllByText("Tap to reveal translation")[0]);
+  expect(screen.getByText(pilotContent.subjects["9208"].examples[0].usage)).toBeTruthy();
+  await waitFor(() => expect(searchImmersionKit).toHaveBeenCalled());
+});
+
+it("hides translation, usage and original English when all translations are hidden", async () => {
+  mockSettings.hideContextSentenceTranslationsCompletely = true;
+  const screen = render(<VocabularyDetails vocabulary={turkishFixture()} progressionStatus="success" initialTab="context" />);
+  expect(screen.queryByText("Bunu henüz bilmiyorum.")).toBeNull();
+  expect(screen.queryByText("I don't know that yet.")).toBeNull();
+  expect(screen.queryByText(pilotContent.subjects["9208"].examples[0].usage)).toBeNull();
+  await waitFor(() => expect(searchImmersionKit).toHaveBeenCalled());
 });
 
 it("matches similar vocabulary across English casing and whitespace without changing kana", async () => {

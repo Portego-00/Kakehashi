@@ -1,3 +1,4 @@
+import { useItemMeaning } from "../../src/features/translation-packages/item-display";
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
 import { useNavigation, useRouter } from "expo-router";
@@ -132,6 +133,7 @@ export default function UnlocksScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const { theme } = useTheme();
+  const itemMeaning = useItemMeaning();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allUnlockItems, setAllUnlockItems] = useState<UnlockItem[]>([]);
@@ -316,6 +318,7 @@ export default function UnlocksScreen() {
             id: subject.id,
             characters: subject.data.characters,
             meaning: subject.data.meanings[0].meaning,
+            source: subject,
             type: subject.object as WaniKaniItemType,
             partsOfSpeech: subject.data.parts_of_speech,
             dateUnlocked: assignment.data.unlocked_at || "",
@@ -459,7 +462,7 @@ export default function UnlocksScreen() {
         </View>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {unlockItem.meaning}
+            {itemMeaning(unlockItem)}
           </Text>
           <View style={styles.itemMetadata}>
             {(unlockItem.type === "kanji" ||

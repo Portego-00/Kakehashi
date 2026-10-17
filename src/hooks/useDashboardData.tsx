@@ -1455,7 +1455,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   ): UnlockItem[] => {
     const items = assignments
       .filter((a) => a.data.unlocked_at)
-      .map((assignment) => {
+      .map((assignment): UnlockItem | null => {
         const subject = subjectsById[assignment.data.subject_id];
         if (!subject) return null;
 
@@ -1463,6 +1463,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           id: subject.id,
           characters: subject.data.characters,
           meaning: subject.data.meanings[0].meaning,
+          source: subject,
           type: subject.object as WaniKaniItemType,
           dateUnlocked: assignment.data.unlocked_at,
         };
@@ -1491,7 +1492,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       .filter(
         (a) => a.data.burned_at && new Date(a.data.burned_at) >= thirtyDaysAgo
       )
-      .map((assignment) => {
+      .map((assignment): BurnedItem | null => {
         const subject = subjectsById[assignment.data.subject_id];
         if (!subject) return null;
 
@@ -1499,6 +1500,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           id: subject.id,
           characters: subject.data.characters,
           meaning: subject.data.meanings[0].meaning,
+          source: subject,
           type: subject.object as WaniKaniItemType,
           dateBurned: assignment.data.burned_at,
         };
@@ -1519,7 +1521,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     subjectsById: Record<number, any>
   ): CriticalItem[] => {
     const items = reviewStats
-      .map((stat) => {
+      .map((stat): CriticalItem | null => {
         const subject = subjectsById[stat.data.subject_id];
         if (!subject) return null;
 
@@ -1527,6 +1529,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           id: subject.id,
           characters: subject.data.characters,
           meaning: subject.data.meanings[0].meaning,
+          source: subject,
           type: subject.object as WaniKaniItemType,
           percentage: stat.data.percentage_correct,
         };

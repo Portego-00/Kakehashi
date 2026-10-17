@@ -1,5 +1,5 @@
 import { createStudyMaterial, getStudyMaterials, updateStudyMaterial } from "../api";
-import { saveMeaningSynonyms } from "../studyMaterialSynonyms";
+import { saveMeaningSynonyms, saveMeaningSynonymsWithReceipt } from "../studyMaterialSynonyms";
 
 jest.mock("../api", () => ({
   getStudyMaterials: jest.fn(),
@@ -10,10 +10,11 @@ const material = (synonyms: string[]) => ({
   id: 77, data: { subject_id: 1001, meaning_synonyms: synonyms, meaning_note: "Untouched note" },
 });
 beforeEach(() => {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
+  jest.mocked(createStudyMaterial).mockImplementation(async (_token, params) => ({id: 77, data: {...material([]).data, ...params}}));
   jest.mocked(getStudyMaterials).mockResolvedValue({ data: [material(["grown-up", "adult person"])] });
   jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => ({
-    ...material([]), data: { ...material([]).data, ...updates },
+    ...material([]), data: { ...material([]).data, subject_id: _id === 1002 ? 1002 : 1001, ...updates },
   }));
 });
 
@@ -133,7 +134,7 @@ it.each(["other account", "other subject"])("does not block saves for an %s behi
     await new Promise<void>(resolve => { releaseFirstRead = resolve; });
     return { data: [material(["grown-up"])] };
   }).mockImplementation(async (_token, params) => ({ data: [{
-    ...material(["other existing"]),
+    ...material(["other existing"]), id: params?.subject_ids?.[0] === 1002 ? 1002 : 77,
     data: { ...material(["other existing"]).data, subject_id: params?.subject_ids?.[0] },
   }] }));
   const first = saveMeaningSynonyms("fixture-token", 1001, [], ["first addition"]);
@@ -150,4 +151,32 @@ it.each(["other account", "other subject"])("does not block saves for an %s behi
     releaseFirstRead();
     await first;
   }
+});
+
+
+it("records only additions made by this save's fresh server merge", async () => {
+  const receipt = await saveMeaningSynonymsWithReceipt("fixture-token",1001,[],["grown-up","new synonym"]);
+  expect(receipt.added).toEqual(["new synonym"]);expect(receipt.removed).toEqual([]);
+});
+it("checks the account guard again after the fresh read, before any write", async () => {
+  await expect(saveMeaningSynonymsWithReceipt("fixture-token",1001,[],["new"],{canWrite:()=>false})).rejects.toThrow("account changed");
+  expect(updateStudyMaterial).not.toHaveBeenCalled();expect(createStudyMaterial).not.toHaveBeenCalled();
+});
+it("deduplicates Turkish additions against synonyms discovered by the final fresh read", async () => {
+  jest.mocked(getStudyMaterials).mockResolvedValue({data:[material(["hayalet","personal"])]});
+  const receipt=await saveMeaningSynonymsWithReceipt("fixture-token",1001,[],["Hayalet","Ruh"],{normalizeKey:v=>v.toLocaleLowerCase("tr-TR")});
+  expect(receipt.material.data.meaning_synonyms).toEqual(["hayalet","personal","Ruh"]);expect(receipt.added).toEqual(["Ruh"]);
+});
+
+it("records the server spelling when it normalizes a newly added Turkish synonym", async()=>{
+ jest.mocked(getStudyMaterials).mockResolvedValue({data:[material(["personal"])]});
+ jest.mocked(updateStudyMaterial).mockResolvedValue(material(["personal","hayalet"]));
+ const receipt=await saveMeaningSynonymsWithReceipt("fixture-token",1001,[],["Hayalet"],{normalizeKey:v=>v.toLocaleLowerCase("tr-TR")});
+ expect(receipt.added).toEqual(["hayalet"]);
+});
+
+it('preserves legacy manual-save response handling without transfer receipt validation', async () => {
+ const legacyResponse = {id:77,data:{meaning_note:'Untouched note'}};
+ jest.mocked(updateStudyMaterial).mockResolvedValueOnce(legacyResponse);
+ await expect(saveMeaningSynonyms('fixture-token',1001,[],['manual addition'])).resolves.toEqual(legacyResponse);
 });

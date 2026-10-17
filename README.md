@@ -127,8 +127,8 @@ keys**. Typing in notes and other editable fields keeps its normal behavior.
 
 ## Learning pages
 
-Use **Settings → Appearance → Learning Pages** to add filtered versions of
-Home, such as one page for radicals and kanji and another for vocabulary. Pages
+Use **Settings → Appearance → Advanced settings → Learning Pages** to add filtered
+versions of Home, such as one page for radicals and kanji and another for vocabulary. Pages
 filter by item type, level range, JLPT level, SRS stage and critical items. A
 switcher at the top of Home moves between **All** and your pages; each page's
 counts, forecast, lessons and reviews include only matching items. Without any

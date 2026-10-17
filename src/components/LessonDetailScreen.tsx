@@ -1,3 +1,6 @@
+import { useLearningDisplay } from "../features/translation-packages/display";
+import { MeaningRows } from "../features/translation-packages/MeaningRows";
+import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
 import { Ionicons } from "@expo/vector-icons";
 import Feather from "@expo/vector-icons/Feather";
 import Slider from "@react-native-community/slider";
@@ -383,6 +386,7 @@ const SubjectContent = ({
   subjectTypeColor: string;
   showAllSections?: boolean;
 }) => {
+  const display = useLearningDisplay();
   const scrollViewRef = useRef<ScrollView>(null);
   const customContextSentencesRef =
     useRef<CustomContextSentencesSectionHandle>(null);
@@ -1758,20 +1762,24 @@ const SubjectContent = ({
   const renderTranslation = (
     translation: string,
     translationId: string,
-    textStyle: StyleProp<TextStyle>
+    textStyle: StyleProp<TextStyle>,
+    source?: {ja: string; en: string}
   ) => {
     if (hideContextSentenceTranslationsCompletely) {
       return null;
     }
 
+    const translated = source ? display.sentence(subject, source) : null;
+    const visibleTranslation = translated?.translation ?? translation;
     const isRevealed =
       !hideContextSentenceTranslations || revealedTranslations.has(translationId);
 
     if (isRevealed) {
       return (
-        <Text selectable style={textStyle}>
-          {translation}
-        </Text>
+        translated ? <View>
+          <Text selectable style={textStyle}>{visibleTranslation}</Text>
+          <SentenceExplanation english={translation} usage={translated.usage} />
+        </View> : <Text selectable style={textStyle}>{translation}</Text>
       );
     }
 
@@ -1781,7 +1789,7 @@ const SubjectContent = ({
         style={styles.translationRevealContainer}
         onPress={() => revealTranslation(translationId)}
       >
-        <Text style={[textStyle, styles.translationHiddenText]}>{translation}</Text>
+        <Text style={[textStyle, styles.translationHiddenText]}>{visibleTranslation}</Text>
         <BlurView
           tint={theme.isDark ? "dark" : "light"}
           intensity={24}
@@ -2433,7 +2441,7 @@ const SubjectContent = ({
                       {renderTranslation(
                         sentence.en,
                         `wk-${subject.id}-${idx}`,
-                        styles.englishSentence
+                        styles.englishSentence, sentence
                       )}
                       <AnkiDroidExportButton
                         japanese={sentence.ja}
@@ -2686,12 +2694,7 @@ const SubjectContent = ({
                               {relatedSubjects[id]?.data.characters || id}
                             </Text>
                             <Text style={styles.relatedItemMeaning}>
-                              {relatedSubjects[id]?.data.meanings.find(
-                                (m: any) => m.primary
-                              )?.meaning ||
-                                relatedSubjects[id]?.data.meanings[0]
-                                  ?.meaning ||
-                                "Loading..."}
+                              {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                             </Text>
                           </TouchableOpacity>
                         ))}
@@ -2713,6 +2716,12 @@ const SubjectContent = ({
           <ScrollView ref={scrollViewRef} style={styles.tabContentScrollView}>
             <View style={styles.tabContent}>
               <SubjectMetadataRows subject={subject} style={styles.infoSection} />
+              {display.resolveMeaning(subject) && <View style={styles.infoSection}>
+                <MeaningRows key={JSON.stringify([subject.id, display.resolveMeaning(subject)])}
+                  primary={display.resolveMeaning(subject)!.primary} alternatives={display.resolveMeaning(subject)!.alternatives}
+                  english={subject.data.meanings.find((m: any) => m.primary)?.meaning || subject.data.meanings[0]?.meaning || ""}
+                  englishAlternatives={subject.data.meanings.filter((m: any) => !m.primary).map((m: any) => m.meaning)} />
+              </View>}
               {/* Radicals Section */}
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Radicals</Text>
@@ -2730,11 +2739,7 @@ const SubjectContent = ({
                       >
                         <RelatedSubjectCharacter subj={relatedSubjects[id]} />
                         <Text style={styles.relatedItemMeaning}>
-                          {relatedSubjects[id]?.data.meanings.find(
-                            (m: any) => m.primary
-                          )?.meaning ||
-                            relatedSubjects[id]?.data.meanings[0]?.meaning ||
-                            "Loading..."}
+                          {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -2887,6 +2892,12 @@ const SubjectContent = ({
           <ScrollView ref={scrollViewRef} style={styles.tabContentScrollView}>
             <View style={styles.tabContent}>
               <SubjectMetadataRows subject={subject} style={styles.infoSection} />
+              {display.resolveMeaning(subject) && <View style={styles.infoSection}>
+                <MeaningRows key={JSON.stringify([subject.id, display.resolveMeaning(subject)])}
+                  primary={display.resolveMeaning(subject)!.primary} alternatives={display.resolveMeaning(subject)!.alternatives}
+                  english={subject.data.meanings.find((m: any) => m.primary)?.meaning || subject.data.meanings[0]?.meaning || ""}
+                  englishAlternatives={subject.data.meanings.filter((m: any) => !m.primary).map((m: any) => m.meaning)} />
+              </View>}
               {/* Kanji Composition Section */}
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Kanji Composition</Text>
@@ -2905,11 +2916,7 @@ const SubjectContent = ({
                           {relatedSubjects[id]?.data.characters || id}
                         </Text>
                         <Text style={styles.relatedItemMeaning}>
-                          {relatedSubjects[id]?.data.meanings.find(
-                            (m: any) => m.primary
-                          )?.meaning ||
-                            relatedSubjects[id]?.data.meanings[0]?.meaning ||
-                            "Loading..."}
+                          {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -2939,11 +2946,11 @@ const SubjectContent = ({
               )}
 
               {/* Meaning Section */}
-              {(subject.data.meanings.length > 1 ||
+              {((!display.resolveMeaning(subject) && subject.data.meanings.length > 1) ||
                 (subject.data.parts_of_speech &&
                   subject.data.parts_of_speech.length > 0)) && (
                 <View style={styles.infoSection}>
-                  {subject.data.meanings.length > 1 && (
+                  {!display.resolveMeaning(subject) && subject.data.meanings.length > 1 && (
                     <View style={styles.alternativeMeaningsNoDiv}>
                       <Text style={styles.altMeaningsLabel}>
                         Alternative Meanings:
@@ -3102,12 +3109,18 @@ const SubjectContent = ({
           <ScrollView ref={scrollViewRef} style={styles.tabContentScrollView}>
             <View style={styles.tabContent}>
               <SubjectMetadataRows subject={subject} style={styles.infoSection} />
+              {display.resolveMeaning(subject) && <View style={styles.infoSection}>
+                <MeaningRows key={JSON.stringify([subject.id, display.resolveMeaning(subject)])}
+                  primary={display.resolveMeaning(subject)!.primary} alternatives={display.resolveMeaning(subject)!.alternatives}
+                  english={subject.data.meanings.find((m: any) => m.primary)?.meaning || subject.data.meanings[0]?.meaning || ""}
+                  englishAlternatives={subject.data.meanings.filter((m: any) => !m.primary).map((m: any) => m.meaning)} />
+              </View>}
               {/* Meaning Section */}
-              {(subject.data.meanings.length > 1 ||
+              {((!display.resolveMeaning(subject) && subject.data.meanings.length > 1) ||
                 (subject.data.parts_of_speech &&
                   subject.data.parts_of_speech.length > 0)) && (
                 <View style={styles.infoSection}>
-                  {subject.data.meanings.length > 1 && (
+                  {!display.resolveMeaning(subject) && subject.data.meanings.length > 1 && (
                     <View style={styles.alternativeMeaningsNoDiv}>
                       <Text style={styles.altMeaningsLabel}>
                         Alternative Meanings:
@@ -3336,12 +3349,7 @@ const SubjectContent = ({
                                   {relatedSubjects[id]?.data.characters || id}
                                 </Text>
                                 <Text style={styles.relatedItemMeaning}>
-                                  {relatedSubjects[id]?.data.meanings.find(
-                                    (m: any) => m.primary
-                                  )?.meaning ||
-                                    relatedSubjects[id]?.data.meanings[0]
-                                      ?.meaning ||
-                                    "Loading..."}
+                                  {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                                 </Text>
                               </TouchableOpacity>
                             ))}
@@ -3388,12 +3396,7 @@ const SubjectContent = ({
                                   subj={relatedSubjects[id]}
                                 />
                                 <Text style={styles.relatedItemMeaning}>
-                                  {relatedSubjects[id]?.data.meanings.find(
-                                    (m: any) => m.primary
-                                  )?.meaning ||
-                                    relatedSubjects[id]?.data.meanings[0]
-                                      ?.meaning ||
-                                    "Loading..."}
+                                  {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                                 </Text>
                               </TouchableOpacity>
                             )
@@ -3423,6 +3426,12 @@ const SubjectContent = ({
                 // Meaning tab
                 <View>
                   <SubjectMetadataRows subject={subject} style={styles.infoSection} />
+              {display.resolveMeaning(subject) && <View style={styles.infoSection}>
+                <MeaningRows key={JSON.stringify([subject.id, display.resolveMeaning(subject)])}
+                  primary={display.resolveMeaning(subject)!.primary} alternatives={display.resolveMeaning(subject)!.alternatives}
+                  english={subject.data.meanings.find((m: any) => m.primary)?.meaning || subject.data.meanings[0]?.meaning || ""}
+                  englishAlternatives={subject.data.meanings.filter((m: any) => !m.primary).map((m: any) => m.meaning)} />
+              </View>}
                   <View style={styles.infoSection}>
                     <Text style={styles.sectionTitle}>Mnemonic</Text>
                     {subject.data.meaning_mnemonic ? (
@@ -3610,12 +3619,7 @@ const SubjectContent = ({
                                   {relatedSubjects[id]?.data.characters || id}
                                 </Text>
                                 <Text style={styles.relatedItemMeaning}>
-                                  {relatedSubjects[id]?.data.meanings.find(
-                                    (m: any) => m.primary
-                                  )?.meaning ||
-                                    relatedSubjects[id]?.data.meanings[0]
-                                      ?.meaning ||
-                                    "Loading..."}
+                                  {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                                 </Text>
                               </TouchableOpacity>
                             )
@@ -3635,11 +3639,17 @@ const SubjectContent = ({
                 // Meaning tab
                 <View>
                   <SubjectMetadataRows subject={subject} style={styles.infoSection} />
-                  {(subject.data.meanings.length > 1 ||
+              {display.resolveMeaning(subject) && <View style={styles.infoSection}>
+                <MeaningRows key={JSON.stringify([subject.id, display.resolveMeaning(subject)])}
+                  primary={display.resolveMeaning(subject)!.primary} alternatives={display.resolveMeaning(subject)!.alternatives}
+                  english={subject.data.meanings.find((m: any) => m.primary)?.meaning || subject.data.meanings[0]?.meaning || ""}
+                  englishAlternatives={subject.data.meanings.filter((m: any) => !m.primary).map((m: any) => m.meaning)} />
+              </View>}
+                  {((!display.resolveMeaning(subject) && subject.data.meanings.length > 1) ||
                     (subject.data.parts_of_speech &&
                       subject.data.parts_of_speech.length > 0)) && (
                     <View style={styles.infoSection}>
-                      {subject.data.meanings.length > 1 && (
+                      {!display.resolveMeaning(subject) && subject.data.meanings.length > 1 && (
                         <View style={styles.alternativeMeaningsNoDiv}>
                           <Text style={styles.altMeaningsLabel}>
                             Alternative Meanings:
@@ -3894,7 +3904,7 @@ const SubjectContent = ({
                               {renderTranslation(
                                 sentence.en,
                                 `wk-${subject.id}-${index}`,
-                                styles.englishSentence
+                                styles.englishSentence, sentence
                               )}
                               <AnkiDroidExportButton
                                 japanese={sentence.ja}
@@ -4117,11 +4127,17 @@ const SubjectContent = ({
                 // Meaning tab
                 <View>
                   <SubjectMetadataRows subject={subject} style={styles.infoSection} />
-                  {(subject.data.meanings.length > 1 ||
+              {display.resolveMeaning(subject) && <View style={styles.infoSection}>
+                <MeaningRows key={JSON.stringify([subject.id, display.resolveMeaning(subject)])}
+                  primary={display.resolveMeaning(subject)!.primary} alternatives={display.resolveMeaning(subject)!.alternatives}
+                  english={subject.data.meanings.find((m: any) => m.primary)?.meaning || subject.data.meanings[0]?.meaning || ""}
+                  englishAlternatives={subject.data.meanings.filter((m: any) => !m.primary).map((m: any) => m.meaning)} />
+              </View>}
+                  {((!display.resolveMeaning(subject) && subject.data.meanings.length > 1) ||
                     (subject.data.parts_of_speech &&
                       subject.data.parts_of_speech.length > 0)) && (
                     <View style={styles.infoSection}>
-                      {subject.data.meanings.length > 1 && (
+                      {!display.resolveMeaning(subject) && subject.data.meanings.length > 1 && (
                         <View style={styles.alternativeMeaningsNoDiv}>
                           <Text style={styles.altMeaningsLabel}>
                             Alternative Meanings:
@@ -4303,7 +4319,7 @@ const SubjectContent = ({
                               {renderTranslation(
                                 sentence.en,
                                 `wk-${subject.id}-${index}`,
-                                styles.englishSentence
+                                styles.englishSentence, sentence
                               )}
                               <AnkiDroidExportButton
                                 japanese={sentence.ja}
@@ -4671,6 +4687,7 @@ export default function LessonDetailScreen({
   onAddSubjectToList,
   bookmarkedSubjectIds = EMPTY_BOOKMARKED_SUBJECT_IDS,
 }: LessonDetailScreenProps) {
+  const display = useLearningDisplay();
   const { theme } = useTheme();
   const isScreenFocused = useOptionalScreenIsFocused();
   const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
@@ -5478,10 +5495,11 @@ export default function LessonDetailScreen({
 
                 <LessonMeaningPill
                   meaning={
-                    pageSubject.data.meanings.find((m: any) => m.primary)
-                      ?.meaning ||
-                    pageSubject.data.meanings[0]?.meaning ||
-                    "No meaning available"
+                    display.meaning(
+                      pageSubject,
+                      pageSubject.data.meanings.find((m: any) => m.primary)?.meaning ||
+                        pageSubject.data.meanings[0]?.meaning || "No meaning available"
+                    )
                   }
                 />
                 {/* Show reading in header for vocabulary/kanji in single page view */}
