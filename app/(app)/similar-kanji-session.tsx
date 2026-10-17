@@ -52,6 +52,8 @@ import {
 import { useAuthStore } from "../../src/utils/store";
 import { getSubjectTypeColor } from "../../src/utils/subjectColors";
 import { useTheme } from "../../src/utils/theme";
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
+import { roundMeaningLabels } from "../../src/features/translation-packages/round-meanings";
 
 interface SrsGroupsConfig {
   apprentice: boolean;
@@ -278,6 +280,7 @@ function countRoundItems(rounds: SimilarKanjiRound<ApiSubject>[]): number {
 
 export default function SimilarKanjiSessionScreen() {
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
   const params = useLocalSearchParams();
@@ -706,6 +709,7 @@ export default function SimilarKanjiSessionScreen() {
   }, [clearSavedSimilarKanjiSession, isComplete]);
 
   const currentRound = rounds[currentIndex];
+  const meaningLabels = useMemo(() => roundMeaningLabels(currentRound, display), [currentRound, display]);
   const connectedCount = currentRound
     ? currentRound.items.filter((item) => connections[item.id] !== undefined)
         .length
@@ -1237,7 +1241,7 @@ export default function SimilarKanjiSessionScreen() {
                     numberOfLines={2}
                     adjustsFontSizeToFit
                   >
-                    {choice.meaning}
+                    {meaningLabels.get(choice.id) ?? choice.meaning}
                   </Text>
                   {hasSubmittedCurrentRound && isConnected ? (
                     <Ionicons
@@ -1286,7 +1290,7 @@ export default function SimilarKanjiSessionScreen() {
                       style={[styles.answerMeaning, { color: theme.textColor }]}
                       numberOfLines={1}
                     >
-                      {item.meaning}
+                      {meaningLabels.get(item.id) ?? item.meaning}
                     </Text>
                     {!isCorrect && selectedChoice ? (
                       <Text
@@ -1296,7 +1300,7 @@ export default function SimilarKanjiSessionScreen() {
                         ]}
                         numberOfLines={1}
                       >
-                        You chose {selectedChoice.meaning}
+                        You chose {meaningLabels.get(selectedChoice.id) ?? selectedChoice.meaning}
                       </Text>
                     ) : null}
                   </View>
