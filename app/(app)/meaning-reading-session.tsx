@@ -1,3 +1,5 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
+import { practiceSentence, practicePrompt } from "../../src/features/translation-packages/practice-display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
@@ -230,6 +232,7 @@ async function buildKanjiVocabularyHintMap(
 export default function MeaningReadingSessionScreen() {
   useActivityTracking("meaning_reading");
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
   const params = useLocalSearchParams();
@@ -819,7 +822,7 @@ export default function MeaningReadingSessionScreen() {
     : [];
   const defaultContextHints = (current.subject.data as any).context_sentences
     ?.filter((s: any) => s.en)
-    .map((s: any) => ({ en: s.en }));
+    .map((s: any) => ({ en: practiceSentence(display, current.subject, s.ja, s.en) }));
   const joinedKanjiHintText = vocabularyMeaningHintsForKanji.join(", ");
   const hintsForCurrentQuestion = current.subject.object === "kanji"
     ? (joinedKanjiHintText ? [{ en: joinedKanjiHintText }] : [])
@@ -866,8 +869,8 @@ export default function MeaningReadingSessionScreen() {
       correctAnswersCount={sessionProgress.correctAnswersCount}
       forceDisableAnkiGrouping={true}
       // Override prompt to show English meaning instead of characters
-      overridePromptText={primaryMeaning}
-      overridePromptSubtext={alternativeMeanings || undefined}
+      overridePromptText={practicePrompt(display, current.subject, primaryMeaning)}
+      overridePromptSubtext={(!current.promptMeaning && display.resolveMeaning(current.subject) ? display.resolveMeaning(current.subject)!.alternatives.map(display.formatMeaning).join(", ") : alternativeMeanings) || undefined}
       // Pass context sentences (English only) as hints to disambiguate similar meanings
       contextSentencesHint={hintsForCurrentQuestion}
       contextHintMaxItems={contextHintMaxItems}

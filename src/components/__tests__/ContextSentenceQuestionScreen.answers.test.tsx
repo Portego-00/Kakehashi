@@ -5,6 +5,10 @@ import type { ContextSentenceQuestion } from "../../types/contextSentencePractic
 import { azureSpeechService } from "../../utils/azureSpeech";
 import ContextSentenceQuestionScreen from "../ContextSentenceQuestionScreen";
 import KanaInput from "../TextToKanaInput";
+import translationData from "../../../tests/fixtures/translation-packages/tr-learning-pilot.json";
+import { parseTranslationPackage } from "../../features/translation-packages/resolver";
+import { packageManager } from "../../features/translation-packages/package-store";
+import { useLearningContentStore } from "../../features/translation-packages/store";
 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: "Icon" }));
 jest.mock("expo-blur", () => ({ BlurView: "BlurView" }));
@@ -264,4 +268,33 @@ it("allows a typed answer to be edited after feedback", async () => {
   expect(azureSpeechService.speak).toHaveBeenCalledTimes(1);
   fireEvent(input, "submitEditing");
   expect(screen.onAnswer).toHaveBeenCalledWith(true, "ねこ");
+});
+
+it.each(["translated", "disabled", "stale"] as const)("shows matching package sentences without changing Japanese answer choices (%s)", async mode => {
+  const packet = parseTranslationPackage(translationData)!;
+  const entry = packet.subjects["2761"];
+  await packageManager.hydrate();
+  packageManager.state.setState({ packet, hydrated: true });
+  useLearningContentStore.setState({ enabled: mode !== "disabled" });
+  const source = entry.examples[0].source;
+  const original = mode === "stale" ? source.en + " changed" : source.en;
+  const practiceQuestion = { ...question, vocab: { id: 2761, object: entry.source.type, data: {
+    characters: entry.source.word,
+    meanings: entry.source.meaningsEn.map((meaning, index) => ({ meaning, primary: index === 0 })),
+    readings: entry.source.readingsJa.map(reading => ({ reading, primary: true })),
+  } } as ContextSentenceQuestion["vocab"], sentence: source.ja, translation: original,
+    kanjiChoices: [{ vocabId: 2761, kanji: entry.source.word, isCorrect: true }],
+  };
+  const screen = renderQuestion({ question: practiceQuestion, hideTranslationUntilTap: false });
+  try {
+    await act(async () => {});
+    expect(screen.getByText(mode === "translated" ? entry.examples[0].translation : original)).toBeTruthy();
+    fireEvent.press(screen.getByText(entry.source.word));
+    fireEvent.press(screen.getByText("Next Question"));
+    expect(screen.onAnswer).toHaveBeenCalledWith(true, entry.source.word);
+  } finally {
+    screen.unmount();
+    packageManager.state.setState({ packet: null });
+    useLearningContentStore.setState({ enabled: false });
+  }
 });
