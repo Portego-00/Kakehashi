@@ -1,3 +1,9 @@
+import {act} from "@testing-library/react-native";
+import {readFileSync} from "node:fs";
+import {resolve} from "node:path";
+import {parsePackageText} from "../../features/translation-packages/resolver";
+import {packageManager} from "../../features/translation-packages/package-store";
+import {useLearningContentStore} from "../../features/translation-packages/store";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 
@@ -69,6 +75,7 @@ jest.mock("../../utils/store", () => ({
 }));
 
 jest.mock("../../utils/subjectColors", () => ({
+  getReadableTextColor: () => "#fff",
   useSubjectColors: () => ({
     radical: "#00a1f1",
     kanji: "#fa1f62",
@@ -236,4 +243,16 @@ it.each([false, true])("only shows the kanji JLPT row when enabled (%s)", (enabl
     expect(screen.queryByText("JLPT Level")).toBeNull();
   }
   expect(screen.queryByText("Frequency")).toBeNull();
+});
+
+it("shows translated Composition radicals and switches back to English",async()=>{
+ mockSettings(false);await packageManager.hydrate();
+ const packet=parsePackageText(readFileSync(resolve(process.cwd(),"translation-packages/example-tr-v3.json"),"utf8"));
+ packageManager.state.setState({packet});useLearningContentStore.setState({enabled:true});
+ const e=packet.subjects["80"];
+ const component={id:80,characters:e.source.word,meanings:e.source.meaningsEn,level:e.source.level};
+ const screen=render(<KanjiDetails kanji={{...kanji,componentSubjects:[component]}} progressionStatus="success" embedded />);
+ expect(screen.getAllByText("Hayalet").length).toBeGreaterThan(0);
+ await act(async()=>{useLearningContentStore.setState({enabled:false});});
+ expect(screen.queryAllByText("Hayalet")).toHaveLength(0);expect(screen.getAllByText(e.source.meaningsEn[0]).length).toBeGreaterThan(0);
 });

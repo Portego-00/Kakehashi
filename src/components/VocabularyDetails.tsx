@@ -1,4 +1,7 @@
+import { useLearningDisplay } from "../features/translation-packages/display";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
+import { MeaningRows } from "../features/translation-packages/MeaningRows";
+import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import { useNavigation } from "@react-navigation/native";
@@ -120,6 +123,7 @@ interface VocabularyDetailsProps {
       id: number;
       characters: string;
       meanings: string[];
+      readings?: { reading: string; primary?: boolean }[];
       level: number;
     }[];
     contextSentences?: {
@@ -336,6 +340,7 @@ export default function VocabularyDetails({
   const [loadingSimilarVocabulary, setLoadingSimilarVocabulary] =
     useState(false);
   const { theme } = useTheme();
+  const contentDisplay = useLearningDisplay();
   const subjectColors = useSubjectColors();
   const styles = useMemo(
     () => createStyles(subjectColors),
@@ -604,10 +609,12 @@ export default function VocabularyDetails({
     null;
 
   // Determine the primary meaning
-  const primaryMeaning =
+  const translatedMeaning = contentDisplay.resolveMeaning(vocabulary);
+  const originalPrimaryMeaning =
     vocabulary.meanings.find((m) => m.primary)?.meaning ||
     vocabulary.meanings[0]?.meaning ||
     "";
+  const primaryMeaning = translatedMeaning ? contentDisplay.formatMeaning(translatedMeaning.primary) : originalPrimaryMeaning;
 
   // Determine the primary reading
   const primaryReading =
@@ -1739,6 +1746,7 @@ export default function VocabularyDetails({
         >
           {contextSentences.map((sentence, index) => {
             const sentenceId = `wk-${index}`;
+            const translatedSentence = contentDisplay.sentence(vocabulary, sentence);
             return (
               <View
                 key={sentenceId}
@@ -1790,10 +1798,13 @@ export default function VocabularyDetails({
                     style={styles.ankiExportAction}
                   />
                 </View>
-                {renderTranslation(sentence.en, sentenceId, [
+                {renderTranslation(translatedSentence?.translation ?? sentence.en, sentenceId, [
                   styles.englishSentence,
                   { color: theme.textSecondary },
                 ])}
+                {translatedSentence && !hideContextSentenceTranslationsCompletely &&
+                  (!hideContextSentenceTranslations || revealedTranslations.has(sentenceId)) &&
+                  <SentenceExplanation english={sentence.en} usage={translatedSentence.usage} />}
                 {renderSentenceSpeedControl(sentenceId)}
               </View>
             );
@@ -2132,6 +2143,10 @@ export default function VocabularyDetails({
                   { backgroundColor: theme.cardBackground },
                 ]}
               >
+                {translatedMeaning ? <MeaningRows key={JSON.stringify([originalPrimaryMeaning, translatedMeaning])}
+                  primary={translatedMeaning.primary} alternatives={translatedMeaning.alternatives}
+                  english={originalPrimaryMeaning} englishAlternatives={vocabulary.meanings.filter(m => !m.primary && m.meaning !== originalPrimaryMeaning).map(m => m.meaning)}
+                  rowStyle={styles.row} labelStyle={[styles.label, {color: theme.textSecondary}]} valueStyle={[styles.value, {color: theme.textColor}]} /> : <>
                 <View style={[styles.row, { marginBottom: 8 }]}>
                   <Text style={[styles.label, { color: theme.textSecondary }]}>
                     Primary
@@ -2156,6 +2171,7 @@ export default function VocabularyDetails({
                     </Text>
                   </View>
                 )}
+                </>}
 
                 <View
                   style={[
@@ -2850,7 +2866,7 @@ export default function VocabularyDetails({
                             {
                               width: Math.min(
                                 componentItemWidth +
-                                  (component.meanings?.[0] || "").length * 3,
+                                  contentDisplay.meaning({...component, object: "kanji"}, component.meanings?.[0] || "").length * 3,
                                 smallItemMaxWidth
                               ),
                               height: smallCardHeight,
@@ -2873,7 +2889,7 @@ export default function VocabularyDetails({
                             numberOfLines={2}
                             ellipsizeMode="tail"
                           >
-                            {component.meanings[0]}
+                            {contentDisplay.meaning({...component, object: "kanji"}, component.meanings[0])}
                           </Text>
                           {isAboveUserLevel && (
                             <View style={styles.itemLevelBadge}>

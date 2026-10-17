@@ -1,3 +1,4 @@
+import { useItemMeaning } from "../../src/features/translation-packages/item-display";
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
 import { useNavigation, useRouter } from "expo-router";
@@ -46,6 +47,7 @@ export default function CriticalItemsScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const { theme } = useTheme();
+  const itemMeaning = useItemMeaning();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allCriticalItems, setAllCriticalItems] = useState<CriticalItem[]>([]);
@@ -190,6 +192,7 @@ export default function CriticalItemsScreen() {
               id: subject.id,
               characters: subject.data.characters || "",
               meaning: subject.data.meanings[0].meaning,
+              source: subject,
               type: subject.object as ItemType,
             partsOfSpeech: subject.data.parts_of_speech,
               percentage: stat.data.percentage_correct,
@@ -394,7 +397,7 @@ export default function CriticalItemsScreen() {
         numberOfLines={1}
         ellipsizeMode="tail"
       >
-        {item.meaning}
+        {itemMeaning(item)}
       </Text>
     );
   };
@@ -430,7 +433,7 @@ export default function CriticalItemsScreen() {
         </View>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {item.meaning}
+            {itemMeaning(item)}
           </Text>
           {(item.type === "kanji" || item.type === "vocabulary") &&
             item.reading && (

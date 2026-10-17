@@ -1,4 +1,10 @@
-import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
+import {SentenceExplanation} from "../../features/translation-packages/SentenceExplanation";
+import {within} from "@testing-library/react-native";
+import translationData from "../../../tests/fixtures/translation-packages/tr-learning-pilot.json";
+import {parseTranslationPackage} from "../../features/translation-packages/resolver";
+import {packageManager} from "../../features/translation-packages/package-store";
+import {useLearningContentStore} from "../../features/translation-packages/store";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from "react-native";
 
@@ -884,4 +890,28 @@ describe("LessonDetailScreen synonym safety", () => {
     screen.unmount();
   });
 
+});
+
+it.each([false, true])("shows package translations and usage in lesson context (single page: %s)", async singlePage => {
+  const packet = parseTranslationPackage(translationData)!;
+  const entry = packet.subjects["2761"];
+  await packageManager.hydrate();
+  packageManager.state.setState({packet, hydrated: true});
+  useLearningContentStore.setState({enabled: true});
+  mockSinglePageLessonView = singlePage; mockRenderContextTab = true;
+  const subject = {id: 2761, object: "vocabulary", data: {characters: entry.source.word, level: 8,
+    meanings: entry.source.meaningsEn.map((meaning, i) => ({meaning, primary: i === 0})),
+    readings: entry.source.readingsJa.map(reading => ({reading, primary: true})),
+    context_sentences: [entry.examples[0].source], component_subject_ids: [], parts_of_speech: ["noun"]}};
+  const screen = render(<LessonDetailScreen item={{id: 2761, subject}} batchItems={[{id: 2761, subject}]}
+    currentBatchIndex={0} onNext={jest.fn()} onPrev={jest.fn()} canGoBack={false} canGoForward={false}
+    progress={{current: 1, total: 1, batchCurrent: 1, batchTotal: 1}} onExit={jest.fn()} />);
+  expect(await screen.findByText(entry.examples[0].translation)).toBeTruthy();
+  expect(screen.getByText(entry.examples[0].usage)).toBeTruthy();
+  expect(screen.getAllByText("Gölet").length).toBeGreaterThan(0);
+  const explanation = screen.UNSAFE_getAllByType(SentenceExplanation).find(node => node.props.english === entry.examples[0].source.en)!;
+  fireEvent.press(within(explanation).getByText("Show original English"));
+  expect(screen.getByText(entry.examples[0].source.en)).toBeTruthy();
+  screen.unmount(); packageManager.state.setState({packet: null});
+  mockSinglePageLessonView = false; mockRenderContextTab = false;
 });

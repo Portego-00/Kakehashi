@@ -1,0 +1,214 @@
+{
+  "$schema": "./translation-package-v3.schema.json",
+  "schemaVersion": 3,
+  "packageId": "kakehashi.example.tr.v3",
+  "language": "tr",
+  "name": "Small Turkish translation example",
+  "version": "1.0.0",
+  "generatedAt": "2026-10-11T18:21:26.881165+00:00",
+  "purpose": "learning-content",
+  "scope": "display-and-synonyms",
+  "subjects": {
+    "80": {
+      "source": {
+        "type": "radical",
+        "word": "ネ",
+        "meaningsEn": [
+          "Spirit"
+        ],
+        "readingsJa": [],
+        "level": 4,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "8cfe896771e2028a3128eb5aaa7ac227e9121e84306fd0e447ca30d0cd442180"
+      },
+      "meaning": {
+        "primary": "Hayalet",
+        "alternatives": [],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [],
+      "synonymAnswers": {
+        "values": [
+          "Hayalet"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      }
+    },
+    "440": {
+      "source": {
+        "type": "kanji",
+        "word": "一",
+        "meaningsEn": [
+          "One"
+        ],
+        "readingsJa": [
+          "いち",
+          "いつ",
+          "ひと",
+          "かず"
+        ],
+        "level": 1,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "c23c986cf6564a6b892eb6734d6aa37c9dfe5478dcda08d48208b0c18b23d9ed"
+      },
+      "meaning": {
+        "primary": "bir",
+        "alternatives": [
+          "1"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [],
+      "synonymAnswers": {
+        "values": [
+          "bir",
+          "1"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      }
+    },
+    "2761": {
+      "source": {
+        "type": "vocabulary",
+        "word": "池",
+        "meaningsEn": [
+          "Pond"
+        ],
+        "readingsJa": [
+          "いけ"
+        ],
+        "level": 8,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "a8eb3cc9f15ba5328c3fda3d5572c888b3588ac085853f736fa2248a8c90d286"
+      },
+      "meaning": {
+        "primary": "gölet",
+        "alternatives": [],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "この池の中には、大きなワニがいます。",
+            "en": "There's a big alligator in this pond."
+          },
+          "sourceSha256": "a69202202c2983509d42ae893d996e68249243f94c3cabb93da11718e9b48639",
+          "translation": "Bu gölette büyük bir timsah var.",
+          "usage": "池, timsahın bulunduğu göleti belirtir; の中 ile göletin içi vurgulanır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "雨のせいで、池の金魚を全て失った。",
+            "en": "We lost all the gold fish in the pond because of the rain."
+          },
+          "sourceSha256": "f6289aed1174ebccf1dec4d805e6d8ae28b696b6e8ac0353c4fe715971870435",
+          "translation": "Yağmur yüzünden göletteki bütün japon balıklarını kaybettik.",
+          "usage": "池, balıkların bulunduğu göleti belirtir; 池の金魚 göletteki japon balıkları demektir.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "池の近くには、大きくて古い石や竹林があります。",
+            "en": "There are some big, old rocks and a bamboo grove near the pond."
+          },
+          "sourceSha256": "dedd81dbd5983841d381680bdcaa2688617f91e694fbb718322973af363d7c66",
+          "translation": "Göletin yakınında büyük, eski taşlar ve bir bambu korusu var.",
+          "usage": "池の近く, göletin kendisini değil, yakınındaki bölgeyi belirtir.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ],
+      "synonymAnswers": {
+        "values": [
+          "gölet"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      }
+    },
+    "8766": {
+      "source": {
+        "type": "radical",
+        "word": null,
+        "meaningsEn": [
+          "Beggar"
+        ],
+        "readingsJa": [],
+        "level": 4,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "8ad1cb15c845bb5889a1ab00b91aa6b66e40bde1a62d15ddde05afa9fcb4eba2"
+      },
+      "meaning": {
+        "primary": "Dilenci",
+        "alternatives": [],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [],
+      "synonymAnswers": {
+        "values": [
+          "Dilenci"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      }
+    },
+    "9176": {
+      "source": {
+        "type": "kana_vocabulary",
+        "word": "ちょっと",
+        "meaningsEn": [
+          "A Little",
+          "A Moment"
+        ],
+        "readingsJa": [],
+        "level": 10,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "2e2d3a07577896f42d905d8df407a972d2357da17b42d502e35a826f83139d41"
+      },
+      "meaning": {
+        "primary": "biraz",
+        "alternatives": [
+          "bir an"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "あ、ちょっとまって！",
+            "en": "Oh, wait a moment!"
+          },
+          "sourceSha256": "553b89c1b3335157798a17072ab2f183e95cd0a65a3cfb50a2ba991f364b702a",
+          "translation": "Aa, bir dakika bekle!",
+          "usage": "ちょっと, küçük miktarı veya kısa süreyi anlatır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "ちょっとちがう気がする。",
+            "en": "I think it's a little different."
+          },
+          "sourceSha256": "54bf6b9cd84849c1501f07c8cb91da533596b9f1afb54fdb8a07553de5a83968",
+          "translation": "Biraz farklı gibi geliyor.",
+          "usage": "ちょっと, küçük miktarı veya kısa süreyi anlatır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "ちょっと考えてみるよ。",
+            "en": "I'll think about it a little."
+          },
+          "sourceSha256": "227f23b862bc8fc674099d091678680dd7216a85bf6c9f82d1b5d4d86f5ea2a5",
+          "translation": "Biraz düşüneceğim.",
+          "usage": "ちょっと, küçük miktarı veya kısa süreyi anlatır.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ],
+      "synonymAnswers": {
+        "values": [
+          "biraz",
+          "bir an"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      }
+    }
+  }
+}

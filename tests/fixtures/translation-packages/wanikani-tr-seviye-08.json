@@ -1,0 +1,144 @@
+{
+  "$schema": "./translation-package-v2.schema.json",
+  "schemaVersion": 2,
+  "packageId": "wanikani-tr-levels-8",
+  "language": "tr",
+  "name": "Turkish learning package — level 8",
+  "version": "1.0.1",
+  "generatedAt": "2026-10-11T06:08:39.997500+00:00",
+  "purpose": "learning-content",
+  "scope": "display-only",
+  "subjects": {
+    "573": {
+      "source": {
+        "type": "kanji",
+        "word": "池",
+        "meaningsEn": [
+          "Pond"
+        ],
+        "readingsJa": [
+          "ち",
+          "いけ"
+        ],
+        "level": 8,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "6ac5414236a22571c96f6d0f78508a7052128126a236d3539e9761823151893f"
+      },
+      "meaning": {
+        "primary": "Gölet",
+        "alternatives": [],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": []
+    },
+    "2534": {
+      "source": {
+        "type": "vocabulary",
+        "word": "円い",
+        "meaningsEn": [
+          "Round",
+          "Circular"
+        ],
+        "readingsJa": [
+          "まるい"
+        ],
+        "level": 8,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "9522b36ee3bae448d9fbfb2eb0ec06786abef759477a2298a54c6a46ffdc8249"
+      },
+      "meaning": {
+        "primary": "Yuvarlak",
+        "alternatives": [
+          "dairesel"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "円いフリスビーを子犬にプレゼントした。",
+            "en": "I gave a round frisbee to a puppy as a present."
+          },
+          "sourceSha256": "ccd3fe3a7fd7bdf489146439b7f1f833e461352ddec407f957fdd50c90ac21e3",
+          "translation": "Bir yavru köpeğe yuvarlak bir frizbi hediye ettim.",
+          "usage": "円い, frizbinin daire biçiminde olduğunu anlatıyor.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "あそこの円いのはUFOかな？",
+            "en": "Is that circular thing over there a UFO?"
+          },
+          "sourceSha256": "ccb20f989dca330da702ae0a4f906ceee95ab2756d94a8619d0e6d7834440658",
+          "translation": "Şuradaki yuvarlak şey acaba bir UFO mu?",
+          "usage": "円いの ifadesinde の, yuvarlak olan şeyi adını söylemeden belirtir.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "フルムーンの月は、円いです。",
+            "en": "The full moon is circular."
+          },
+          "sourceSha256": "0674831372ffe54d9a0344fa172b9b7f9104e8fb6ee3ed7309b8583a7910498b",
+          "translation": "Dolunay yuvarlaktır.",
+          "usage": "円い, dolunayın görünen daire biçimini anlatıyor.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ]
+    },
+    "9207": {
+      "source": {
+        "type": "kana_vocabulary",
+        "word": "でも",
+        "meaningsEn": [
+          "But",
+          "However"
+        ],
+        "readingsJa": [],
+        "level": 8,
+        "updatedAt": "2026-10-02T00:07:31.186411Z",
+        "meaningBasisSha256": "e2cd940e60d93d8efee7b596725b85401baca720b196162d1d552f3346ed7c95"
+      },
+      "meaning": {
+        "primary": "ama",
+        "alternatives": [
+          "fakat",
+          "ancak"
+        ],
+        "reviewStatus": "editorial-reviewed"
+      },
+      "examples": [
+        {
+          "source": {
+            "ja": "でも、できないよ。",
+            "en": "But I can't."
+          },
+          "sourceSha256": "8a2e86dc794b615d504759d2443446c8ac84796b371bbf784562584fa00aff90",
+          "translation": "Ama yapamıyorum ki.",
+          "usage": "Cümle başındaki でも önceki söze karşıtlık getirir; できない yapamama anlamındadır.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "でも、いいの？",
+            "en": "But are you okay with that?"
+          },
+          "sourceSha256": "e2d9e28161440a89c146a51926be71923728092d672b8ba769d63ef6d7bd349a",
+          "translation": "Ama senin için sorun yok mu?",
+          "usage": "でも tereddüt veya karşıtlık bildirir; いいの？ karşıdakinin bunu uygun bulup bulmadığını sorar.",
+          "reviewStatus": "editorial-reviewed"
+        },
+        {
+          "source": {
+            "ja": "でも、５０パーセントオフだよ？",
+            "en": "But it's 50 percent off, you know?"
+          },
+          "sourceSha256": "bbd3d46966f1c09ecb7c51a35df06bd51281b24ae166a0779e808c91e6861a7b",
+          "translation": "Ama yüzde 50 indirimli, biliyorsun değil mi?",
+          "usage": "でも önceki tereddüde karşı bir gerekçe sunar; ５０パーセントオフ fiyatın yüzde 50 indirimli olduğunu belirtir.",
+          "reviewStatus": "editorial-reviewed"
+        }
+      ]
+    }
+  }
+}
