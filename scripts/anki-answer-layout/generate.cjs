@@ -11,6 +11,7 @@ const names = [
   "reviewInteractionPane", "characterScrollView", "characterWrapper", "characterWrapperWithOpenHint", "characterContainer",
   "ankiCardContainer", "ankiAnswerContainer", "ankiContentSizedPrompt", "ankiContentSizedCard",
   "ankiContentSizedPane", "ankiContextHintPrompt",
+  "ankiPreCardOverlayRow",
   "ankiButtonlessNaturalHeight",
   "banner", "ankiContentContainer", "ankiAnswerScroll", "ankiAnswerSection", "ankiButtonSection",
 ];
@@ -25,6 +26,8 @@ let revealedMinHeight;
 let unrevealedMinHeight;
 let contentSizedCondition;
 let hintSizingAttached = false;
+let metadataInsetAttached = false;
+let metadataPaddingAttached = false;
 
 function literal(node) {
   if (ts.isNumericLiteral(node)) return Number(node.text);
@@ -62,10 +65,15 @@ function visit(node) {
     contentSizedCondition = node.initializer;
   }
   // Fail if a sizing override survives in StyleSheet but is detached from the UI.
-  if (ts.isJsxAttribute(node) && node.name.getText(ast) === "style") {
+  if (ts.isJsxAttribute(node) && ["style", "contentContainerStyle"].includes(node.name.getText(ast))) {
     const expression = node.initializer?.expression;
     if (expression && ts.isArrayLiteralExpression(expression)) {
       const values = expression.elements.map((entry) => entry.getText(ast));
+      const normalizedValues = values.map((value) => value.replace(/\s+/g, " "));
+      if (values.includes("styles.characterScrollView") && normalizedValues.includes(
+        "useContentSizedAnkiCard && ankiPreCardOverlayInset > 0 && { minHeight: 120 + ankiPreCardOverlayInset }")) metadataInsetAttached = true;
+      if (values.includes("styles.characterWrapper") && normalizedValues.includes(
+        "ankiPreCardOverlayInset > 0 && { paddingBottom: ankiPreCardOverlayInset + (isContextHintVisible ? 8 : 0) }")) metadataPaddingAttached = true;
       if (values.includes("styles.characterScrollView") &&
         values.includes("useContentSizedAnkiCard && isContextHintVisible && styles.ankiContextHintPrompt")) {
         hintSizingAttached = true;
@@ -94,6 +102,7 @@ function booleanExpression(node) {
       effectiveAnkiCardMode: "true",
       isCurrentQuestionAnkiRevealed: "revealed",
       effectiveAnkiButtonlessMode: "buttonless",
+      ankiWrongOptionsVisible: "false",
     }[node.text];
     if (value) return value;
   }
@@ -110,6 +119,12 @@ function booleanExpression(node) {
 
 const pascal = (value) => value.split("-").map((word) => word[0].toUpperCase() + word.slice(1)).join("");
 function setter(key, value) {
+  if (["top", "right", "bottom", "left"].includes(key)) {
+    const edge = pascal(key);
+    return typeof value === "string" && value.endsWith("%")
+      ? `YGNodeStyleSetPositionPercent(node, YGEdge${edge}, ${parseFloat(value)});`
+      : `YGNodeStyleSetPosition(node, YGEdge${edge}, ${value});`;
+  }
   if (["flex", "flexGrow", "flexShrink", "width", "height", "minHeight", "minWidth", "maxHeight", "maxWidth"].includes(key)) {
     if (typeof value === "string" && value.endsWith("%")) {
       return `YGNodeStyleSet${pascal(key)}Percent(node, ${parseFloat(value)});`;
@@ -137,6 +152,7 @@ const header = names.map((name) => `void apply_${name}(YGNodeRef node) {\n${
     .map((line) => `  ${line}`).join("\n")
 }\n}`).join("\n");
 fs.writeFileSync(path.join(buildDir, "source-styles.h"),
+  `constexpr bool metadataOverlayInsetApplied = ${metadataInsetAttached && metadataPaddingAttached};\n` +
   `constexpr float unrevealedAnswerMinHeight = ${unrevealedMinHeight};\n` +
   `constexpr float revealedAnswerMinHeight = ${revealedMinHeight};\n` +
   `bool contentSizedAnkiCard(bool revealed, bool buttonless) { return ${booleanExpression(contentSizedCondition)}; }\n${header}\n`);

@@ -132,6 +132,25 @@ function renderSession(mode: "lessons" | "reviews", packs: CustomVocabularyPack[
 }
 
 describe("custom vocabulary lesson and review sessions", () => {
+  it("keeps custom verb multiple choice available with an empty catalog", async () => {
+    localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true, reviewQuestionOrderEnabled: true, reviewQuestionOrder: "meaning-first" } }));
+    const imagine: CustomVocabularyWord = {
+      ...cat, id: "imagine", characters: "想像する", reading: "そうぞうする",
+      meanings: ["To Imagine"], partsOfSpeech: ["suru verb"],
+    };
+    const pack: CustomVocabularyPack = { id: "verbs", title: "Verbs", description: "Words", script: "kanji", words: [imagine] };
+    hook.state = stateFor(pack, { [imagine.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    renderSession("reviews", [pack]);
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    const choices = within(group).getAllByRole("button");
+    expect(choices).toHaveLength(4);
+    expect(choices.every(choice => /^\d\. To /.test(choice.getAttribute("aria-label") ?? ""))).toBe(true);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Not enough distinct choices/)).not.toBeInTheDocument();
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. To Imagine$/ }));
+    expect(screen.getByText("Correct", { exact: true })).toBeInTheDocument();
+  });
+
   it("answers custom vocabulary with choices, retries a wrong choice, and saves one mistake", async () => {
     localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true } }));
     const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Hiragana", description: "Words", script: "hiragana", words: [cat] };

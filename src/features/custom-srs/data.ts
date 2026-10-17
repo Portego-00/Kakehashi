@@ -9,8 +9,9 @@ import {
 import { useAuthStore } from "../../utils/store";
 import { isPortegoUsername } from "../../utils/portegoAccess";
 import { customVocabularyPacks } from "./catalog";
-import { createCustomSrsClient, requestCustomSrsCloud } from "./client";
-import type { CustomSrsState, CustomVocabularyPack } from "./types";
+import { createCustomSrsClient, requestCustomSrsCloud, requestCustomSrsEndpoint } from "./client";
+import { personalLibraryPacks, saveNativePersonalLibrary, syncNativePersonalLibrary, type PersonalOperation } from "./personal-library";
+import type { CustomSrsSettings, CustomSrsState, CustomVocabularyPack } from "./types";
 
 export { customPackProgress, customReviewForecast } from "../../../web/src/features/custom-srs/model";
 
@@ -18,7 +19,12 @@ export const customLessonWords = (state: CustomSrsState, packs: readonly CustomV
 export const customReviewWords = (state: CustomSrsState, packs: readonly CustomVocabularyPack[] = customVocabularyPacks, now = new Date()) => selectReviewWords(state, packs, now);
 export const nextCustomReviewAt = (state: CustomSrsState, packs: readonly CustomVocabularyPack[] = customVocabularyPacks) => selectNextReviewAt(state, packs);
 
-const client = createCustomSrsClient({ request: (token, action, previous) => requestCustomSrsCloud(token, action, { previous }), cache: AsyncStorage });
+const client = createCustomSrsClient({
+  request: (token, action, previous) => requestCustomSrsCloud(token, action, { previous }),
+  requestLibrary: (token, base) => syncNativePersonalLibrary(token, base, requestCustomSrsEndpoint),
+  mutateLibrary: (token, mutation) => saveNativePersonalLibrary(token, mutation, requestCustomSrsEndpoint),
+  cache: AsyncStorage,
+});
 
 function syncAccount() {
   const { apiToken, userData } = useAuthStore.getState();
@@ -64,9 +70,12 @@ function eventId() {
 
 const actions = {
   refresh: client.refresh,
+  getPacks: () => [...customVocabularyPacks, ...personalLibraryPacks(client.getSnapshot().library)],
   enrollPack: (packId: string) => client.mutate({ action: "enroll_pack", packId, eventId: eventId() }),
   completeLesson: (wordId: string, id = eventId(), onQueued?: () => void) => client.mutate({ action: "complete_lesson", wordId, eventId: id }, onQueued),
   submitReview: (wordId: string, incorrectAnswers: number, id = eventId(), expectedAssignmentUpdatedAt?: string, onQueued?: () => void) => client.mutate({ action: "submit_review", wordId, incorrectAnswers, eventId: id, expectedAssignmentUpdatedAt }, onQueued),
+  saveSettings: (settings: CustomSrsSettings, expectedSettingsRevision: number, id: string) => client.saveSettings({ action: "update_settings", settings, expectedSettingsRevision, eventId: id }),
+  saveLibrary: (operations: PersonalOperation[], expectedRevision: number, id: string) => client.saveLibrary({ action: "mutate_library", operations, expectedRevision, eventId: id }),
 };
 
 export function useCustomSrs() {
@@ -75,7 +84,9 @@ export function useCustomSrs() {
   useEffect(() => {
     if (snapshot.accountId) void client.refresh().catch(() => undefined);
   }, [snapshot.accountId, apiToken]);
-  const lessonWords = useMemo(() => customLessonWords(snapshot.state), [snapshot.state]);
-  const reviewWords = useMemo(() => customReviewWords(snapshot.state), [snapshot.state]);
-  return { ...snapshot, isLoading: snapshot.loading, ...actions, lessonWords, reviewWords };
+  const packs = useMemo(() => [...customVocabularyPacks, ...personalLibraryPacks(snapshot.library)], [snapshot.library]);
+  const words = useMemo(() => [...customVocabularyPacks.flatMap((pack) => pack.words), ...Object.values(snapshot.library.entries).flatMap((entry) => entry.kind === "word" ? [{ ...entry.data.word, id: entry.id }] : [])], [snapshot.library]);
+  const lessonWords = useMemo(() => customLessonWords(snapshot.state, packs), [snapshot.state, packs]);
+  const reviewWords = useMemo(() => customReviewWords(snapshot.state, packs), [snapshot.state, packs]);
+  return { ...snapshot, isLoading: snapshot.loading, ...actions, packs, words, lessonWords, reviewWords };
 }

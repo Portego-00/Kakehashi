@@ -1,9 +1,11 @@
 import { customSrsWireResult } from "../../../web/src/features/custom-srs/transport.ts";
 import { customSrsStatePatch } from "../../../web/src/features/custom-srs/state-patch";
 import catalog from "../../../web/src/features/custom-srs/catalog.generated.json" with { type: "json" };
-import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, recordCustomReview } from "../../../web/src/features/custom-srs/model";
+import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, recordCustomReview, updateCustomSrsSettings } from "../../../web/src/features/custom-srs/model";
+import { customSrsSettingsError } from "../../../web/src/features/custom-srs/srs-settings";
+import { personalMutationSchema, preparePersonalOperations } from "../../../web/src/features/custom-srs/personal-vocabulary.ts";
 import { parseCustomSrsStateStrict } from "../../../web/src/features/custom-srs/storage.ts";
-import type { CustomSrsState, CustomVocabularyPack } from "../../../web/src/features/custom-srs/types";
+import type { CustomSrsSettings, CustomSrsState, CustomVocabularyPack } from "../../../web/src/features/custom-srs/types";
 
 const packs = catalog as CustomVocabularyPack[];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,6 +19,9 @@ type RecordValue = Record<string, unknown>;
 type Identity = { id: string; username: string };
 type Mutation =
   | { action: "read" }
+  | { action: "read_library"; after: number; afterId: string; until?: number }
+  | { action: "mutate_library"; expectedRevision: number; eventId: string; operations: import("../../../web/src/features/custom-srs/personal-vocabulary.ts").PersonalOperation[] }
+  | { action: "update_settings"; settings: CustomSrsSettings; expectedSettingsRevision: number; eventId: string }
   | { action: "enroll_pack"; packId: string; eventId: string }
   | { action: "complete_lesson"; wordId: string; eventId: string }
   | { action: "submit_review"; wordId: string; eventId: string; incorrectAnswers: number; expectedAssignmentUpdatedAt?: string };
@@ -59,7 +64,20 @@ export function validateCustomSrsRequest(value: unknown): Mutation | null {
   if (!object(value)) return null;
   const exactKeys = (...keys: string[]) => Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
   if (value.action === "read") return exactKeys("action") ? { action: "read" } : null;
+  if (value.action === "read_library") {
+    const keys = value.until === undefined ? ["action", "after", "afterId"] : ["action", "after", "afterId", "until"];
+    if (!exactKeys(...keys) || !Number.isSafeInteger(value.after) || Number(value.after) < 0 || typeof value.afterId !== "string" || value.afterId.length > 64
+      || (value.until !== undefined && (!Number.isSafeInteger(value.until) || Number(value.until) < Number(value.after)))) return null;
+    return value as Mutation;
+  }
   if (typeof value.eventId !== "string" || !UUID.test(value.eventId)) return null;
+  if (value.action === "mutate_library") {
+    const { action: _action, ...payload } = value;
+    const parsed = personalMutationSchema.omit({ accountId: true }).safeParse(payload);
+    return parsed.success ? { action: "mutate_library", ...parsed.data } : null;
+  }
+  if (value.action === "update_settings" && exactKeys("action", "settings", "expectedSettingsRevision", "eventId")
+    && Number.isSafeInteger(value.expectedSettingsRevision) && Number(value.expectedSettingsRevision) >= 0 && customSrsSettingsError(value.settings) === null) return value as Mutation;
   if (value.action === "enroll_pack" && exactKeys("action", "packId", "eventId") && typeof value.packId === "string" && value.packId.length > 0 && value.packId.length <= 120) {
     return { action: value.action, packId: value.packId, eventId: value.eventId };
   }
@@ -178,7 +196,7 @@ export async function handleCustomSrsRequest(request: Request, overrides: Partia
   let action: Mutation | null;
   let knownRevision: number | undefined;
   try {
-    const body = await boundedJson(request, 16_000);
+    const body = await boundedJson(request, 2_500_000);
     if (object(body) && "knownRevision" in body) {
       if (!Number.isSafeInteger(body.knownRevision) || Number(body.knownRevision) < -1) throw new Error("Invalid revision");
       knownRevision = Number(body.knownRevision);
@@ -192,6 +210,23 @@ export async function handleCustomSrsRequest(request: Request, overrides: Partia
   try {
     const identity = await verifyIdentity(token, dependencies);
     if (identity.username.toLowerCase() !== "portego") return json({ error: "This feature is not available for this account." }, 403);
+    if (action.action === "read_library" || action.action === "mutate_library") {
+      const initial = createCustomSrsState(dependencies.now());
+      const read = action.action === "read_library";
+      const parameters = action.action === "read_library"
+        ? { p_user_id: identity.id, p_after_revision: action.after, p_after_id: action.afterId, p_until_revision: action.until ?? null }
+        : { p_user_id: identity.id, p_expected_revision: action.expectedRevision, p_event_id: action.eventId, p_operations: preparePersonalOperations(action.operations), p_initial_metadata: { version: initial.version, policy: initial.policy, enrolledPackIds: [], updatedAt: initial.updatedAt } };
+      const response = await dependencies.fetch(`${url}/rest/v1/rpc/${read ? "read_custom_vocabulary" : "mutate_custom_vocabulary"}`, {
+        method: "POST", headers: serviceHeaders(key), signal: AbortSignal.timeout(20_000), body: JSON.stringify(parameters),
+      });
+      const result = await boundedJson(response, 16_000_000);
+      if (!response.ok) {
+        const message = object(result) && typeof result.message === "string" ? result.message : "";
+        if (/library changed|not found|already exist|limit is|Invalid library cursor|cache is ahead|request ID was already/i.test(message)) throw new RequestError(409, message);
+        throw new Error("Library request failed");
+      }
+      return json(result);
+    }
     if (action.action === "read") {
       if (knownRevision !== undefined && knownRevision >= 0) {
         const response = await dependencies.fetch(`${url}/rest/v1/rpc/read_custom_srs_revision`, {
@@ -205,7 +240,7 @@ export async function handleCustomSrsRequest(request: Request, overrides: Partia
       return json({ available: true, ...await readState(identity.id, url, key, dependencies) });
     }
     const selection = {
-      wordIds: action.action === "enroll_pack" ? packs.find((pack) => pack.id === action.packId)?.words.map((word) => word.id) ?? [] : [action.wordId],
+      wordIds: action.action === "update_settings" ? [] : action.action === "enroll_pack" ? packs.find((pack) => pack.id === action.packId)?.words.map((word) => word.id) ?? [] : [action.wordId],
       eventId: action.eventId,
     };
     for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -217,7 +252,8 @@ export async function handleCustomSrsRequest(request: Request, overrides: Partia
       const now = dependencies.now();
       let state: CustomSrsState;
       try {
-        if (action.action === "enroll_pack") {
+        if (action.action === "update_settings") state = updateCustomSrsSettings(current.state, action.settings, action.expectedSettingsRevision, action.eventId, now);
+        else if (action.action === "enroll_pack") {
           const pack = packs.find((pack) => pack.id === action.packId);
           if (!pack) throw new Error("Custom vocabulary pack not found.");
           state = enrollCustomVocabularyPack(current.state, pack, now);
@@ -228,7 +264,9 @@ export async function handleCustomSrsRequest(request: Request, overrides: Partia
             ? current.state
             : recordCustomReview(current.state, action.wordId, action.incorrectAnswers, now, action.eventId);
         }
-      } catch { throw new RequestError(409, "This word is no longer ready for this action. Refresh your progress and try again."); }
+      } catch {
+        throw new RequestError(409, action.action === "update_settings" ? "Scheduling settings changed on another device. Reload the saved settings before saving again." : "This word is no longer ready for this action. Refresh your progress and try again.");
+      }
       if (state === current.state) return respond(current);
       const response = await dependencies.fetch(`${url}/rest/v1/rpc/patch_custom_srs_state_v2`, {
         method: "POST", headers: serviceHeaders(key), signal: AbortSignal.timeout(12_000),

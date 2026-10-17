@@ -7,6 +7,7 @@ function vocabulary(
   meaning: string,
   reading: string,
   components: number[] = [],
+  partsOfSpeech: string[] = [],
 ): Subject {
   return {
     id,
@@ -15,6 +16,7 @@ function vocabulary(
       characters,
       level: 5,
       component_subject_ids: components,
+      parts_of_speech: partsOfSpeech,
       meanings: [{ meaning, primary: true, accepted_answer: true }],
       readings: [{ reading, primary: true, accepted_answer: true }],
     },
@@ -157,15 +159,289 @@ it("keeps the same choices and order on rerender but varies positions between oc
   expect(positions.size).toBe(4);
 });
 
-it("falls back safely when there are not enough plausible meanings", () => {
-  expect(
-    createReviewAnswerChoices({
-      subject: cat,
-      questionType: "meaning",
-      subjects: [school],
-      seed: "empty",
-    }),
-  ).toEqual([]);
+it("keeps four meaning choices available with a sparse or empty catalog", () => {
+  for (const subjects of [[], [school]]) {
+    const choices = createReviewAnswerChoices({
+      subject: cat, questionType: "meaning", subjects, seed: "empty",
+    });
+    expect(choices).toHaveLength(4);
+    expect(new Set(choices.map(({ text }) => text)).size).toBe(4);
+    expect(choices.filter(({ isCorrect }) => isCorrect)).toEqual([{ text: "Cat", isCorrect: true }]);
+  }
+});
+
+it("uses verb meanings for 想像する instead of related nouns", () => {
+  const subject = vocabulary(100, "想像する", "To Imagine", "そうぞうする", [10, 11]);
+  const nouns = [
+    vocabulary(101, "予想", "Expectation", "よそう", [10]),
+    vocabulary(102, "思想", "Ideology", "しそう", [10]),
+    vocabulary(103, "想定", "Assumption", "そうてい", [10]),
+  ];
+  const verbs = [
+    vocabulary(104, "食べる", "To Eat", "たべる"),
+    vocabulary(105, "読む", "To Read", "よむ"),
+    vocabulary(106, "歩く", "To Walk", "あるく"),
+  ];
+  for (const subjects of [nouns, [...nouns, ...verbs]]) {
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects,
+      learnedSubjectIds: new Set(subjects.map(({ id }) => id)), seed: "imagine",
+    });
+    expect(choices).toHaveLength(4);
+    expect(choices.every(({ text }) => /^to\s/i.test(text))).toBe(true);
+    expect(choices.filter(({ isCorrect }) => isCorrect)).toEqual([{ text: "To Imagine", isCorrect: true }]);
+  }
+});
+
+it("selects an accepted verb meaning from an entry whose primary meaning is a noun", () => {
+  const subject = vocabulary(100, "想像する", "To Imagine", "そうぞうする");
+  const subjects = ["Expectation", "Assumption", "Prediction"].map((meaning, index) => ({
+    ...vocabulary(101 + index, "想", meaning, "そう"),
+    data: {
+      characters: "想",
+      parts_of_speech: ["noun", "suru verb"],
+      meanings: [
+        { meaning, primary: true, accepted_answer: true },
+        { meaning: ["To Expect", "To Assume", "To Predict"][index], accepted_answer: true },
+        { meaning: "To Imagine", accepted_answer: false },
+      ],
+    },
+  }));
+  // Remove the overlapping meaning to allow these subjects as distractors.
+  const compatible = subjects.map((entry) => ({ ...entry, data: {
+    ...entry.data, meanings: entry.data.meanings.slice(0, 2),
+  } }));
+  const choices = createReviewAnswerChoices({
+    subject, questionType: "meaning", subjects: compatible, seed: "mixed-pos",
+  });
+  expect(choices.map(({ text }) => text).sort()).toEqual([
+    "To Assume", "To Expect", "To Imagine", "To Predict",
+  ]);
+  const ambiguous = createReviewAnswerChoices({
+    subject, questionType: "meaning", subjects, seed: "mixed-pos",
+  });
+  expect(ambiguous).toHaveLength(4);
+  for (const text of ["To Expect", "To Assume", "To Predict"]) {
+    expect(ambiguous.map((choice) => choice.text)).not.toContain(text);
+  }
+});
+
+it("retains difficult verb choices before filling gaps with compatible learned answers", () => {
+  const subject = vocabulary(100, "想像する", "To Imagine", "そうぞうする");
+  const related = vocabulary(101, "想定する", "To Assume", "そうていする");
+  const subjects = [related, ...["To Eat", "To Drink", "To Walk"].map((meaning, index) =>
+    vocabulary(102 + index, "別", meaning, "べつ")), ...animals];
+  const choices = createReviewAnswerChoices({
+    subject, questionType: "meaning", subjects,
+    learnedSubjectIds: new Set(subjects.map(({ id }) => id)), seed: "partial-verbs",
+  });
+  expect(choices).toHaveLength(4);
+  expect(choices.map(({ text }) => text)).toContain("To Assume");
+  expect(choices.every(({ text }) => /^to\s/i.test(text))).toBe(true);
+});
+
+describe("part of speech and relatedness", () => {
+  it("prefers conceptually related verbs for 想像する over unrelated verbs", () => {
+    const subject = vocabulary(100, "想像する", "To Imagine", "そうぞうする", [], ["suru verb"]);
+    const related = ["To Expect", "To Assume", "To Predict"].map((meaning, index) =>
+      vocabulary(101 + index, "別", meaning, "べつ", [], ["transitive verb"]));
+    const unrelated = ["To Eat", "To Read", "To Walk"].map((meaning, index) =>
+      vocabulary(110 + index, "他", meaning, "た", [], ["godan verb"]));
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: [...unrelated, ...related], seed: "mental-verbs",
+    });
+    expect(choices.map(({ text }) => text).sort()).toEqual(["To Assume", "To Expect", "To Imagine", "To Predict"]);
+  });
+
+  it("keeps related adjectives while excluding nouns with stronger kanji overlap", () => {
+    const subject = vocabulary(100, "大きい", "Big", "おおきい", [1, 2, 3], ["i-adjective"]);
+    const adjectives = [
+      vocabulary(101, "小さい", "Small", "ちいさい", [], ["I Adjective"]),
+      vocabulary(102, "狭い", "Narrow", "せまい", [], ["i_adjective"]),
+      vocabulary(103, "深い", "Deep", "ふかい", [], ["na-adjective"]),
+    ];
+    const nouns = ["Size", "Length", "Height"].map((meaning, index) =>
+      vocabulary(110 + index, "大", meaning, "だい", [1, 2, 3], ["noun"]));
+    const unrelated = ["Quiet", "Clean", "Polite"].map((meaning, index) =>
+      vocabulary(120 + index, "別", meaning, "べつ", [], ["na-adjective"]));
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: [...nouns, ...adjectives, ...unrelated], seed: "adjectives",
+    });
+    expect(choices.map(({ text }) => text).sort()).toEqual(["Big", "Deep", "Narrow", "Small"]);
+  });
+
+  it("keeps related nouns while excluding adjectives with stronger kanji overlap", () => {
+    const components = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const subject = vocabulary(100, "雨", "Rain", "あめ", components, ["noun"]);
+    const nouns = ["Snow", "Wind", "Cloud"].map((meaning, index) =>
+      vocabulary(101 + index, "別", meaning, "べつ", [], ["Noun"]));
+    const adjectives = ["Rainy", "Snowy", "Cloudy"].map((meaning, index) =>
+      vocabulary(110 + index, "雨", meaning, "あめ", components, ["i-adjective"]));
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: [...adjectives, ...nouns], seed: "nouns",
+    });
+    expect(choices.map(({ text }) => text).sort()).toEqual(["Cloud", "Rain", "Snow", "Wind"]);
+  });
+
+  it("ranks known compatible types above related entries with missing metadata", () => {
+    const subject = vocabulary(100, "冷たい", "Cold", "つめたい", [1, 2, 3], ["i-adjective"]);
+    const adjectives = ["Quiet", "Clean", "Polite"].map((meaning, index) =>
+      vocabulary(101 + index, "別", meaning, "べつ", [], ["na-adjective"]));
+    const unknown = vocabulary(110, "冷", "Weather", "れい", [1, 2, 3]);
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: [unknown, ...adjectives], seed: "unknown-pos",
+    });
+    expect(choices.map(({ text }) => text).sort()).toEqual(["Clean", "Cold", "Polite", "Quiet"]);
+  });
+
+  it("prefers matching kana-vocabulary types to related vocabulary with unknown types", () => {
+    const subject = vocabulary(100, "冷たい", "Cold", "つめたい", [1, 2, 3], ["i-adjective"]);
+    const adjectives = ["Quiet", "Clean", "Polite"].map((meaning, index) => ({
+      ...vocabulary(101 + index, "べつ", meaning, "べつ", [], ["na-adjective"]),
+      object: "kana_vocabulary" as const,
+    }));
+    const unknown = ["Weather", "Rain", "Snow"].map((meaning, index) =>
+      vocabulary(110 + index, "冷", meaning, "れい", [1, 2, 3]));
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: [...unknown, ...adjectives], seed: "cross-catalog-pos",
+    });
+    expect(choices.map(({ text }) => text).sort()).toEqual(["Clean", "Cold", "Polite", "Quiet"]);
+  });
+
+  it("uses a compatible local adjective when the learned pool contains only nouns", () => {
+    const subject = vocabulary(100, "冷たい", "Cold", "つめたい", [], ["i-adjective"]);
+    const unrelated = vocabulary(101, "水", "Water", "みず", [], ["noun"]);
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: [unrelated],
+      learnedSubjectIds: new Set([unrelated.id]), seed: "adjective-fallback",
+    });
+    expect(choices).toHaveLength(4);
+    expect(choices.map(({ text }) => text)).not.toContain("Water");
+  });
+
+  it("uses adverbs rather than highly related nouns and adjectives", () => {
+    const subject = vocabulary(100, "静かに", "Quietly", "しずかに", [1, 2, 3], ["adverb"]);
+    const adverbs = ["Slowly", "Quickly", "Carefully"].map((meaning, index) =>
+      vocabulary(101 + index, "別", meaning, "べつ", [], ["Adverb (fukushi)"]));
+    const wrongParts = [
+      vocabulary(110, "静か", "Quiet", "しずか", [1, 2, 3], ["na-adjective"]),
+      vocabulary(111, "静けさ", "Silence", "しずけさ", [1, 2, 3], ["noun"]),
+    ];
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: [...wrongParts, ...adverbs], seed: "adverbs",
+    });
+    expect(choices.map(({ text }) => text).sort()).toEqual(["Carefully", "Quickly", "Quietly", "Slowly"]);
+  });
+
+  it("distinguishes an adjective translated with 'To Be' from other verbs", () => {
+    const subject = vocabulary(100, "冷たい", "To Be Cold", "つめたい", [], ["i-adjective"]);
+    const verbs = ["To Eat", "To Read", "To Walk"].map((meaning, index) =>
+      vocabulary(101 + index, "冷", meaning, "れい", [], ["godan verb"]));
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: verbs, seed: "to-be-adjective",
+    });
+    expect(choices).toHaveLength(4);
+    expect(choices.every(({ text }) => text.startsWith("To Be "))).toBe(true);
+    expect(choices.filter(({ isCorrect }) => isCorrect)).toEqual([{ text: "To Be Cold", isCorrect: true }]);
+  });
+
+  it("keeps bare English verb translations grammatical in the offline fallback", () => {
+    const subject = vocabulary(100, "想像する", "Imagine", "そうぞうする", [], ["suru verb"]);
+    const nouns = ["Expectation", "Ideology", "Assumption"].map((meaning, index) =>
+      vocabulary(101 + index, "想", meaning, "そう", [], ["noun"]));
+    const choices = createReviewAnswerChoices({
+      subject, questionType: "meaning", subjects: nouns, seed: "bare-verb",
+    });
+    expect(choices).toHaveLength(4);
+    for (const { text } of choices) {
+      expect(["Expectation", "Ideology", "Assumption"]).not.toContain(text);
+      expect(text).not.toMatch(/^to\s/i);
+    }
+  });
+});
+
+describe("offline choice availability", () => {
+  it.each(["Cat", "To Imagine"])("keeps choices for %s as additional user synonyms exhaust the local pool", (meaning) => {
+    const subject = vocabulary(100, "想像する", meaning, "そうぞうする");
+    const meaningSynonyms: string[] = [];
+    for (let index = 0; index < 30; index++) {
+      const choices = createReviewAnswerChoices({
+        subject, questionType: "meaning", subjects: [], meaningSynonyms, seed: String(index),
+      });
+      expect(choices).toHaveLength(4);
+      const distractors = choices.filter(({ isCorrect }) => !isCorrect).map(({ text }) => text);
+      for (const text of distractors) expect(meaningSynonyms).not.toContain(text);
+      meaningSynonyms.push(...distractors);
+    }
+  });
+
+  it.each([
+    ["Cold", "i-adjective"], ["Quietly", "adverb"],
+  ])("keeps %s choices as aliases exhaust the matching grammatical pool", (meaning, part) => {
+    const subject = vocabulary(100, "別", meaning, "べつ", [], [part]);
+    const meaningSynonyms: string[] = [];
+    for (let index = 0; index < 20; index++) {
+      const choices = createReviewAnswerChoices({
+        subject, questionType: "meaning", subjects: [], meaningSynonyms, seed: String(index),
+      });
+      expect(choices).toHaveLength(4);
+      const distractors = choices.filter(({ isCorrect }) => !isCorrect).map(({ text }) => text);
+      for (const text of distractors) expect(meaningSynonyms).not.toContain(text);
+      meaningSynonyms.push(...distractors);
+    }
+  });
+
+  it.each(["radical", "kanji", "vocabulary", "kana_vocabulary"] as const)(
+    "keeps four %s meaning choices without a catalog, excluding synonyms and aliases",
+    (object) => {
+      const options = {
+        subject: { ...cat, object, data: { ...cat.data,
+          auxiliary_meanings: [{ meaning: "River", type: "whitelist" as const }],
+          meanings: [...cat.data.meanings, { meaning: "Water", accepted_answer: false }],
+        } },
+        questionType: "meaning" as const, subjects: [], seed: "offline",
+        meaningSynonyms: ["Fire", "The Mountain", "To See"],
+      };
+      const choices = createReviewAnswerChoices(options);
+      expect(choices).toHaveLength(4);
+      expect(new Set(choices.map(({ text }) => text)).size).toBe(4);
+      expect(choices.filter(({ isCorrect }) => isCorrect)).toEqual([{ text: "Cat", isCorrect: true }]);
+      expect(createReviewAnswerChoices(options)).toEqual(choices);
+      for (const { text } of choices.filter(({ isCorrect }) => !isCorrect)) {
+        expect(["Water", "River", "Fire", "Mountain", "To See"]).not.toContain(text);
+        expect(text).not.toMatch(/^to\s/i);
+      }
+    },
+  );
+
+  it("keeps four readings when the prompt has no sound-confusion candidates", () => {
+    const choices = createReviewAnswerChoices({
+      subject: vocabulary(100, "ん", "N", "ん"),
+      questionType: "reading", subjects: [], seed: "offline-reading",
+    });
+    expect(choices).toHaveLength(4);
+    expect(new Set(choices.map(({ text }) => text)).size).toBe(4);
+    expect(choices.filter(({ isCorrect }) => isCorrect)).toEqual([{ text: "ん", isCorrect: true }]);
+    expect(choices.every(({ text }) => /^[ぁ-ゖ]+$/.test(text))).toBe(true);
+  });
+
+  it("keeps four readings even as alternate readings exhaust the local pool", () => {
+    const subject = vocabulary(100, "ん", "N", "ん");
+    for (let index = 0; index < 10; index++) {
+      const choices = createReviewAnswerChoices({
+        subject, questionType: "reading", subjects: [], seed: String(index),
+      });
+      expect(choices).toHaveLength(4);
+      expect(choices.every(({ text }) => /^[ぁ-ゖ]+$/.test(text))).toBe(true);
+      expect(new Set(choices.map(({ text }) => text)).size).toBe(4);
+      for (const { text } of choices.filter(({ isCorrect }) => !isCorrect)) {
+        expect(subject.data.readings!.map(({ reading }) => reading)).not.toContain(text);
+      }
+      subject.data.readings!.push(...choices.filter(({ isCorrect }) => !isCorrect).map(({ text }) => ({
+        reading: text, accepted_answer: false,
+      })));
+    }
+  });
 });
 
 describe("learned-answer fallback", () => {

@@ -2971,6 +2971,17 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
           progress={progress}
           submittingResults={submittingResults}
           onBackToDashboard={handleBackToDashboard}
+          onRedo={() => {
+            router.replace({
+              pathname: "/custom-review",
+              params: {
+                subjectIds: Array.from(
+                  new Set(reviewItems.map((item) => item.subjectId)),
+                ).join(","),
+                resume: "false",
+              },
+            });
+          }}
         />
       )}
       {renderPendingReviewSyncBadge()}

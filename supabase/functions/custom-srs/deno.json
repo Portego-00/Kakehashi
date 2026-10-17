@@ -1,6 +1,7 @@
 {
   "imports": {
     "ts-fsrs": "npm:ts-fsrs@5.4.1",
+    "zod": "npm:zod@4.3.6",
     "../../../web/src/features/custom-srs/model": "../../../web/src/features/custom-srs/model.ts",
     "../../../web/src/features/custom-srs/scheduler": "../../../web/src/features/custom-srs/scheduler.ts",
     "../../../web/src/features/custom-srs/types": "../../../web/src/features/custom-srs/types.ts",

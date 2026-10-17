@@ -2,6 +2,7 @@ import { clearCustomSrsAuthCacheForTests, handleCustomSrsRequest, validateCustom
 import catalog from "../../../web/src/features/custom-srs/catalog.generated.json" with { type: "json" };
 import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack, updateCustomSrsSettings } from "../../../web/src/features/custom-srs/model.ts";
 import type { CustomSrsState, CustomVocabularyPack } from "../../../web/src/features/custom-srs/types.ts";
+import { DEFAULT_CUSTOM_SRS_SETTINGS } from "../../../web/src/features/custom-srs/srs-settings.ts";
 
 function assert(condition: unknown, message = "Assertion failed"): asserts condition { if (!condition) throw new Error(message); }
 function canonical(value: unknown): string {
@@ -16,6 +17,74 @@ const now = new Date("2026-09-07T15:00:00Z");
 const env = (name: string) => ({ SUPABASE_URL: "https://cloud.example", SUPABASE_SERVICE_ROLE_KEY: "sb_secret_test" })[name];
 const request = (body: unknown, token = "test-token") => new Request("https://edge.example", {
   method: "POST", headers: { "x-wanikani-token": token, "Content-Type": "application/json" }, body: JSON.stringify(body),
+});
+
+const personalDeckId = "personal:11111111-1111-4111-8111-111111111111";
+const personalWordId = "personal:22222222-2222-4222-8222-222222222222";
+const personalWord = { id: personalWordId, characters: "橋", reading: "はし", meanings: ["bridge"], partsOfSpeech: ["noun"], meaningMnemonic: "A bridge.", contextSentences: [] };
+
+Deno.test("validates native library and settings actions without accepting account or state injection", () => {
+  equal(validateCustomSrsRequest({ action: "read_library", after: 0, afterId: "" }), { action: "read_library", after: 0, afterId: "" });
+  equal(validateCustomSrsRequest({ action: "read_library", after: -1, afterId: "" }), null);
+  equal(validateCustomSrsRequest({ action: "read_library", after: 0, afterId: "", userId: "another-account" }), null);
+  const mutation = { action: "mutate_library", expectedRevision: 0, eventId, operations: [{ action: "create_deck", id: personalDeckId, title: "My reading" }] };
+  equal(validateCustomSrsRequest(mutation), mutation);
+  equal(validateCustomSrsRequest({ ...mutation, accountId: "another-account" }), null);
+  equal(validateCustomSrsRequest({ ...mutation, operations: [{ action: "delete_everything" }] }), null);
+  equal(validateCustomSrsRequest({ action: "update_settings", settings: DEFAULT_CUSTOM_SRS_SETTINGS, expectedSettingsRevision: 0, eventId })?.action, "update_settings");
+  equal(validateCustomSrsRequest({ action: "update_settings", settings: { ...DEFAULT_CUSTOM_SRS_SETTINGS, requestRetention: 1.5 }, expectedSettingsRevision: 0, eventId }), null);
+});
+
+Deno.test("personal library actions stay Portego-only and use the verified account in service RPCs", async () => {
+  for (const action of [{ action: "read_library", after: 0, afterId: "" }, { action: "mutate_library", expectedRevision: 0, eventId, operations: [{ action: "create_deck", id: personalDeckId, title: "My reading" }] }, { action: "update_settings", settings: DEFAULT_CUSTOM_SRS_SETTINGS, expectedSettingsRevision: 0, eventId }]) {
+    clearCustomSrsAuthCacheForTests();
+    const server = backend({ username: "SomeoneElse" });
+    const response = await handleCustomSrsRequest(request(action), { env, fetch: server.fetcher, now: () => now });
+    equal(response.status, 403); equal(server.calls.length, 1);
+  }
+  clearCustomSrsAuthCacheForTests();
+  const parameters: Record<string, unknown>[] = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    if (String(input) === "https://api.wanikani.com/v2/user") return Response.json({ data: { id: "verified-account", username: "Portego" } });
+    parameters.push(JSON.parse(String(init?.body)));
+    return Response.json(String(input).endsWith("read_custom_vocabulary") ? { revision: 1, entries: [], cursor: null } : { revision: 2, added: 1, skipped: 0, changed: 0 });
+  };
+  equal((await handleCustomSrsRequest(request({ action: "read_library", after: 1, afterId: personalDeckId, until: 1 }), { env, fetch: fetcher })).status, 200);
+  equal(parameters[0], { p_user_id: "verified-account", p_after_revision: 1, p_after_id: personalDeckId, p_until_revision: 1 });
+  const { id: _id, ...word } = personalWord;
+  equal((await handleCustomSrsRequest(request({ action: "mutate_library", expectedRevision: 1, eventId, operations: [{ action: "create_word", id: personalWordId, deckId: personalDeckId, word }] }), { env, fetch: fetcher })).status, 200);
+  equal(parameters[1].p_user_id, "verified-account");
+  assert(Array.isArray(parameters[1].p_operations));
+  equal(parameters[1].p_operations[0].identityKey, JSON.stringify(["橋", "はし"]));
+});
+
+Deno.test("native settings saves retain cards, due dates and history, and reject stale settings revisions", async () => {
+  clearCustomSrsAuthCacheForTests();
+  const state = completeCustomLesson(enrollCustomVocabularyPack(createCustomSrsState(now), pack, now), pack.words[0].id, now);
+  const server = backend({ state, revision: 4 });
+  const settings = { ...DEFAULT_CUSTOM_SRS_SETTINGS, mode: "fsrs" as const, requestRetention: 0.95 };
+  const action = { action: "update_settings", settings, expectedSettingsRevision: 0, eventId, knownRevision: 4 };
+  const saved = await handleCustomSrsRequest(request(action), { env, fetch: server.fetcher, now: () => now });
+  equal(saved.status, 200);
+  equal(server.state()?.assignments, state.assignments);
+  equal(server.state()?.reviewLog, state.reviewLog);
+  equal((server.state()?.policy as { settings?: unknown }).settings, settings);
+  const retried = await handleCustomSrsRequest(request(action), { env, fetch: server.fetcher, now: () => now });
+  equal(retried.status, 200); equal(server.revision(), 5);
+  const stale = await handleCustomSrsRequest(request({ ...action, eventId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }), { env, fetch: server.fetcher, now: () => now });
+  equal(stale.status, 409); equal(server.revision(), 5);
+});
+
+Deno.test("native lessons and reviews schedule personal words outside the bundled catalog", async () => {
+  clearCustomSrsAuthCacheForTests();
+  const earlier = new Date(now.getTime() - 8 * 3_600_000);
+  const personalPack: CustomVocabularyPack = { id: personalDeckId, title: "My reading", script: "mixed", description: "Private", words: [personalWord] };
+  const server = backend({ state: enrollCustomVocabularyPack(createCustomSrsState(earlier), personalPack, earlier) });
+  const lesson = await handleCustomSrsRequest(request({ action: "complete_lesson", wordId: personalWordId, eventId }), { env, fetch: server.fetcher, now: () => earlier });
+  equal(lesson.status, 200); equal(server.state()?.assignments[personalWordId].stage, 1);
+  const review = await handleCustomSrsRequest(request({ action: "submit_review", wordId: personalWordId, incorrectAnswers: 0, eventId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" }), { env, fetch: server.fetcher, now: () => now });
+  equal(review.status, 200); equal(server.state()?.assignments[personalWordId].stage, 2);
+  equal(server.state()?.reviewLog[0].packId, personalDeckId);
 });
 
 function backend(options: { username?: string; state?: CustomSrsState; revision?: number; conflict?: boolean; failSave?: boolean } = {}) {

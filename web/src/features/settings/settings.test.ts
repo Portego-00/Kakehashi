@@ -7,6 +7,17 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("keeps vocabulary unlock counts opt-in and restores explicit choices", () => {
+    for (const value of [undefined, "true", 1, null]) {
+      expect(loadWebSettings(storage({ study: { showLessonVocabularyUnlockCounts: value } }), "tester").study.showLessonVocabularyUnlockCounts).toBe(false);
+    }
+    let saved = "";
+    const target = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+    for (const enabled of [true, false]) {
+      saveWebSettings(target, "tester", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, showLessonVocabularyUnlockCounts: enabled } });
+      expect(loadWebSettings(target, "tester").study.showLessonVocabularyUnlockCounts).toBe(enabled);
+    }
+  });
   it("persists optional review presets, caps saved lists to three, and keeps old installs opt-out", () => {
     let saved = "";
     const target = { getItem: () => saved || null, setItem: (_key: string, value: string) => { saved = value; } };

@@ -11,7 +11,7 @@ import {
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { useSession } from "@/lib/session";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
-import { loadWebSettings, saveWebSettings } from "@/features/settings/settings";
+import { updateWebSettings } from "@/features/settings/settings";
 import {
   canAccessLevelGoals,
   createLevelGoal,
@@ -133,8 +133,7 @@ function PlanEditor({
     const previous = goals.state.studyPlan;
     if (!goals.update((state) => ({ ...state, studyPlan: plan }))) return;
     try {
-      const latest = loadWebSettings(window.localStorage, username);
-      saveWebSettings(window.localStorage, username, {
+      updateWebSettings(window.localStorage, username, (latest) => ({
         ...latest,
         study: {
           ...latest.study,
@@ -142,7 +141,7 @@ function PlanEditor({
           reviewBatchSizeEnabled: true,
           reviewBatchSize: plan.reviewBatch,
         },
-      });
+      }));
       setApplied(true);
     } catch {
       goals.update((state) => ({ ...state, studyPlan: previous }));

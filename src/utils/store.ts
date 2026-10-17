@@ -540,6 +540,7 @@ type SettingsState = {
   lessonPickerViewMode: LessonPickerViewMode; // Default visual style for lesson picker subject selection
   singlePageLessonView: boolean; // Show all lesson content in a single scrollable page instead of tabs
   lessonSearchButtonEnabled: boolean; // Show quick search on lesson details cards
+  showLessonVocabularyUnlockCounts: boolean; // Show same-level vocabulary dependencies on kanji in the lesson picker
   skipCustomLessonQuiz: boolean; // Skip custom lesson quiz and jump straight to batch completion
   excludeKanaVocabularyFromLessons: boolean; // Hide kana vocabulary from lesson queue and lesson counts
 
@@ -746,6 +747,7 @@ type SettingsState = {
   setLessonPickerViewMode: (mode: LessonPickerViewMode) => void;
   setSinglePageLessonView: (enabled: boolean) => void;
   setLessonSearchButtonEnabled: (enabled: boolean) => void;
+  setShowLessonVocabularyUnlockCounts: (enabled: boolean) => void;
   setSkipCustomLessonQuiz: (enabled: boolean) => void;
   setExcludeKanaVocabularyFromLessons: (enabled: boolean) => void;
   setReviewBatchSizeEnabled: (enabled: boolean) => void;
@@ -930,6 +932,7 @@ export const useSettingsStore = create<SettingsState>()(
       lessonPickerViewMode: "cards", // Default to card grid selection in lesson picker
       singlePageLessonView: false, // Default to tab-based view
       lessonSearchButtonEnabled: false,
+      showLessonVocabularyUnlockCounts: false,
       skipCustomLessonQuiz: false, // Default to false - keep custom lesson review quiz enabled
       excludeKanaVocabularyFromLessons: false, // Default to disabled so kana vocabulary stays in lessons
       reviewBatchSizeEnabled: false, // Disabled by default - all reviews loaded
@@ -1150,6 +1153,8 @@ export const useSettingsStore = create<SettingsState>()(
       setSinglePageLessonView: (enabled) => set({ singlePageLessonView: enabled }),
       setLessonSearchButtonEnabled: (enabled) =>
         set({ lessonSearchButtonEnabled: enabled }),
+      setShowLessonVocabularyUnlockCounts: (enabled) =>
+        set({ showLessonVocabularyUnlockCounts: enabled }),
       setSkipCustomLessonQuiz: (enabled) => set({ skipCustomLessonQuiz: enabled }),
       setExcludeKanaVocabularyFromLessons: (enabled) =>
         set({ excludeKanaVocabularyFromLessons: enabled }),
@@ -1495,6 +1500,7 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...currentState,
           ...persisted,
+          showLessonVocabularyUnlockCounts: persisted.showLessonVocabularyUnlockCounts === true,
           ankiAskIncorrectPart: persisted.ankiAskIncorrectPart === true,
           reviewPresetsEnabled: persisted.reviewPresetsEnabled === true,
           reviewPresets: normalizeReviewPresets(persisted.reviewPresets),

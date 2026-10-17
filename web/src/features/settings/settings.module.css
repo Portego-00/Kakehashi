@@ -67,8 +67,7 @@
 .profileControls { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-sm); }
 .profileControls .textInput { min-width: 12rem; }
 .profileRow > .inlineError { grid-column: 1 / -1; color: var(--color-danger); }
-.workspaceOptions { display: contents; }
-.workspaceOptions > :first-child { grid-column: 2; }
+.workspaceOptions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-xl); min-width: 0; }
 .subsectionHead { display: grid; gap: var(--space-3xs); padding: var(--space-md); background: var(--color-paper-2); }
 .subsectionHead h3 { font-size: var(--text-md); }
 .subsectionHead p { color: var(--color-muted); font-size: var(--text-sm); }
@@ -225,7 +224,6 @@
 
 @media (max-width: 48rem) {
   .settingsSection { grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
-  .workspaceOptions > :first-child,
   .dashboardEditor { grid-column: auto; }
 }
 
@@ -413,3 +411,35 @@
 .categoryMain .toggleRow > span { gap: var(--space-sm); }
 
 .downloadRow > span.preferenceLabel { display: flex; align-items: center; gap: var(--space-sm); }
+
+/* Compact navigation stays within the available viewport and scrolls independently. */
+.organizedSettings { grid-template-columns: 12.5rem minmax(0, 1fr); gap: var(--space-lg); }
+.categoryNavigation { max-height: var(--settings-sidebar-height, calc(100dvh - var(--banner-height) - 2rem)); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 3px; }
+.categoryGroup { gap: 2px; margin-block-end: 10px; }
+.categoryGroup > p { padding: 4px 8px; font-size: 11px; }
+.categoryLink { min-height: 32px; gap: 8px; padding: 6px 8px; border-radius: 6px; }
+.categoryLink strong { font-size: 13px; line-height: 1.35; }
+.categoryMain .toggleRow, .categoryMain .selectRow { min-height: 64px; padding: 12px 20px; }
+.categoryMain .toggleRow > span > span, .categoryMain .preferenceLabel > span { display: flex; align-items: center; flex-wrap: wrap; gap: 0; }
+.categoryMain .sectionIntro > div { display: flex; align-items: center; gap: 4px; }
+.settingsDisclosure summary { min-height: 68px; padding: 14px 20px; }
+.settingsDisclosure summary > span { display: flex; align-items: center; }
+.disclosureContent { overflow: hidden; }
+.disclosureChevron { transition: transform 220ms cubic-bezier(.2,.7,.3,1); }
+.settingsDisclosure[open] .disclosureChevron { transform: none; }
+.settingsDisclosure[data-expanded="true"] .disclosureChevron { transform: rotate(90deg); }
+.page .categoryMain select, .page .categoryNavigation select { appearance: none; padding-inline-start: 12px; padding-inline-end: 36px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23777' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 8px; }
+@media (max-width: 48rem) {
+  .organizedSettings { grid-template-columns: minmax(0, 1fr); }
+  .categoryNavigation { max-height: none; overflow: visible; scrollbar-gutter: auto; }
+  .categoryMain .toggleRow, .categoryMain .selectRow { padding: 12px 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .disclosureChevron { transition: none; } }
+@media (forced-colors: active) { .page .categoryMain select, .page .categoryNavigation select { appearance: auto; background-image: none; } }
+.bunproPreferences { display: grid; gap: var(--space-lg); }
+.bunproPreferences > h3 { display: flex; align-items: center; font-size: var(--text-md); }
+.choiceCards[data-choice-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.persistenceNotice { display: grid; gap: var(--space-sm); padding: var(--space-md); margin-block-end: var(--space-md); border: var(--rule-thin) solid var(--color-danger); color: var(--color-ink); }
+.persistenceNotice p { margin: 0; }
+.persistenceNotice button { justify-self: start; }

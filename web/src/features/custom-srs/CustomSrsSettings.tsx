@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "@/lib/session";
+import { canAccessCustomSrs } from "./access";
+import { SettingsDescription } from "@/features/settings/components/SettingsDescription";
 import { Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { CUSTOM_VOCABULARY_PACKS } from "./catalog";
@@ -54,42 +57,42 @@ export function CustomSrsSettingsForm({ policy, blocked, onSave, onReload, brows
     try {
       await onSave(parsed, editing.revision, editing.eventId);
       setEditing(null);
-      setMessage(browserOnly ? "Schedule saved in this demo browser." : "Schedule saved to your account. Existing due dates are unchanged.");
+      setMessage(browserOnly ? "Schedule saved in this browser." : "Schedule saved to your account. Existing due dates are unchanged.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Your schedule could not be saved. Your edits are still here."); }
     finally { setSaving(false); }
   };
   return <form className={styles.form} onSubmit={save}>
-    <p className={styles.scope}>{browserOnly ? "Try scheduling options in this demo. Changes stay in this browser." : "One schedule for your custom vocabulary across all packs and devices. Your WaniKani reviews use WaniKani’s own schedule."}</p>
-    {policy.version === 1 ? <p>Your existing vocabulary uses our original adaptive schedule. Choose WaniKani-style below, or keep adaptive timing and adjust it.</p> : null}
+    <div className={styles.scope}><strong>Review schedule</strong><SettingsDescription label="Custom vocabulary schedule">{browserOnly ? "This schedule is stored in this browser." : "One schedule for your custom vocabulary across all packs and devices. Your WaniKani reviews use WaniKani’s own schedule."}</SettingsDescription></div>
+    {policy.version === 1 ? <SettingsDescription label="Original adaptive schedule">Your existing vocabulary uses our original adaptive schedule. Choose WaniKani-style below, or keep adaptive timing and adjust it.</SettingsDescription> : null}
     <fieldset disabled={saving} className={styles.fields}>
-      <label className={styles.field} htmlFor="custom-srs-mode"><strong>Scheduling mode</strong>
-        <select id="custom-srs-mode" value={draft.mode} onChange={(event) => change({ mode: event.target.value as Draft["mode"] })} aria-describedby="custom-srs-mode-help">
+      <label className={styles.field} htmlFor="custom-srs-mode"><strong>Scheduling mode<SettingsDescription label="Scheduling mode" id="custom-srs-mode-help">{draft.mode === "wanikani" ? "Every word waits for the interval of its current stage. A correct review advances one stage; mistakes move it back using WaniKani’s penalties." : "Intervals adapt to each word’s review history. Correct answers use Good; a review with mistakes uses Again. The familiar stages and burning rules still apply."}</SettingsDescription></strong>
+        <select aria-label="Scheduling mode" id="custom-srs-mode" value={draft.mode} onChange={(event) => change({ mode: event.target.value as Draft["mode"] })} aria-describedby="custom-srs-mode-help">
           <option value="wanikani">WaniKani-style · fixed stage intervals</option>
           <option value="fsrs">Adaptive · FSRS</option>
         </select>
       </label>
-      <p id="custom-srs-mode-help">{draft.mode === "wanikani" ? "Every word waits for the interval of its current stage. A correct review advances one stage; mistakes move it back using WaniKani’s penalties." : "Intervals adapt to each word’s review history. Correct answers use Good; a review with mistakes uses Again. The familiar stages and burning rules still apply."}</p>
+
       {draft.mode === "wanikani" ? <div>
-        <h3>Stage intervals</h3>
-        <p id="custom-srs-duration-help">Use m for minutes, h for hours, or d for days. The first interval is the wait after a lesson. Each later interval starts when the word reaches that stage.</p>
+        <h3>Stage intervals<SettingsDescription label="Stage intervals" id="custom-srs-duration-help">Use m for minutes, h for hours, or d for days. The first interval is the wait after a lesson. Each later interval starts when the word reaches that stage. The standard preset uses 4h, 8h, 23h, 47h, 167h, 335h, 719h, and 2879h.</SettingsDescription></h3>
+
         <div className={styles.intervals}>
           {STAGES.map((stage, index) => <label className={styles.interval} key={stage} htmlFor={`custom-srs-stage-${index}`}>
             <span>{stage}<span className={styles.next}>Next: {STAGES[index + 1] ?? "Burned"}</span></span>
             <input id={`custom-srs-stage-${index}`} aria-label={`${stage} interval`} type="text" value={draft.stageIntervals[index]} maxLength={12} aria-describedby="custom-srs-duration-help" spellCheck={false} autoComplete="off" onChange={(event) => change({ stageIntervals: draft.stageIntervals.map((value, i) => i === index ? event.target.value : value) })} />
           </label>)}
         </div>
-        <p>The standard preset uses 4h, 8h, 23h, 47h, 167h, 335h, 719h, and 2879h. Longer waits include WaniKani’s one-hour reduction.</p>
+
         {!validation ? <p className={styles.preview}>With every review correct and on time: about <strong>{Math.round(parsed.stageIntervals.reduce((sum, value) => sum + value, 0) / 1440)} days</strong> from lesson to Burned, before hourly rounding.</p> : null}
       </div> : <div>
         <h3>Adaptive timing</h3>
         <div className={styles.adaptive}>
-          <label className={styles.field} htmlFor="custom-srs-learning"><strong>Learning steps</strong><input aria-label="Learning steps" id="custom-srs-learning" value={draft.learningSteps} onChange={(event) => change({ learningSteps: event.target.value })} aria-describedby="custom-srs-learning-help" /><span id="custom-srs-learning-help">For example: 4h, 8h. The first step sets the wait after a lesson. Use 1–8 increasing steps, each from 1m to 1d.</span></label>
-          <label className={styles.field} htmlFor="custom-srs-relearning"><strong>Relearning steps</strong><input aria-label="Relearning steps" id="custom-srs-relearning" value={draft.relearningSteps} onChange={(event) => change({ relearningSteps: event.target.value })} aria-describedby="custom-srs-relearning-help" /><span id="custom-srs-relearning-help">Short steps after forgetting a word in long-term review. For example: 4h.</span></label>
-          <label className={styles.field} htmlFor="custom-srs-retention"><strong>Target retention (%)</strong><input aria-label="Target retention (%)" id="custom-srs-retention" type="number" min="70" max="99" step="1" value={draft.requestRetention} onChange={(event) => change({ requestRetention: event.target.value })} aria-describedby="custom-srs-retention-help" /><span id="custom-srs-retention-help">70–99%. Higher values aim for stronger recall and usually mean more reviews. Default: 90%.</span></label>
-          <label className={styles.field} htmlFor="custom-srs-maximum"><strong>Maximum interval (days)</strong><input aria-label="Maximum interval (days)" id="custom-srs-maximum" type="number" min="1" max="36500" step="1" value={draft.maximumInterval} onChange={(event) => change({ maximumInterval: event.target.value })} aria-describedby="custom-srs-maximum-help" /><span id="custom-srs-maximum-help">Caps long-term FSRS intervals. It does not change short learning steps or revive burned words.</span></label>
+          <label className={styles.field} htmlFor="custom-srs-learning"><strong>Learning steps<SettingsDescription label="Learning steps" id="custom-srs-learning-help">For example: 4h, 8h. The first step sets the wait after a lesson. Use 1–8 increasing steps, each from 1m to 1d.</SettingsDescription></strong><input aria-label="Learning steps" id="custom-srs-learning" value={draft.learningSteps} onChange={(event) => change({ learningSteps: event.target.value })} aria-describedby="custom-srs-learning-help" /></label>
+          <label className={styles.field} htmlFor="custom-srs-relearning"><strong>Relearning steps<SettingsDescription label="Relearning steps" id="custom-srs-relearning-help">Short steps after forgetting a word in long-term review. For example: 4h.</SettingsDescription></strong><input aria-label="Relearning steps" id="custom-srs-relearning" value={draft.relearningSteps} onChange={(event) => change({ relearningSteps: event.target.value })} aria-describedby="custom-srs-relearning-help" /></label>
+          <label className={styles.field} htmlFor="custom-srs-retention"><strong>Target retention (%)<SettingsDescription label="Target retention (%)" id="custom-srs-retention-help">70–99%. Higher values aim for stronger recall and usually mean more reviews. Default: 90%.</SettingsDescription></strong><input aria-label="Target retention (%)" id="custom-srs-retention" type="number" min="70" max="99" step="1" value={draft.requestRetention} onChange={(event) => change({ requestRetention: event.target.value })} aria-describedby="custom-srs-retention-help" /></label>
+          <label className={styles.field} htmlFor="custom-srs-maximum"><strong>Maximum interval (days)<SettingsDescription label="Maximum interval (days)" id="custom-srs-maximum-help">Caps long-term FSRS intervals. It does not change short learning steps or revive burned words.</SettingsDescription></strong><input aria-label="Maximum interval (days)" id="custom-srs-maximum" type="number" min="1" max="36500" step="1" value={draft.maximumInterval} onChange={(event) => change({ maximumInterval: event.target.value })} aria-describedby="custom-srs-maximum-help" /></label>
         </div>
       </div>}
-      <label className={styles.toggle}><input type="checkbox" checked={draft.roundToHour} onChange={(event) => change({ roundToHour: event.target.checked })} /><span><strong>Group reviews at the start of the hour</strong><span>Round due times down, as WaniKani does. Short steps keep their exact time if rounding would make them immediately due.</span></span></label>
+      <label className={styles.toggle}><input aria-label="Group reviews at the start of the hour" type="checkbox" checked={draft.roundToHour} onChange={(event) => change({ roundToHour: event.target.checked })} /><span><strong>Group reviews at the start of the hour<SettingsDescription label="Group reviews at the start of the hour">Round due times down, as WaniKani does. Short steps keep their exact time if rounding would make them immediately due.</SettingsDescription></strong></span></label>
       <details className={styles.details}><summary>What happens to my progress?</summary><p>Saving changes how future lessons and reviews are scheduled. Already-scheduled reviews keep their due dates, and your history and stages stay intact.</p><p>Correct answers advance one stage. Every two mistakes (rounded up) drop one stage in Apprentice or two stages from Guru onward, with Apprentice I as the minimum. Reaching stage 9 burns a word and ends its reviews in either mode.</p><p>You can switch modes without resetting words. Adaptive memory estimates continue to be recorded in both modes. Changing learning steps while a word is learning uses the new step list at its next review.</p></details>
     </fieldset>
     {editing && validation ? <p role="alert" className={styles.error}>{validation}</p> : null}
@@ -107,12 +110,16 @@ export function CustomSrsSettingsForm({ policy, blocked, onSave, onReload, brows
 }
 
 export function CustomSrsSettingsSection({ accountId }: { accountId: string }) {
+  const { user, isDemo } = useSession();
+  return !isDemo && canAccessCustomSrs(user?.data.username) ? <CustomSrsSettingsContent accountId={accountId} /> : null;
+}
+function CustomSrsSettingsContent({ accountId }: { accountId: string }) {
   const srs = useCustomSrs(accountId, CUSTOM_VOCABULARY_PACKS);
   useEffect(() => {
     if (!srs.isLoading && window.location.hash === "#custom-srs-settings") document.getElementById("custom-srs-settings")?.scrollIntoView({ block: "start" });
   }, [srs.isLoading]);
   return <section id="custom-srs-settings" data-settings-search="" data-search-keywords="custom vocabulary srs timing schedule intervals retention fsrs wanikani learning relearning" className={`${sectionStyles.settingsSection} ${styles.section}`} aria-labelledby="custom-srs-heading">
-    <div className={sectionStyles.sectionIntro}><Clock3 size={19} aria-hidden /><div><h2 id="custom-srs-heading">Custom vocabulary schedule</h2><p>Choose when your own vocabulary comes back for review.</p></div></div>
+    <div className={sectionStyles.sectionIntro}><Clock3 size={19} aria-hidden /><div><h2 id="custom-srs-heading">Custom vocabulary schedule</h2></div></div>
     {srs.isLoading ? <p role="status">Loading your saved schedule…</p> : srs.isUnavailable ? <div><p role="alert">{srs.error}</p><Button onClick={() => void srs.refresh()}>Retry loading schedule</Button></div> : <div>
       {srs.error ? <p role="alert" className={styles.error}>{srs.error} <button type="button" onClick={() => { void srs.retrySync(); void srs.refresh(); }}>Retry sync</button></p> : null}
       <CustomSrsSettingsForm key={accountId} policy={srs.state.policy} blocked={srs.pendingCount > 0 || Boolean(srs.error)} browserOnly={srs.storageMode === "browser"} onSave={srs.saveSettings} onReload={async () => { const result = await srs.refresh(); if (result.error) throw result.error; }} />

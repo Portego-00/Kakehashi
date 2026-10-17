@@ -253,7 +253,8 @@ for (const displayMode of ["normal", "compact"] as const) {
       ? page.getByRole("textbox", { name: "Your answer" })
       : page.locator("p").filter({ hasText: /^Press Enter to check/ });
     await expect(hint).toBeVisible();
-    const before = await hint.boundingBox();
+    // Compare page coordinates so screenshot scroll restoration isn't a layout shift.
+    const before = await hint.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
     const slot = page.locator("[data-srs-progression-slot]");
     const height = await slot.evaluate(
       (element) => element.getBoundingClientRect().height,
@@ -263,8 +264,8 @@ for (const displayMode of ["normal", "compact"] as const) {
       fullPage: true,
     });
     await expect(notice).toHaveCount(0, { timeout: 5000 });
-    const after = await hint.boundingBox();
-    expect(Math.abs(after!.y - before!.y)).toBeLessThan(1);
+    const after = await hint.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+    expect(Math.abs(after - before)).toBeLessThan(1);
     expect(
       await slot.evaluate((element) => element.getBoundingClientRect().height),
     ).toBe(height);
@@ -369,7 +370,10 @@ test("mode cards preserve partial Anki fallback and category changes persist set
     await page
       .getByRole("combobox", { name: "Settings category", exact: true })
       .selectOption("lessons");
-  else await page.getByRole("button", { name: /^Lessons Pace/ }).click();
+  else await page
+    .getByRole("complementary", { name: "Settings categories" })
+    .getByRole("button", { name: "Lessons", exact: true })
+    .click();
   await page
     .getByRole("spinbutton", { name: "Daily lesson limit", exact: true })
     .fill("20");

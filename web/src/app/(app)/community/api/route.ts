@@ -8,6 +8,7 @@ import {
   communityIdentity,
   communityIdentityOrNull,
   communityIssueCounts,
+  communityLikePeople,
   communitySupporterUsernames,
   communityWritable,
   deleteCommunityIssue,
@@ -24,7 +25,7 @@ import { boundedIdChunks, boundedPage } from "@/features/community/pagination";
 import { webIssueOriginLabels } from "@/features/community/issue-origin";
 import { COMMUNITY_COMMENT_READ_SELECT, COMMUNITY_ISSUE_READ_SELECT, publicCommunityComment, publicCommunityIssue } from "@/features/community/public-issue";
 import { normalizeGravatarEmail } from "@/lib/gravatar";
-import { canModerateCommunityStatus } from "@/features/community/security-model";
+import { canModerateCommunityStatus, canViewCommunityLikes } from "@/features/community/security-model";
 
 const requestId = z.string().uuid();
 const gravatarEmail = z.string().max(254).refine((value) => Boolean(normalizeGravatarEmail(value))).transform((value) => normalizeGravatarEmail(value)).optional();
@@ -51,6 +52,16 @@ export async function GET(request: NextRequest) {
     return jsonError("The shared community service is not configured.", 503);
   }
   try {
+    if (action === "likes") {
+      const auth = await identityOrError();
+      if (auth.response) return auth.response;
+      if (!canViewCommunityLikes(auth.identity!.username)) return jsonError("Liker lists are not available for this account.", 403);
+      const kind = request.nextUrl.searchParams.get("kind");
+      const id = request.nextUrl.searchParams.get("id") || "";
+      if ((kind !== "issue" && kind !== "comment") || !z.string().uuid().safeParse(id).success) return jsonError("Invalid like target.", 400);
+      const page = boundedPage(request.nextUrl.searchParams.get("page"), Number.MAX_SAFE_INTEGER);
+      return NextResponse.json(await communityLikePeople(kind, id, page), { headers: { "Cache-Control": "private, no-store" } });
+    }
     if (action === "activity") {
       const auth = await identityOrError();
       if (auth.response) return auth.response;

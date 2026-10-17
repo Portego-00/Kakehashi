@@ -11,7 +11,7 @@ export default function CustomSrsDashboardCard({ style }: { style?: StyleProp<Vi
   const { theme } = useTheme();
   const colors = useSubjectColors();
   const customSrs = useCustomSrs();
-  const nextReview = nextCustomReviewAt(customSrs.state);
+  const nextReview = nextCustomReviewAt(customSrs.state, customSrs.packs);
   const packCount = customSrs.state.enrolledPackIds.length;
   const lessonCount = customSrs.lessonWords.length;
   const reviewCount = customSrs.reviewWords.length;

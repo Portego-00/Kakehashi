@@ -15,7 +15,7 @@ jest.mock("react-native-reanimated", () => {
 beforeEach(() => jest.clearAllMocks());
 it.each([ ["vocabulary", "#882d9e"], ["kana_vocabulary", "#882d9e"], ["kanji", "#dd0093"], ["radical", "#00aaff"] ] as const)("uses the %s subject color", (subjectType, expected) => {
   const view = render(<ReviewPreviousAnswerCard answer={{ id: "1", source: "wanikani", title: "猫", correct: true, subjectType, subjectId: 1 }} />);
-  expect(StyleSheet.flatten(view.getByTestId("previous-answer-card").props.style).backgroundColor).toBe(expected);
+  expect(StyleSheet.flatten(view.getByTestId("previous-answer-card").props.style)).toMatchObject({ backgroundColor: expected, paddingHorizontal: 12 });
   fireEvent.press(view.getByTestId("previous-answer-card"));
   expect(mockPush).toHaveBeenCalledWith({ pathname: "/subject/[id]", params: { id: "1" } });
 });
@@ -23,7 +23,8 @@ it("uses Bunpro's color, keeps the verdict, and animates once per answer rather 
   const answer = { id: "1", source: "bunpro" as const, title: "つもり", correct: false, bunproSubject: { kind: "grammar" as const, slug: "tsumori" } };
   const view = render(<ReviewPreviousAnswerCard answer={answer} />);
   const card = view.getByTestId("previous-answer-card");
-  expect(StyleSheet.flatten(card.props.style).backgroundColor).toBe("#cc5b5d");
+  expect(StyleSheet.flatten(card.props.style)).toMatchObject({ backgroundColor: "#cc5b5d", paddingHorizontal: 8 });
+  expect(StyleSheet.flatten(view.getByText("つもり").props.style).color).toBe("#ffffff");
   expect(view.getByLabelText("Previous Bunpro answer: つもり, incorrect")).toBeTruthy();
   view.rerender(<ReviewPreviousAnswerCard answer={answer} />);
   expect(view.getByTestId("previous-answer-card")).toBe(card);

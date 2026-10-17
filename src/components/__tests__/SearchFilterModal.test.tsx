@@ -1,6 +1,6 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { StyleSheet } from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
 
 import {
   createDefaultSearchFilters,
@@ -110,6 +110,33 @@ jest.mock("../../utils/theme", () => ({
 }));
 
 describe("SearchFilterModal frequency filters", () => {
+  it("allows dragging the filter contents to dismiss the keyboard", () => {
+    const screen = render(<SearchFilterModal visible currentFilters={createDefaultSearchFilters()}
+      onClose={jest.fn()} onApply={jest.fn()} showFrequencyFilters />);
+    expect(screen.getByTestId("search-filter-sections").props.keyboardDismissMode).toBe("interactive");
+  });
+
+  it("scrolls to the frequency field on focus without scrolling back while typing", () => {
+    const scrollTo = jest.spyOn(ScrollView.prototype, "scrollTo").mockImplementation(() => {});
+    try {
+      const screen = render(<SearchFilterModal visible currentFilters={createDefaultSearchFilters()}
+        onClose={jest.fn()} onApply={jest.fn()} showFrequencyFilters />);
+      fireEvent(screen.getByTestId("frequency-filter-section"), "layout", {
+        nativeEvent: { layout: { x: 0, y: 300, width: 300, height: 100 } },
+      });
+      const input = screen.getByLabelText("Maximum word frequency rank");
+      fireEvent(input, "focus");
+      expect(scrollTo).toHaveBeenCalledWith({ y: 300, animated: true });
+      scrollTo.mockClear();
+      fireEvent.changeText(input, "2");
+      fireEvent.changeText(input, "20");
+      expect(screen.getByLabelText("Maximum word frequency rank").props.value).toBe("20");
+      expect(scrollTo).not.toHaveBeenCalled();
+    } finally {
+      scrollTo.mockRestore();
+    }
+  });
+
   it("applies any valid maximum rank when frequency filters are enabled", async () => {
     const onApply = jest.fn();
     const screen = render(

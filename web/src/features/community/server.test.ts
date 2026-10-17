@@ -107,3 +107,52 @@ describe("community author email refresh", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("community liker names", () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.resetModules(); });
+
+  it.each(["issue", "comment"] as const)("resolves %s likers using public authors and names of learners who have not posted", async (kind) => {
+    vi.stubEnv("SUPABASE_URL", "https://community.example");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "server-secret");
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("_likes")) return Response.json([
+        { id: "like-1", user_id: "author" }, { id: "like-2", user_id: "reader" },
+      ]);
+      if (url.pathname.endsWith("/issues")) return Response.json([{ user_id: "author", user_username: "Portego", user_email: "private@example.com" }]);
+      if (url.pathname.endsWith("/app_sessions")) return Response.json([{ user_id: "reader", user_name: "Reader", platform: "ios" }]);
+      return Response.json([]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { communityLikePeople } = await import("./server");
+    expect(await communityLikePeople(kind, "target-1", 2)).toEqual({
+      items: [{ id: "like-1", username: "Portego" }, { id: "like-2", username: "Reader" }], hasMore: false,
+    });
+    const query = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(query.pathname).toBe(`/rest/v1/${kind === "issue" ? "issue_likes" : "comment_likes"}`);
+    expect(query.searchParams.get(kind === "issue" ? "issue_id" : "comment_id")).toBe("eq.target-1");
+    expect(query.searchParams.get("offset")).toBe("100");
+    expect(query.searchParams.get("limit")).toBe("51");
+    const sessionQueries = fetchMock.mock.calls.map(([url]) => new URL(String(url))).filter((url) => url.pathname.endsWith("/app_sessions"));
+    expect(sessionQueries).toHaveLength(1);
+    expect(sessionQueries[0].searchParams.get("select")).toBe("user_id,user_name");
+    expect(sessionQueries[0].searchParams.get("user_id")).toBe('eq."reader"');
+  });
+
+  it("returns a bounded page and handles unavailable account names without exposing raw account IDs", async () => {
+    vi.stubEnv("SUPABASE_URL", "https://community.example");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "server-secret");
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/issue_likes")) return Response.json(Array.from({ length: 51 }, (_, index) => ({ id: `like-${index}`, user_id: "private-account-id" })));
+      if (url.pathname.endsWith("/app_sessions")) return new Response(null, { status: 403 });
+      return Response.json([]);
+    }));
+    const { communityLikePeople } = await import("./server");
+    const result = await communityLikePeople("issue", "target-1", 0);
+    expect(result.hasMore).toBe(true);
+    expect(result.items).toHaveLength(50);
+    expect(result.items[0]).toEqual({ id: "like-0", username: "Unknown learner" });
+    expect(JSON.stringify(result)).not.toContain("private-account-id");
+  });
+});

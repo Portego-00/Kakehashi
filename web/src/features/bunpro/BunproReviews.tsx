@@ -37,13 +37,14 @@ import { ReviewExitGuard } from "@/features/core-study/ReviewExitGuard";
 import { ReviewDetailsReveal } from "@/features/study/components/ReviewDetailsReveal";
 import { SessionResults } from "@/features/mixed-reviews/SessionResults";
 import type { SessionResult } from "@/features/mixed-reviews/session-results";
+import { advanceBunproPractice, BUNPRO_PRACTICE_MODES, type BunproPracticeSession } from "./practice";
 import quiz from "@/features/study/study.module.css";
 import core from "@/features/core-study/core-study.module.css";
 import styles from "./bunpro.module.css";
 
 type Outcome = { correct: boolean; entered: string };
 const labels = { grammar: "Grammar", vocab: "Vocabulary", all: "Grammar & vocabulary" };
-export function BunproReviews({ initialMode, lessonSession, onContinueLessons, mixed }: { mixed?: MixedBridge; initialMode?: ReviewMode; lessonSession?: BunproReviewQuizIndexResponse; onContinueLessons?: () => void } = {}) {
+export function BunproReviews({ initialMode, lessonSession, onContinueLessons, mixed, practiceSession, practiceNotice, onRestartPractice, onPracticeAgain }: { mixed?: MixedBridge; initialMode?: ReviewMode; lessonSession?: BunproReviewQuizIndexResponse; onContinueLessons?: () => void; practiceSession?: BunproPracticeSession; practiceNotice?: string; onRestartPractice?: () => void; onPracticeAgain?: () => void } = {}) {
   const id = useId();
   const answerId = `${id}-bunpro-answer`;
   const detailsId = `${id}-bunpro-details`;
@@ -59,18 +60,22 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const [previousAnswer, setPreviousAnswer] = useState<MixedPreviousAnswer | null>(null);
   const savedProgressions = useRef(new Map<string, Progression>());
   const [mode, setMode] = useState<ReviewMode>(initialMode ?? "all");
-  const [phase, setPhase] = useState<"choose" | "loading" | "review" | "complete">(lessonSession ? "review" : "choose");
+  const [phase, setPhase] = useState<"choose" | "loading" | "review" | "complete">(practiceSession ? practiceSession.items.length ? "review" : "complete" : lessonSession ? "review" : "choose");
   const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
-  const [queue, setQueue] = useState<BunproReviewQueueItem[]>(() => lessonSession ? buildReviewQueue(lessonSession) : []);
+  const [queue, setQueue] = useState<BunproReviewQueueItem[]>(() => practiceSession?.items ?? (lessonSession ? buildReviewQueue(lessonSession) : []));
   useReviewOrdering(preferences, (next) => setQueue((pending) => pending.length ? [pending[0], ...orderBunproReviews(pending.slice(1), next)] : pending));
-  const [reviewTotal, setReviewTotal] = useState(lessonSession ? buildReviewQueue(lessonSession).length : 0);
+  const [reviewTotal, setReviewTotal] = useState(practiceSession?.items.length ?? (lessonSession ? buildReviewQueue(lessonSession).length : 0));
   const [sessionId, setSessionId] = useState(lessonSession?.review_session_id ?? 0);
   const [ankiRevealed, setAnkiRevealed] = useState(false);
   const sessionLimit = useRef(Infinity);
   const [input, setInput] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [hint, setHint] = useState("");
-  const [hintLevel, setHintLevel] = useState(2);
+  const initialHintLevel = practiceSession && practiceSession.mode !== "sentence-drill" && practiceSession.mode !== "mastery-loop" ? 0 : 2;
+  const [hintLevel, setHintLevel] = useState(initialHintLevel);
+  const [practiceStreaks, setPracticeStreaks] = useState(new Map<string, number>());
+  const [practiceSentenceShown, setPracticeSentenceShown] = useState(false);
+  const practiceDefinition = BUNPRO_PRACTICE_MODES.find(item => item.id === practiceSession?.mode);
   const [alternativesOpen, setAlternativesOpen] = useState(false);
   const [error, setError] = useState("");
   const [saveFailure, setSaveFailure] = useState<{ canContinue: boolean } | null>(null);
@@ -99,7 +104,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   useEffect(() => () => recognitionRef.current?.stop(), []);
   const inputRef = useRef<HTMLInputElement>(null);
   const answerInputRef = useReviewAnswerFocus(inputRef, mixed?.active !== false);
-  const connection = useQuery({ queryKey: ["bunpro", "connection"], queryFn: () => bunpro<{ connected: boolean }>("action=connection"), retry: false });
+  const connection = useQuery({ queryKey: ["bunpro", "connection"], queryFn: () => bunpro<{ connected: boolean }>("action=connection"), retry: false, enabled: !practiceSession });
   async function start() {
     if (locked.current) return;
     locked.current = true;
@@ -128,7 +133,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const currentKey = current ? reviewKey(current) : "";
   const currentReviewType = current ? reviewType(current) : "review";
   const specialReviewLabel = currentReviewType === "ghost_review" ? "Ghost review" : currentReviewType === "self_study_review" ? "Self-study review" : "";
-  const stageLabel = currentReviewType === "ghost_review"
+  const stageLabel = practiceSession ? "" : currentReviewType === "ghost_review"
     ? current?.data.attributes.is_slain ? "Ghost cleared" : typeof current?.data.attributes.streak === "number" ? `Ghost ${current.data.attributes.streak + 1}` : ""
     : currentReviewType === "review" && current ? bunproStage(current.data.attributes).label : "";
   const accuracyResults = pendingAccuracy && !results.some(item => item.id === pendingAccuracy.id) ? [...results, pendingAccuracy] : results;
@@ -142,10 +147,10 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const startedFromCard = useRef(false);
   const startFromCard = useEffectEvent(() => { void start(); });
   useEffect(() => {
-    if (!initialMode || !connection.data?.connected || startedFromCard.current) return;
+    if (practiceSession || !initialMode || !connection.data?.connected || startedFromCard.current) return;
     startedFromCard.current = true;
     startFromCard();
-  }, [initialMode, connection.data?.connected]);
+  }, [initialMode, connection.data?.connected, practiceSession]);
   const retrySchedule = useRef(createReviewRetrySchedule());
   const mixedPrevious = useRef<string | undefined>(undefined);
   const reportMixed = useEffectEvent(() => {
@@ -184,6 +189,43 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const alternativeFeedback = [...buildAnswerFeedbackMap(question.alternate_answers)];
   const hasAudio = bunproAudioUrls(question, "both").length > 0;
   function replayAudio() { return audio.play(bunproAudioUrls(question, preferences.vocabularyAudioVoice)); }
+  const playPracticeQuestion = useEffectEvent(() => {
+    if (practiceSession?.mode === "listening-cloze" && phase === "review") void replayAudio();
+  });
+  useEffect(() => { playPracticeQuestion(); }, [currentKey, phase]);
+
+  function restartPractice(missedOnly = false) {
+    if (!practiceSession) return;
+    audio.stop();
+    const missed = new Set(results.filter(item => !item.correct).map(item => item.id));
+    const items = practiceSession.items.filter(item => !missedOnly || missed.has(`bunpro:${reviewKey(item)}`));
+    setQueue(orderBunproReviews(items, { ...preferences, reviewOrder: "random" }));
+    setReviewTotal(items.length); setCompletedCount(0); setResults([]); setHandledIds(new Set()); setPracticeStreaks(new Map());
+    setSessionStartedAt(Date.now()); setDurationMs(0); setPreviousAnswer(null);
+    setInput(""); setOutcome(null); setHint(""); setHintLevel(initialHintLevel); setAnkiRevealed(false); setDetailsOverride(null); setAlternativesOpen(false); setPracticeSentenceShown(false);
+    setPhase(items.length ? "review" : "complete");
+  }
+
+  function advancePractice(result: Outcome) {
+    if (!practiceSession || !current || !content) return;
+    audio.stop(); recognitionRef.current?.stop();
+    const next = advanceBunproPractice(queue, practiceStreaks, result.correct, practiceSession.mode);
+    setPracticeStreaks(next.streaks);
+    setResults(previous => previous.some(item => item.id === `bunpro:${currentKey}`) ? previous : [...previous, {
+      id: `bunpro:${currentKey}`, source: "bunpro", kind: content.kind,
+      title: sanitizeText(content.attributes.title) || answer, meaning: sanitizeText(content.attributes.meaning), correct: result.correct,
+      href: content.slug ? `/bunpro/${content.kind}/${encodeURIComponent(content.slug)}` : undefined,
+      sentence: { parts: sentence, answer }, translation: typeof question.translation === "string" ? question.translation : undefined,
+      audioUrls: bunproAudioUrls(question, "female"),
+    }]);
+    setHandledIds(previous => new Set(previous).add(currentKey));
+    setPreviousAnswer({ id: `bunpro:${currentKey}`, source: "bunpro", title: sanitizeText(content.attributes.title) || answer, correct: result.correct, bunproSubject: content.slug ? { kind: content.kind, slug: content.slug } : undefined });
+    if (next.completed) setCompletedCount(count => count + 1);
+    setQueue(next.queue); setInput(""); setOutcome(null); setHint(""); setHintLevel(initialHintLevel);
+    setAnkiRevealed(false); setDetailsOverride(null); setAlternativesOpen(false); setPracticeSentenceShown(false);
+    if (!next.queue.length) { setDurationMs(Date.now() - sessionStartedAt); setPhase("complete"); }
+    requestAnimationFrame(() => focusAnswer());
+  }
   function startVoiceAnswer() {
     if (!preferences.voiceAnswers || outcome || selfAssessment || saving) return;
     const Recognition = speechRecognitionConstructor();
@@ -234,6 +276,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     const result = correctOverride === undefined ? resolvedOutcome : { ...resolvedOutcome, correct: correctOverride };
     if (correctOverride !== undefined && preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correctOverride);
     setOutcome(result);
+    if (practiceSession) { advancePractice(result); return; }
     recognitionRef.current?.stop();
     locked.current = true; setSaving(true); setError(""); setSaveFailure(null);
     setDetailsOverride(false); setAlternativesOpen(false);
@@ -362,10 +405,10 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     requestAnimationFrame(() => inputRef.current?.focus());
   }
   function skip() {
-    if (!preferences.allowSkippingReviews || locked.current || !current || handledIds.has(currentKey)) return;
+    if (!preferences.allowSkippingReviews || locked.current || !current || (!practiceSession && handledIds.has(currentKey))) return;
     recognitionRef.current?.stop();
     // Defer the question within this session without sending a grade to Bunpro.
-    setQueue((items) => [...items.slice(1), items[0]]); setHintLevel(2);
+    setQueue((items) => [...items.slice(1), items[0]]); setHintLevel(initialHintLevel); setPracticeSentenceShown(false);
     resetAnswer();
   }
   function wrapUp(limit = preferences.reviewWrapUpSize) {
@@ -414,7 +457,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     if (hasAudio && action === "replayAudio") { event.preventDefault(); void replayAudio(); }
     if (!outcome) return;
     if (action === "alternatives") { event.preventDefault(); setAlternativesOpen(!alternativesOpen); }
-    if (current && !handledIds.has(currentKey)) {
+    if (current && (practiceSession || !handledIds.has(currentKey))) {
       if (action === "undo") { event.preventDefault(); resetAnswer(); }
       if (action === "markIncorrect" || action === "markCorrect") { event.preventDefault(); void advance(action === "markCorrect"); }
     }
@@ -428,7 +471,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   if (phase === "choose" && initialMode && connection.isPending) return <BunproLoading kind="reviews" />;
   if (phase === "choose") return <main className={styles.chooser}><div className={styles.row}><h1>Bunpro reviews</h1><ButtonLink href="/dashboard" tone="ghost">Back</ButtonLink></div><p>Choose what you want to review.</p><fieldset className={styles.choices}><legend>Review type</legend>{(["grammar", "vocab", "all"] as const).map((value) => <label key={value}><input type="radio" name="bunpro-mode" value={value} checked={mode === value} onChange={() => setMode(value)} /><span>{labels[value]}</span></label>)}</fieldset>{connection.isPending ? <p role="status">Checking Bunpro connection…</p> : connection.data?.connected ? <Button tone="primary" onClick={start}>Start reviews</Button> : <ButtonLink href="/settings#bunpro-api-key">Add Bunpro API key</ButtonLink>}{error || connection.error ? <p role="alert">{error || connection.error?.message}</p> : null}</main>;
   if (phase === "loading") return <BunproLoading kind="reviews" />;
-  if (phase === "complete") return <SessionResults progression={<BunproProgression progression={mixed ? null : progression} mode={preferences.srsProgressionCardDisplayMode} />} items={results} durationMs={durationMs} pendingCount={0} title={results.length ? lessonSession ? "Lesson quiz complete" : "Bunpro reviews complete" : "No Bunpro reviews waiting"} onContinue={onContinueLessons} onRestart={() => setPhase("choose")} />;
+  if (phase === "complete") return <SessionResults practice={Boolean(practiceSession)} onRetryMissed={practiceSession ? () => restartPractice(true) : undefined} onConfigure={onRestartPractice} progression={practiceSession ? undefined : <BunproProgression progression={mixed ? null : progression} mode={preferences.srsProgressionCardDisplayMode} />} items={results} durationMs={durationMs} pendingCount={0} title={practiceSession ? `${practiceDefinition?.title ?? "Bunpro practice"} complete` : results.length ? lessonSession ? "Lesson quiz complete" : "Bunpro reviews complete" : "No Bunpro reviews waiting"} onContinue={onContinueLessons} onRestart={practiceSession ? onPracticeAgain ?? (() => restartPractice()) : () => setPhase("choose")} />;
   if (!current || !content) return null;
   const valid = Boolean(answer && sanitizeQuestionContent(question.content));
   const showQuestionHints = hintLevel >= 2 || revealed;
@@ -439,13 +482,15 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const saveFailureNotice = outcome && saveFailure ? <div className={quiz.answerStatus}><p className={core.error} role="alert">{error} Your current answer is kept on screen.</p>{saveFailure.canContinue ? <Button type="button" tone="ghost" disabled={saving} onClick={() => void advance(undefined, undefined, true)}>Continue without saving</Button> : null}</div> : null;
   return <BunproFurigana hidden={preferences.bunproHideFurigana} questionKey={currentKey}><main ref={reviewViewportRef} className={`${quiz.quizShell} ${styles.reviewShell} ${!selfAssessment ? quiz.typedReviewShell : ""}`} data-study-session="active" data-advancing={(saving && !backgroundAdvance) || undefined} style={{ "--jitai-font": jitaiFamily } as CSSProperties}>
       <ReviewExitGuard pendingSubjects={saving ? 1 : 0} />
-      <div className={quiz.quizTopbar}><span>{mixed ? "Mixed reviews" : "Bunpro"} · {Math.min(displayCompleted + 1, displayTotal)} / {displayTotal}</span><div className={quiz.progressTrack} role="progressbar" aria-label="Review progress" aria-valuenow={displayCompleted} aria-valuemin={0} aria-valuemax={Math.max(1, displayTotal)}><span style={{ transform: `scaleX(${displayCompleted / Math.max(1, displayTotal)})` }} /></div><div className={quiz.quizTopbarActions}><ReviewAccuracy {...(mixed?.accuracy ?? answerAccuracy)} />{!lessonSession && !mixed?.wrapUpRequest && (mixed?.progress ? mixed.progress.total - mixed.progress.completed : queue.length) > preferences.reviewWrapUpSize ? <Button tone="ghost" size="small" disabled={saving} onClick={() => mixed?.onWrapUp ? mixed.onWrapUp() : wrapUp()}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink className={quiz.iconButton} href={`/search?q=${encodeURIComponent(sanitizeText(content.attributes.title))}`} target="_blank" tone="ghost" aria-label="Search this item"><Search size={18} /></ButtonLink> : null}<ReviewSettingsButton bunproSupported disabled={saving} onOpenChange={(open) => { setReviewSettingsOpen(open); if (open) recognitionRef.current?.stop(); }} /><ButtonLink className={quiz.iconButton} href="/dashboard" tone="ghost" aria-label="Pause and exit session"><X size={19} /></ButtonLink></div></div>
+      <div className={quiz.quizTopbar}><span>{practiceDefinition?.title ?? (mixed ? "Mixed reviews" : "Bunpro")} · {Math.min(displayCompleted + 1, displayTotal)} / {displayTotal}</span><div className={quiz.progressTrack} role="progressbar" aria-label="Review progress" aria-valuenow={displayCompleted} aria-valuemin={0} aria-valuemax={Math.max(1, displayTotal)}><span style={{ transform: `scaleX(${displayCompleted / Math.max(1, displayTotal)})` }} /></div><div className={quiz.quizTopbarActions}><ReviewAccuracy {...(mixed?.accuracy ?? answerAccuracy)} />{!practiceSession && !lessonSession && !mixed?.wrapUpRequest && (mixed?.progress ? mixed.progress.total - mixed.progress.completed : queue.length) > preferences.reviewWrapUpSize ? <Button tone="ghost" size="small" disabled={saving} onClick={() => mixed?.onWrapUp ? mixed.onWrapUp() : wrapUp()}>Wrap Up {preferences.reviewWrapUpSize}</Button> : null}{preferences.reviewSearchButtonEnabled ? <ButtonLink className={quiz.iconButton} href={`/search?q=${encodeURIComponent(sanitizeText(content.attributes.title))}`} target="_blank" tone="ghost" aria-label="Search this item"><Search size={18} /></ButtonLink> : null}<ReviewSettingsButton bunproSupported disabled={saving} onOpenChange={(open) => { setReviewSettingsOpen(open); if (open) recognitionRef.current?.stop(); }} /><ButtonLink className={quiz.iconButton} href={practiceSession ? "/study" : "/dashboard"} tone="ghost" aria-label="Pause and exit session"><X size={19} /></ButtonLink></div></div>
+      {practiceNotice ? <p role="status">{practiceNotice}</p> : null}
       {!lessonSession && (!mixed || mixed.active) ? <MixedPreviousBadge key={displayPreviousAnswer?.id} answer={displayPreviousAnswer} claimAnimation={mixed?.claimPreviousAnimation} animate={preferences.reviewAnimatePreviousQuestion} /> : null}
       <header className={`${quiz.questionCard} ${styles.sentenceArea}`} aria-label="Bunpro review">
           {specialReviewLabel ? <p>{specialReviewLabel}</p> : null}
-          {handledIds.has(currentKey) ? <p>Retrying missed item</p> : null}
+          {practiceSession?.mode === "mastery-loop" ? <p>{practiceStreaks.get(current.data.id) ?? 0} / 2 consecutive correct answers</p> : !practiceSession && handledIds.has(currentKey) ? <p>Retrying missed item</p> : null}
           {question.tense && (!selfAssessment || showQuestionHints) ? <p className={showQuestionHints ? undefined : styles.concealedHint} aria-hidden={!showQuestionHints}><BunproText value={question.tense} /></p> : null}
-          <div className={styles.sentence} lang="ja" style={{ fontSize: `calc(clamp(1.6rem, 3vw, 2.8rem) * ${preferences.reviewCharacterFontScale})` }}><BunproSentence parts={sentence}><span className={styles.blank} data-correct={outcome?.correct}><RubyText text={revealed ? answer : input || "　　"} /></span></BunproSentence></div>
+          {practiceSession?.mode === "listening-cloze" && !revealed ? <div><Button tone="ghost" onClick={() => void replayAudio()}><Volume2 size={20} />Listen to sentence</Button><Button tone="ghost" aria-pressed={practiceSentenceShown} onClick={() => setPracticeSentenceShown(value => !value)}>{practiceSentenceShown ? "Hide sentence" : "Show sentence"}</Button></div> : null}
+          {practiceSession?.mode === "listening-cloze" && !revealed && !practiceSentenceShown ? null : <div className={styles.sentence} lang="ja" style={{ fontSize: `calc(clamp(1.6rem, 3vw, 2.8rem) * ${preferences.reviewCharacterFontScale})` }}><BunproSentence parts={sentence}><span className={styles.blank} data-correct={outcome?.correct}><RubyText text={revealed ? answer : input || "　　"} /></span></BunproSentence></div>}
           {question.word_prompt && (!selfAssessment || showQuestionHints) ? <p lang="ja" className={showQuestionHints ? undefined : styles.concealedHint} aria-hidden={!showQuestionHints}><BunproText value={question.word_prompt} /></p> : null}
           {!selfAssessment || showTranslation ? <div className={`${styles.translation} ${showTranslation ? "" : styles.concealedHint}`} aria-hidden={!showTranslation}><BunproText value={question.translation} /></div> : null}
           {hintLevel >= 3 ? <div className={styles.grammarHint} aria-live="polite">{hintLevel >= 4 ? <p lang="ja"><BunproText value={content.attributes.nuance} /></p> : null}<p><BunproText value={content.attributes.nuance_translation} /></p>{question.extra_info ? <p><BunproText value={question.extra_info} /></p> : null}</div> : null}
@@ -476,13 +521,13 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
           {preferences.voiceAnswers && !outcome ? <Button type="button" tone="ghost" aria-label="Answer with voice" disabled={listening || saving} onClick={startVoiceAnswer}><Mic size={18} aria-hidden />{listening ? "Listening…" : "Speak"}</Button> : null}
           {content.kind === "grammar" ? <Button tone="ghost" aria-label={`Hint level ${hintLevel} of 4`} onClick={() => setHintLevel((level) => (level + 1) % 5)}><Lightbulb size={17} aria-hidden />Hint <span className={styles.hintDots} aria-hidden>{Array.from({ length: 4 }, (_, i) => <span key={i} data-active={i < hintLevel} />)}</span></Button> : null}
           {outcome ? <>
-            <Button tone="ghost" disabled={saving || handledIds.has(currentKey)} onClick={resetAnswer}><RotateCcw size={17} aria-hidden />Undo{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.undo)}</kbd> : null}</Button>
+            <Button tone="ghost" disabled={saving || (!practiceSession && handledIds.has(currentKey))} onClick={resetAnswer}><RotateCcw size={17} aria-hidden />Undo{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.undo)}</kbd> : null}</Button>
             <Button tone="ghost" disabled={!content.slug || saving} aria-controls={detailsId} aria-expanded={details} onClick={() => setDetailsOverride(!details)}><Info size={17} aria-hidden />{details ? "Hide Info" : "Info"}{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.details)}</kbd> : null}</Button>
             <Button tone="ghost" disabled={saving} aria-controls={alternativesId} aria-expanded={alternativesOpen} onClick={() => setAlternativesOpen(!alternativesOpen)}><List size={17} aria-hidden />Alternatives{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.alternatives)}</kbd> : null}</Button>
             <Button tone="ghost" disabled={!hasAudio || saving} aria-label={audio.playing ? "Replay audio" : "Audio"} onClick={() => void replayAudio()}><Volume2 size={17} aria-hidden />{hasAudio ? "Audio" : "No audio"}{preferences.keyboardShortcuts && hasAudio ? <kbd aria-hidden>{shortcutLabel(studyKeys.replayAudio)}</kbd> : null}</Button>
-            <Button tone={outcome.correct ? "ghost" : "primary"} disabled={saving || handledIds.has(currentKey)} onClick={() => void advance(!outcome.correct)}>{outcome.correct ? <X size={17} aria-hidden /> : <Check size={17} aria-hidden />}{outcome.correct ? "Mark Incorrect" : "Mark Correct"}{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(outcome.correct ? studyKeys.markIncorrect : studyKeys.markCorrect)}</kbd> : null}</Button>
+            <Button tone={outcome.correct ? "ghost" : "primary"} disabled={saving || (!practiceSession && handledIds.has(currentKey))} onClick={() => void advance(!outcome.correct)}>{outcome.correct ? <X size={17} aria-hidden /> : <Check size={17} aria-hidden />}{outcome.correct ? "Mark Incorrect" : "Mark Correct"}{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(outcome.correct ? studyKeys.markIncorrect : studyKeys.markCorrect)}</kbd> : null}</Button>
           </> : null}
-          {preferences.allowSkippingReviews ? <Button tone="ghost" disabled={saving || handledIds.has(currentKey) || queue.length < 2} onClick={skip} title="Move this question to the end without saving an answer"><SkipForward size={17} aria-hidden />Skip</Button> : null}
+          {preferences.allowSkippingReviews ? <Button tone="ghost" disabled={saving || (!practiceSession && handledIds.has(currentKey)) || queue.length < 2} onClick={skip} title="Move this question to the end without saving an answer"><SkipForward size={17} aria-hidden />Skip</Button> : null}
         </div>
         <div className={quiz.reviewProgressionSlot}>
           <BunproProgression progression={mixed?.reportBunproProgression ? mixed.bunproProgression ?? null : progression} mode={preferences.srsProgressionCardDisplayMode} />

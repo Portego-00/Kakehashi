@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsSearch } from "./SettingsSearch";
+
+beforeEach(() => { vi.spyOn(window, "scrollTo").mockImplementation(() => {}); });
 
 describe("settings search navigation", () => {
   it("finds a misspelled setting, then opens and focuses the existing control", async () => {

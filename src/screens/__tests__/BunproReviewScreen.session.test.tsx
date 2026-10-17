@@ -1,7 +1,8 @@
 import React from "react";
 import { Audio } from "../../utils/expoAvCompat";
+import * as Haptics from "../../utils/haptics";
 import { StyleSheet } from "react-native";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import BunproReviewScreen from "../BunproReviewScreen";
 import { getBunproReviewQuizIndex, updateBunproReview } from "../../utils/bunproApi";
 import type { BunproReviewQueueItem } from "../../types/bunpro";
@@ -9,6 +10,7 @@ import { createBunproReviewSavePolicy } from "../../utils/bunproReviewSavePolicy
 import type { MixedReviewBridge } from "../../types/mixedReviews";
 
 const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false, ankiCardMode: false, ankiCardModeScope: "both", ankiHideAnswerCompletely: false, ankiShowOtherAcceptedAnswersAndUserSynonyms: false, ankiShowReplayAudioButton: false, ankiButtonlessMode: false, ankiGroupQuestions: false, reviewSearchButtonEnabled: false, bunproHideFurigana: false, setBunproHideFurigana: jest.fn() };
+const mockPush = jest.fn();
 
 jest.mock("react-native-safe-area-context", () => jest.requireActual("react-native-safe-area-context/jest/mock").default);
 
@@ -17,13 +19,13 @@ jest.mock("react-native-reanimated", () => {
   const { View } = jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: { View }, useReducedMotion: () => false, useSharedValue: (value: number) => React.useRef({ value }).current, useAnimatedStyle: (fn: () => object) => fn(), withTiming: (value: number) => value };
 });
-jest.mock("../../utils/haptics", () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: "success", Error: "error" } }));
+jest.mock("../../utils/haptics", () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: "success", Error: "error", Warning: "warning" } }));
 jest.mock("../../hooks/use-bunpro-voice-answer", () => ({ useBunproVoiceAnswer: () => ({ listening: false, error: "", start: jest.fn(), stop: jest.fn() }) }));
 jest.mock("../../hooks/use-bunpro-jitai-font", () => ({ useBunproJitaiFont: () => undefined }));
 jest.mock("../../components/bunpro/bunpro-review-shortcuts", () => ({ BunproReviewShortcuts: () => null }));
 jest.mock("../../components/bunpro/bunpro-details-content", () => ({ BunproDetailsContent: () => null }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }), useLocalSearchParams: () => ({}) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: mockPush }), useLocalSearchParams: () => ({}) }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("../../utils/navigation-focus", () => ({ useOptionalScreenIsFocused: () => true }));
 jest.mock("../../utils/store", () => ({
@@ -85,7 +87,7 @@ it("serializes saves, ignores repeated Next taps, and clears feedback and input 
   await act(async () => saving.resolve({}));
   expect(view.getByText("Question 2 ")).toBeTruthy();
   expect(view.getByLabelText("Bunpro answer").props.value).toBe("");
-  expect(view.queryByText("Undo")).toBeNull();
+  expect(view.getByLabelText("Undo answer").props.accessibilityState.disabled).toBe(true);
   expect(view.getByLabelText("Check answer")).toBeTruthy();
 });
 
@@ -108,11 +110,10 @@ it("repeats a missed question with fresh state and saves the correct wrapup with
   const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} mixed={mixed} />);
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
   fireEvent.press(view.getByLabelText("Check answer"));
-  fireEvent.press(view.getByText("Alternatives"));
+  fireEvent.press(view.getByLabelText("Show answer"));
   fireEvent.press(view.getByLabelText("Next question"));
   await waitFor(() => expect(view.getByLabelText("Check answer")).toBeTruthy());
   expect(view.getByLabelText("Bunpro answer").props.value).toBe("");
-  expect(view.getByText(/Retry/)).toBeTruthy();
   expect(mixed.report).toHaveBeenLastCalledWith(expect.objectContaining({ id: "1:1:q1", remaining: 1 }));
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
   fireEvent.press(view.getByLabelText("Check answer"));
@@ -306,7 +307,7 @@ it("submits same-number normal and ghost reviews independently and labels the gh
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
   fireEvent.press(view.getByLabelText("Check answer"));
   fireEvent.press(view.getByLabelText("Next question"));
-  await waitFor(() => expect(view.getByText(/Ghost review/)).toBeTruthy());
+  await waitFor(() => expect(view.getByLabelText("Bunpro review progress").props.children).toBe("2/2"));
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
   fireEvent.press(view.getByLabelText("Check answer"));
   expect(view.getByText("Ghost 1")).toBeTruthy();
@@ -408,7 +409,7 @@ it("uses the web semantic success color for a correct answer", () => {
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
   fireEvent.press(view.getByLabelText("Check answer"));
   expect(StyleSheet.flatten(view.getByTestId("bunpro-answer-row").props.style)).toMatchObject({ borderColor: "#017b37", backgroundColor: "#dcf2df" });
-  expect(StyleSheet.flatten(view.getByLabelText("Bunpro answer").props.style).color).toBe("#000");
+  expect(StyleSheet.flatten(view.getByLabelText("Bunpro answer").props.style).color).toBe("#017b37");
 });
 
 
@@ -732,15 +733,15 @@ it("preserves typed drafts when the mixed scheduler promotes and restores pendin
   expect(updateBunproReview).not.toHaveBeenCalled();
 });
 
-it("fills every Bunpro cloze blank and reveals the expected answer with the verdict", () => {
+it("fills every Bunpro cloze blank and reveals the expected answer on demand", () => {
   const question = item("1", "です", "GrammarPoint");
   question.included![0].attributes.content = "First ____ and second ____ end.";
   const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "違う"); fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getAllByText("違う")).toHaveLength(2);
+  fireEvent.press(view.getByLabelText("Show answer"));
   expect(view.getAllByText("です")).toHaveLength(2);
-  expect(view.getByText("The answer is です.")).toBeTruthy();
-  fireEvent.press(view.getByText("Alternatives"));
-  expect(view.getByText("Accepted answers")).toBeTruthy();
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("違う");
 });
 
 it("refuses to grade a question whose accepted answer exists but sentence is missing", () => {
@@ -758,4 +759,166 @@ it("shows Bunpro close-answer feedback for English translation answers without g
   expect(view.getByText("Include the article.")).toBeTruthy();
   expect(view.queryByText("Incorrect")).toBeNull();
   expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("clears a wrong answer with Undo and retries locally without saving or advancing", () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByText("Undo"));
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("");
+  expect(view.getByText("Question 1 ")).toBeTruthy();
+  expect(view.getByLabelText("Check answer")).toBeTruthy();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("opens the Bunpro details page while preserving the submitted answer", () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByLabelText("Show details"));
+  expect(mockPush).toHaveBeenCalledWith({ pathname: "/bunpro-reviewable/[kind]/[slug]", params: { kind: "vocab", slug: "subject-1" } });
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("いぬ");
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("reveals and cycles accepted answers in every sentence blank without changing the input", () => {
+  const question = item("1", "です", "GrammarPoint");
+  question.included![0].attributes.content = "First ____ and second ____ end.";
+  question.included![0].attributes.alternate_grammar = ["である", "だ"];
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "違う");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getAllByText("違う")).toHaveLength(2);
+  fireEvent.press(view.getByLabelText("Show answer"));
+  expect(view.getAllByText("です")).toHaveLength(2);
+  for (const answer of ["である", "だ", "です"]) {
+    fireEvent.press(view.getByLabelText("Show alternatives"));
+    expect(view.getAllByText(answer)).toHaveLength(2);
+    expect(view.getByLabelText("Bunpro answer").props.value).toBe("違う");
+  }
+  expect(view.queryByText("Accepted answers")).toBeNull();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("spaces Bunpro misses even when WaniKani immediate retries are enabled", async () => {
+  Object.assign(mockReviewSettings, { backToBackQuestions: true, backToBackImmediateRetryIncorrect: true });
+  try {
+    const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2"), item("3")]} initialReviewSessionId={42} />);
+    fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+    fireEvent.press(view.getByLabelText("Check answer"));
+    fireEvent.press(view.getByLabelText("Next question"));
+    await waitFor(() => expect(view.getByText("Question 2 ")).toBeTruthy());
+    fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+    fireEvent.press(view.getByLabelText("Check answer"));
+    fireEvent.press(view.getByLabelText("Next question"));
+    await waitFor(() => expect(view.getByText("Question 3 ")).toBeTruthy());
+  } finally { Object.assign(mockReviewSettings, { backToBackQuestions: false, backToBackImmediateRetryIncorrect: false }); }
+});
+
+it("keeps the speaker hidden until submission and places all four controls above the input", () => {
+  const question = item("1", "です", "GrammarPoint");
+  question.included![0].attributes.female_audio_url = "https://example.com/female.mp3";
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
+  expect(view.queryByLabelText("Play Bunpro audio")).toBeNull();
+  expect(view.queryByText("Speak")).toBeNull();
+  expect(view.getByTestId("bunpro-review-toolbar")).toBeTruthy();
+  expect(view.getAllByRole("button").filter(button => ["Hint level 2 of 4", "Undo answer", "Show details", "Show alternatives"].includes(button.props.accessibilityLabel)).map(button => button.props.accessibilityLabel)).toEqual(["Hint level 2 of 4", "Undo answer", "Show details", "Show alternatives"]);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "です");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getByLabelText("Play Bunpro audio")).toBeTruthy();
+  expect(view.queryByText("Speak")).toBeNull();
+});
+
+it("allows Undo on a later retry without changing the saved first grade", async () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.getByLabelText("Check answer")).toBeTruthy());
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByLabelText("Undo answer"));
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("");
+  expect(view.getByLabelText("Check answer")).toBeTruthy();
+  expect(updateBunproReview).toHaveBeenCalledTimes(1);
+});
+
+it("advances the retry clock during automatic correct answers", async () => {
+  const random = jest.spyOn(Math, "random").mockReturnValue(0);
+  mockReviewSettings.disableAutoProgressOnCorrect = false;
+  try {
+    const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2"), item("3"), item("4")]} initialReviewSessionId={42} />);
+    fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+    fireEvent.press(view.getByLabelText("Check answer"));
+    fireEvent.press(view.getByLabelText("Next question"));
+    for (const id of ["2", "3"]) {
+      await waitFor(() => expect(view.getByText(`Question ${id} `)).toBeTruthy());
+      fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ねこ");
+      fireEvent.press(view.getByLabelText("Check answer"));
+    }
+    await waitFor(() => expect(view.getByText("Question 1 ")).toBeTruthy());
+  } finally { random.mockRestore(); }
+});
+
+it("loads unseen questions before immediately repeating the final miss in a loaded batch", async () => {
+  jest.mocked(getBunproReviewQuizIndex)
+    .mockResolvedValueOnce({ review_session_id: 42, pending_attempt: [item("1")], pending_wrapup: [], total_pending_attempt_count: 3, total_pending_wrapup_count: 0 })
+    .mockResolvedValueOnce({ review_session_id: 43, pending_attempt: [item("2"), item("3")], pending_wrapup: [], total_pending_attempt_count: 2, total_pending_wrapup_count: 0 });
+  const view = render(<BunproReviewScreen />);
+  await waitFor(() => expect(view.getByLabelText("Bunpro answer")).toBeTruthy());
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.press(view.getByLabelText("Next question"));
+  await waitFor(() => expect(view.queryByText("Question 1 ")).toBeNull());
+  expect(view.getByLabelText("Check answer")).toBeTruthy();
+  expect(view.getByLabelText("Bunpro review progress").props.children).toBe("1/3");
+  expect(updateBunproReview).toHaveBeenCalledTimes(1);
+  expect(getBunproReviewQuizIndex).toHaveBeenCalledTimes(2);
+});
+
+it("backspace removes one character and clears a submitted result without saving", () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1"), item("2")]} initialReviewSessionId={42} />);
+  const input = view.getByLabelText("Bunpro answer");
+  fireEvent.changeText(input, "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent(input, "keyPress", { nativeEvent: { key: "Backspace" } });
+  fireEvent.changeText(input, "い");
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("い");
+  expect(view.queryByText("Incorrect")).toBeNull();
+  expect(view.getByLabelText("Check answer")).toBeTruthy();
+  expect(view.getByText("Question 1 ")).toBeTruthy();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+  fireEvent.changeText(input, "ねこ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(view.getByText("Correct")).toBeTruthy();
+});
+
+it("accepts a native keyboard deletion even without a key event", () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "い");
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("い");
+  expect(view.queryByText("Incorrect")).toBeNull();
+  expect(view.getByLabelText("Check answer")).toBeTruthy();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("pins close-answer warnings next to the input and gives a warning haptic on every submission", () => {
+  const question = item("1", "a cat");
+  question.included![0].attributes.alternate_answers = { cat: "Include the article." };
+  const view = render(<BunproReviewScreen initialQueue={[question]} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "cat");
+  fireEvent.press(view.getByLabelText("Check answer"));
+  expect(Haptics.notificationAsync).toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Warning);
+  expect(within(view.getByTestId("bunpro-review-footer")).getByText("Include the article.")).toBeTruthy();
+  expect(within(view.getByTestId("bunpro-review-prompt")).queryByText("Include the article.")).toBeNull();
+  expect(view.getByRole("alert")).toBeTruthy();
+  fireEvent(view.getByLabelText("Bunpro answer"), "submitEditing", { nativeEvent: { text: "cat" } });
+  expect(Haptics.notificationAsync).toHaveBeenCalledTimes(2);
+  expect(view.queryByText("Incorrect")).toBeNull();
+  expect(updateBunproReview).not.toHaveBeenCalled();
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "a cat");
+  expect(view.queryByText("Include the article.")).toBeNull();
 });

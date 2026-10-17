@@ -13,6 +13,28 @@ function request(method = "GET", body?: unknown, query = "action=connection", ow
  return new NextRequest(`https://kakehashiapp.com/api/bunpro?${query}`, { method, headers: { host: "kakehashiapp.com", origin, cookie: `${WANIKANI_SESSION_COOKIE}=verified; ${BUNPRO_COOKIE}=${sealToken(JSON.stringify({ owner, token: "secret-bunpro-key" }))}` }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 }
 beforeEach(() => { mocks.identity.mockReset().mockResolvedValue({ id: "1", username: "Learner" }); mocks.fetch.mockReset().mockResolvedValue(Response.json({ user: { data: {} } })); vi.stubGlobal("fetch", mocks.fetch); });
+it("searches grammar for verified Portego without loading or updating SRS reviews", async () => {
+  mocks.identity.mockResolvedValue({ id: "1", username: " PORTEGO " });
+  mocks.fetch.mockResolvedValue(Response.json({ grammar_points: { data: [] } }));
+  const response = await GET(request("GET", undefined, "action=practice-search&q=want%20to"));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Cache-Control")).toContain("no-store");
+  expect(mocks.fetch).toHaveBeenCalledOnce();
+  expect(mocks.fetch.mock.calls[0][0].pathname).toBe("/api/frontend/search/reviewables_v1_1");
+  expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toMatchObject({ query: "want to", is_searching_grammar: true, is_searching_vocab: false, options: { include_reviews: true } });
+});
+it.each(["Learner", "Portego2", ""])("rejects practice search for verified %j", async username => {
+  mocks.identity.mockResolvedValue({ id: "1", username });
+  const req = request("GET", undefined, "action=practice-search&q=desu");
+  req.headers.set("X-WaniKani-Username", "Portego");
+  expect((await GET(req)).status).toBe(403);
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
+it.each(["", " ", "x".repeat(101)])("rejects invalid practice searches %j", async query => {
+  mocks.identity.mockResolvedValue({ id: "1", username: "Portego" });
+  expect((await GET(request("GET", undefined, `action=practice-search&q=${encodeURIComponent(query)}`))).status).toBe(400);
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
 it.each([GET, POST, DELETE])("rejects invalid sessions before reaching Bunpro", async (handler) => { mocks.identity.mockResolvedValue(null); expect((await handler(request(handler === GET ? "GET" : handler === POST ? "POST" : "DELETE"))).status).toBe(401); expect(mocks.fetch).not.toHaveBeenCalled(); });
 it("does not expose the key in the connection response", async () => { const response = await GET(request()); expect(await response.json()).toEqual({ connected: true }); expect(response.headers.get("Cache-Control")).toContain("no-store"); });
 it("does not reuse another account's key", async () => { expect(await (await GET(request("GET", undefined, "action=connection", "other"))).json()).toEqual({ connected: false }); });
@@ -201,4 +223,37 @@ it('uses the verified daily-history endpoint and validates the extended statisti
   expect(await response.json()).toMatchObject({ unavailable: [], activity: fixture.activity, reviewTotals: fixture.reviewTotals, heatmap: fixture.heatmap });
   expect(mocks.fetch.mock.calls.some(([url]) => url.pathname.endsWith('/activity_daily'))).toBe(true);
   expect(mocks.fetch.mock.calls.some(([url]) => url.pathname.endsWith('/review_activity'))).toBe(false);
+});
+
+it.each(["Learner", "Portego2", ""])("denies the full grammar catalog to verified %j", async username => {
+  mocks.identity.mockResolvedValue({ id: "1", username });
+  const req = request("GET", undefined, "action=practice-catalog");
+  req.headers.set("X-WaniKani-Username", "Portego");
+  expect((await GET(req)).status).toBe(403);
+  expect(mocks.fetch).not.toHaveBeenCalled();
+});
+it("loads and deduplicates all JLPT grammar with user stages through read-only Cram endpoints", async () => {
+  mocks.identity.mockResolvedValue({ id: "1", username: "Portego" });
+  mocks.fetch.mockImplementation(async (url: URL) => Response.json(url.pathname.endsWith("load_category_decks") ? { data: [{ id: "1", type: "deck" }, { id: "8", type: "deck" }] } : { included: [
+    { id: "20", type: "reviewable_base_attribute_grammar_w_streak", attributes: { slug: "desu", title: "です", meaning: "To be", level: "JLPT5", streak: 0 } },
+    { id: "21", type: "reviewable_base_attribute_grammar_w_streak", attributes: { slug: "new", title: "なら", meaning: "If", level: "JLPT4", streak: null } },
+    { id: "20", type: "deck_content", attributes: {} },
+  ] }));
+  const response = await GET(request("GET", undefined, "action=practice-catalog"));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Cache-Control")).toContain("no-store");
+  expect((await response.json()).grammar).toEqual([
+    { id: "20", slug: "desu", title: "です", meaning: "To be", level: "JLPT5", streak: 0 },
+    { id: "21", slug: "new", title: "なら", meaning: "If", level: "JLPT4", streak: null },
+  ]);
+  expect(mocks.fetch).toHaveBeenCalledTimes(3);
+  for (const [url, options] of mocks.fetch.mock.calls) {
+    expect(url.pathname).toMatch(/\/cram\/load_(category_decks|deck_contents)$/);
+    expect(options.method).toBe("GET");
+  }
+});
+it("does not silently classify malformed SRS progress as new grammar", async () => {
+  mocks.identity.mockResolvedValue({ id: "1", username: "Portego" });
+  mocks.fetch.mockImplementation(async (url: URL) => Response.json(url.pathname.endsWith("load_category_decks") ? { data: [{ id: "1", type: "deck" }] } : { included: [{ id: "20", type: "reviewable_base_attribute_grammar_w_streak", attributes: { slug: "desu", title: "です", meaning: "To be", level: "JLPT5" } }] }));
+  expect((await GET(request("GET", undefined, "action=practice-catalog"))).status).toBe(502);
 });

@@ -321,6 +321,30 @@ describe("FormattedNote", () => {
     });
   });
 
+  it("highlights italic from a caret status update without a text change", async () => {
+    const onChangeText = jest.fn();
+    const screen = render(
+      <FormattedNoteEditor value="existing" onChangeText={onChangeText} />,
+    );
+    const italicButton = () => screen.getByLabelText("Italic");
+    expect(StyleSheet.flatten(italicButton().props.style).backgroundColor).toBe("#ffffff");
+    fireEvent.press(italicButton());
+
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({ text: "", formats: ["italic"] });
+    });
+
+    expect(italicButton().props.accessibilityState.selected).toBe(true);
+    expect(StyleSheet.flatten(italicButton().props.style).backgroundColor).toBe("#eeeeee");
+    fireEvent.press(italicButton());
+    await act(async () => {
+      await mockVisualEditorProps!.onSelectionChange({ text: "", formats: [] });
+    });
+    expect(italicButton().props.accessibilityState.selected).toBe(false);
+    expect(StyleSheet.flatten(italicButton().props.style).backgroundColor).toBe("#ffffff");
+    expect(onChangeText).not.toHaveBeenCalled();
+  });
+
   it("keeps long source notes in a bounded scrolling field", async () => {
     const screen = render(
       <FormattedNoteEditor

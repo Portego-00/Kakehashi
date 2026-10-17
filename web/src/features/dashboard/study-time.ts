@@ -487,7 +487,7 @@ export function markStudyTimeUploaded(
 export function studyTimeCategoryForPathname(pathname: string): StudyTimeCategory | null {
   if (pathname === "/reviews") return "reviews";
   if (pathname === "/lessons") return "lessons";
-  if (pathname.startsWith("/study/")) return "extra-study";
+  if (pathname.startsWith("/study/") || pathname.startsWith("/bunpro-practice/")) return "extra-study";
   if (pathname.startsWith("/news/")) return "news";
   if (pathname.startsWith("/music")) return "songs";
   if (pathname.startsWith("/epubs/") || pathname === "/reader") return "reading";

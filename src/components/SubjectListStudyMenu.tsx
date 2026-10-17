@@ -12,6 +12,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { useTheme } from "../utils/theme";
+import { GlassButton } from "./GlassButton";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
@@ -129,11 +130,17 @@ export default function SubjectListStudyMenu({
 
   if (selectedItemCount === 0) {
     return (
-      <View style={[styles.trigger, triggerStyle, { opacity: 0.35 }]}>
-        <Ionicons
-          name="play-circle-outline"
-          size={24}
-          color={theme.textSecondary}
+      <View
+        style={[styles.trigger, triggerStyle, { opacity: 0.35 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Choose study mode"
+        accessibilityState={{ disabled: true }}
+      >
+        <GlassButton
+          iconName="play-circle-outline"
+          iconColor={theme.textSecondary}
+          style={[styles.trigger, triggerStyle]}
+          variant={theme.isDark ? "colored" : "light"}
         />
       </View>
     );
@@ -149,17 +156,14 @@ export default function SubjectListStudyMenu({
           label={
             <SwiftUI.RNHostView matchContents>
               <View
-                style={[
-                  styles.trigger,
-                  triggerStyle,
-                  { backgroundColor: theme.cardBackground },
-                ]}
+                style={[styles.trigger, triggerStyle]}
                 accessibilityLabel="Choose study mode"
               >
-                <Ionicons
-                  name="play-circle-outline"
-                  size={24}
-                  color={theme.textColor}
+                <GlassButton
+                  iconName="play-circle-outline"
+                  iconColor={theme.textColor}
+                  style={[styles.trigger, triggerStyle]}
+                  variant={theme.isDark ? "colored" : "light"}
                 />
               </View>
             </SwiftUI.RNHostView>
@@ -192,20 +196,17 @@ export default function SubjectListStudyMenu({
   return (
     <>
       <TouchableOpacity
-        style={[
-          styles.trigger,
-          triggerStyle,
-          { backgroundColor: theme.cardBackground },
-        ]}
+        style={[styles.trigger, triggerStyle]}
         onPress={() => setIsFallbackMenuVisible(true)}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel="Choose study mode"
       >
-        <Ionicons
-          name="play-circle-outline"
-          size={24}
-          color={theme.textColor}
+        <GlassButton
+          iconName="play-circle-outline"
+          iconColor={theme.textColor}
+          style={[styles.trigger, triggerStyle]}
+          variant={theme.isDark ? "colored" : "light"}
         />
       </TouchableOpacity>
 

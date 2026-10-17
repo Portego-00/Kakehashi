@@ -91,6 +91,17 @@ function dataTransfer() {
   } as unknown as DataTransfer;
 }
 
+it("saves vocabulary unlock counts from advanced lesson preferences", async () => {
+  localStorage.clear();
+  render(<SettingsWorkspace />);
+  const advanced = screen.getByRole("heading", { name: "Advanced lesson preferences" }).parentElement!;
+  const toggle = within(advanced).getByRole("checkbox", { name: /Vocabulary unlock counts/ });
+  expect(toggle).not.toBeChecked();
+  fireEvent.click(toggle);
+  await waitFor(() => expect(JSON.parse(localStorage.getItem(settingsStorageKey("Tester"))!).study.showLessonVocabularyUnlockCounts).toBe(true));
+  expect(toggle).toBeChecked();
+});
+
 function rect(left: number, top: number, width: number, height: number): DOMRect {
   return { left, top, right: left + width, bottom: top + height, width, height, x: left, y: top, toJSON: () => ({}) } as DOMRect;
 }
@@ -226,8 +237,9 @@ describe("navbar tab preferences", () => {
   it("refreshes the controls when another browser tab changes the saved navbar", async () => {
     render(<SettingsWorkspace />);
     const key = settingsStorageKey("Tester");
-    const items = screen.getByRole("checkbox", { name: /^Items.*Browse radicals/ });
-    const news = screen.getByRole("checkbox", { name: /^News.*NHK Easier/ });
+    const navigation = screen.getByRole("heading", { name: "Desktop navbar tabs" }).parentElement!.parentElement!;
+    const items = within(navigation).getAllByRole("checkbox", { name: "Items" })[0];
+    const news = within(navigation).getAllByRole("checkbox", { name: "News" })[0];
 
     window.localStorage.setItem(key, JSON.stringify({
       ...DEFAULT_WEB_SETTINGS,

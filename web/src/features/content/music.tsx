@@ -35,7 +35,7 @@ import {
   X,
 } from "lucide-react";
 import { useAppShellBackAction } from "@/components/shell/app-shell-back-action";
-import { saveWebSettings } from "@/features/settings/settings";
+import { updateWebSettings, WEB_SETTINGS_SAVE_ERROR } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { useSession } from "@/lib/session";
 import { JapaneseReader, useJapaneseReaderAnalysisContexts } from "./JapaneseReader";
@@ -591,11 +591,13 @@ export function MusicWorkspace({ initialSongId }: { initialSongId?: string } = {
   }, []);
   const handlePlaying = useCallback((nextPlaying: boolean) => setPlaying(nextPlaying), []);
   const changeLyricTranslations = useCallback((enabled: boolean) => {
-    saveWebSettings(window.localStorage, settingsUsername, {
-      ...settings,
-      study: { ...settings.study, songsLyricsLineTranslationsEnabled: enabled },
-    });
-  }, [settings, settingsUsername]);
+    try {
+      updateWebSettings(window.localStorage, settingsUsername, (current) => ({
+        ...current,
+        study: { ...current.study, songsLyricsLineTranslationsEnabled: enabled },
+      }));
+    } catch { setFeedback({ tone: "error", text: WEB_SETTINGS_SAVE_ERROR }); }
+  }, [settingsUsername]);
   const retryLyricTranslations = useCallback(() => {
     translationAbortRef.current?.abort();
     setTranslationRetryToken((token) => token + 1);

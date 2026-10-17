@@ -176,7 +176,9 @@ const CONTEXT_AUDIO_SPEED_STEP = 0.05;
 const DEFAULT_CONTEXT_AUDIO_SPEED = 1;
 
 function normalizeSimilarVocabularyValue(value: string | null | undefined): string {
-  return (value ?? "").trim().toLocaleLowerCase("en-US");
+  // English meanings and kana need locale-independent casing. Locale conversion
+  // is expensive in Android Hermes when repeated across the subject catalog.
+  return (value ?? "").trim().toLowerCase();
 }
 
 function collectMatchingValues(values: string[], targetSet: Set<string>): string[] {

@@ -15,6 +15,7 @@ import {
   Platform,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -49,6 +50,9 @@ import { getNiaiSimilarKanjiSubjects } from "../../../src/utils/niaiSimilarKanji
 import { useAuthStore, useSettingsStore } from "../../../src/utils/store";
 import { useTheme } from "../../../src/utils/theme";
 import { mergeStudyMaterialUpdate, saveMeaningSynonyms } from "../../../src/utils/studyMaterialSynonyms";
+import { useOptionalScreenIsFocused } from "../../../src/utils/navigation-focus";
+import { useIsNoteSubjectPreviewOpen } from "../../../src/utils/note-subject-preview-state";
+import { doesReviewShortcutMatchKey, resolveReviewIncorrectKeyboardShortcuts } from "../../../src/utils/reviewKeyboardShortcuts";
 
 type ProgressionStatus = "loading" | "success" | "offline";
 type DeferredTaskHandle = {
@@ -109,13 +113,14 @@ function withTimeout<T>(
 
 export default function SubjectDetailsScreen() {
   const noteModalInsets = useSafeAreaInsets();
-  const { id, initialTab, from } = useLocalSearchParams<{
+  const { id, initialTab, from, returnToReview } = useLocalSearchParams<{
     id: string;
     initialTab?: string;
     from?: string;
+    returnToReview?: string;
   }>();
   const { apiToken, userData } = useAuthStore();
-  const { visuallySimilarKanjiSource } = useSettingsStore();
+  const { visuallySimilarKanjiSource, reviewIncorrectKeyboardShortcuts } = useSettingsStore();
   const { theme } = useTheme();
   const router = useRouter();
   const [initialLoading, setInitialLoading] = useState(true);
@@ -149,9 +154,56 @@ export default function SubjectDetailsScreen() {
   const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
   const originalNoteSignatureRef = useRef("");
   const checkingNoteChangesRef = useRef(false);
+  const returnShortcutInputRef = useRef<TextInput>(null);
+  const returningToReviewRef = useRef(false);
+  const screenFocused = useOptionalScreenIsFocused();
+  const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
+  const returnShortcutEnabled = returnToReview === "true" && screenFocused
+    && !showNoteModal && !showAddToListModal && !noteSubjectPreviewOpen;
   const isBookmarked = subjectData
     ? subjectLists.some((list) => list.subjectIds.includes(subjectData.id))
     : false;
+
+  useEffect(() => {
+    returningToReviewRef.current = false;
+  }, [id, screenFocused]);
+
+  useEffect(() => {
+    if (!returnShortcutEnabled) {
+      returnShortcutInputRef.current?.blur();
+      return;
+    }
+    const timer = setTimeout(() => returnShortcutInputRef.current?.focus(), Platform.OS === "android" ? 140 : 90);
+    return () => clearTimeout(timer);
+  }, [id, initialLoading, returnShortcutEnabled]);
+
+  const handleReturnShortcut = (key: string) => {
+    if (!returnShortcutEnabled || returningToReviewRef.current) return;
+    const shortcut = resolveReviewIncorrectKeyboardShortcuts(reviewIncorrectKeyboardShortcuts).openDetails;
+    if (!doesReviewShortcutMatchKey(key, shortcut)) return;
+    returningToReviewRef.current = true;
+    router.back();
+  };
+
+  const renderReturnShortcutInput = () => returnShortcutEnabled ? (
+    <TextInput
+      ref={returnShortcutInputRef}
+      testID="review-details-shortcut-input"
+      value=""
+      onChangeText={() => {}}
+      onKeyPress={(event) => handleReturnShortcut(event.nativeEvent.key)}
+      onSubmitEditing={() => handleReturnShortcut("Enter")}
+      style={styles.hiddenReturnShortcutInput}
+      autoCorrect={false}
+      autoCapitalize="none"
+      blurOnSubmit={false}
+      showSoftInputOnFocus={false}
+      caretHidden
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    />
+  ) : null;
 
   // Helper to load related subjects from consolidated cache first for instant UI
   const loadSubjectsFromCache = async (ids: number[]) => {
@@ -1108,6 +1160,7 @@ export default function SubjectDetailsScreen() {
     case "radical":
       return (
         <>
+          {renderReturnShortcutInput()}
           <RadicalDetails
             radical={prepareRadicalData()}
             progressionStatus={progressionStatus}
@@ -1143,6 +1196,7 @@ export default function SubjectDetailsScreen() {
     case "kanji":
       return (
         <>
+          {renderReturnShortcutInput()}
           <KanjiDetails
             kanji={prepareKanjiData()}
             progressionStatus={progressionStatus}
@@ -1180,6 +1234,7 @@ export default function SubjectDetailsScreen() {
     case "kana_vocabulary":
       return (
         <>
+          {renderReturnShortcutInput()}
           <VocabularyDetails
             vocabulary={prepareVocabularyData()}
             progressionStatus={progressionStatus}
@@ -1230,6 +1285,12 @@ export default function SubjectDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  hiddenReturnShortcutInput: {
+    position: "absolute",
+    opacity: 0,
+    width: 1,
+    height: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",

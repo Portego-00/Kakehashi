@@ -8,6 +8,9 @@ export interface ReviewAnswerChoice {
 }
 
 type QuestionType = "meaning" | "reading";
+type MeaningPart = "verb" | "noun" | "adjective" | "adverb" | "pronoun" |
+  "numeral" | "counter" | "expression" | "interjection" | "conjunction" |
+  "prefix" | "suffix" | "particle";
 
 const MEANING_FAMILIES = [
   "one two three four five six seven eight nine ten hundred thousand million number count",
@@ -26,6 +29,7 @@ const MEANING_FAMILIES = [
   "good bad correct wrong true false new old young hot cold warm cool fast slow strong weak heavy light",
   "go come return enter exit leave arrive depart walk run move stop start begin finish end",
   "see look watch hear listen speak say talk tell ask answer think know understand remember forget",
+  "imagine imagination expect expectation assume assumption predict prediction think thought idea ideology believe belief memory remember forget",
   "love like hate happy sad angry afraid fear fun joy feeling emotion",
   "house home room door window building roof floor wall garden town city village country place",
   "tree wood forest flower grass leaf plant bamboo fruit seed root branch",
@@ -44,6 +48,51 @@ const IGNORED_WORDS = new Set([
   "something",
   "someone",
 ]);
+// Used only after suitable catalog answers are exhausted, including offline.
+const FALLBACK_MEANINGS = {
+  verb: [
+    "To Go", "To Come", "To Return", "To Enter", "To Leave", "To Arrive",
+    "To Walk", "To Run", "To Move", "To Stop", "To Begin", "To Finish",
+    "To See", "To Watch", "To Hear", "To Listen", "To Speak", "To Ask",
+    "To Answer", "To Think", "To Know", "To Remember", "To Forget",
+    "To Eat", "To Drink", "To Cook", "To Read", "To Write", "To Study",
+    "To Learn", "To Teach", "To Buy", "To Sell", "To Pay", "To Work",
+    "To Sleep", "To Wake Up", "To Open", "To Close", "To Wait",
+  ],
+  noun: [
+    "Water", "Fire", "Earth", "Mountain", "River", "Sea", "Rain", "Snow",
+    "Cloud", "Wind", "Sky", "Sun", "Moon", "Tree", "Flower", "Forest",
+    "Dog", "Cat", "Bird", "Fish", "Horse", "Rice", "Bread", "Tea",
+    "School", "Student", "Teacher", "Book", "Language", "Car", "Train",
+    "Station", "Road", "House", "Room", "Door", "Window", "Town",
+    "City", "Country", "Money", "Time", "Morning", "Night",
+  ],
+  adjective: [
+    "Big", "Small", "Long", "Short", "Tall", "Wide", "Narrow", "Deep",
+    "Shallow", "Good", "Bad", "New", "Old", "Young", "Hot", "Cold",
+    "Warm", "Cool", "Fast", "Slow", "Strong", "Weak", "Heavy", "Light",
+    "Quiet", "Loud", "Clean", "Dirty", "Easy", "Difficult", "Happy", "Sad",
+  ],
+  adverb: [
+    "Quickly", "Slowly", "Quietly", "Loudly", "Carefully", "Easily",
+    "Usually", "Often", "Sometimes", "Always", "Never", "Already", "Soon",
+    "Immediately", "Together", "Separately", "Suddenly", "Gradually",
+  ],
+  pronoun: ["I", "You", "He", "She", "We", "They", "This", "That", "Someone", "Anyone", "Everybody", "Nobody"],
+  numeral: ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"],
+  counter: ["Counter For People", "Counter For Books", "Counter For Small Animals", "Counter For Floors", "Counter For Machines", "Counter For Flat Objects"],
+  expression: ["Good Morning", "Good Evening", "Thank You", "Excuse Me", "See You", "You're Welcome", "Please", "Nice To Meet You"],
+  interjection: ["Hello", "Goodbye", "Thanks", "Wow", "Oh", "Hey", "Yes", "No"],
+  conjunction: ["And", "Or", "But", "Because", "Although", "If", "Unless", "While"],
+  prefix: ["Super", "New", "Every", "Former", "Anti", "Non"],
+  suffix: ["Style", "Like", "Person", "Shop", "Store", "Way", "Years Old"],
+  particle: ["Of", "And", "Or", "But", "From", "Until", "Only", "Also"],
+} satisfies Record<MeaningPart, string[]>;
+const FALLBACK_READINGS = [
+  "あめ", "ゆき", "かぜ", "そら", "やま", "かわ", "うみ", "はな",
+  "いぬ", "ねこ", "とり", "うま", "みず", "ひと", "いえ", "ほん",
+];
+const DIGIT_READINGS = ["ぜろ", "いち", "に", "さん", "よん", "ご", "ろく", "なな", "はち", "きゅう"];
 const KANA_GROUPS = [
   "かが",
   "きぎ",
@@ -112,9 +161,34 @@ function overlap<T>(a: Set<T>, b: Set<T>): number {
   return count;
 }
 
-function partsOfSpeech(subject: Subject): Set<string> {
-  const data = subject.data as Subject["data"] & { parts_of_speech?: string[] };
-  return new Set(data.parts_of_speech ?? []);
+function isVerbMeaning(text: string): boolean {
+  return /^to\s+/i.test(text.normalize("NFKC").trim());
+}
+
+function isVocabulary(subject: Subject): boolean {
+  return subject.object === "vocabulary" || subject.object === "kana_vocabulary";
+}
+
+/** Broad families allow i/na adjectives and different verb classes to compete. */
+function meaningParts(subject: Subject, text: string): Set<MeaningPart> {
+  const parts = new Set<MeaningPart>();
+  for (const value of subject.data.parts_of_speech ?? []) {
+    const tag = value.trim().toLowerCase().replace(/[_-]/g, " ");
+    if (/\bverb\b/.test(tag)) parts.add("verb");
+    else if (/\bnoun\b/.test(tag)) parts.add("noun");
+    else if (/\badjective\b/.test(tag)) parts.add("adjective");
+    else for (const word of tag.split(/[^a-z]+/)) {
+      if (Object.hasOwn(FALLBACK_MEANINGS, word)) parts.add(word as MeaningPart);
+    }
+  }
+  // A noun/suru-verb subject can supply different grammatical senses. Use the
+  // selected English meaning, rather than letting its noun tag qualify a verb.
+  if (parts.has("verb") && parts.size > 1) {
+    if (isVerbMeaning(text)) return new Set(["verb"]);
+    parts.delete("verb");
+  }
+  if (parts.size === 0 && isVerbMeaning(text)) parts.add("verb");
+  return parts;
 }
 
 function distance(a: string, b: string): number {
@@ -197,7 +271,7 @@ function readingConfusions(
   return candidates;
 }
 
-/** Prefers difficult distractors, then fills missing choices from learned answers. */
+/** Prefers difficult choices, then learned answers, with an offline fallback. */
 export function createReviewAnswerChoices({
   subject,
   questionType,
@@ -229,6 +303,12 @@ export function createReviewAnswerChoices({
     questionType === "reading"
       ? normalize(correctEntry.text, questionType)
       : correctEntry.text;
+  // Match the displayed English form, even for noun/suru-verb entries or
+  // subjects without parts-of-speech metadata. Kanji overlap cannot override it.
+  const targetIsVerb = isVerbMeaning(correct);
+  const compatibleMeaning = (text: string) => isVerbMeaning(text) === targetIsVerb;
+  const targetParts = meaningParts(subject, correct);
+  const targetPart = targetParts.values().next().value ?? (targetIsVerb ? "verb" : "noun");
   // Exclude even non-primary readings, whitelist meanings, and user synonyms from distractors.
   const excluded = new Set(
     (questionType === "reading"
@@ -242,16 +322,35 @@ export function createReviewAnswerChoices({
         ]
     ).map((text) => normalize(text, questionType)),
   );
+  const meaningEntries = (candidate: Subject) => {
+    // A shared meaning can identify a synonym even if it is not primary.
+    if (candidate.data.meanings.some((entry) =>
+      excluded.has(normalize(entry.meaning, "meaning")),
+    )) return [];
+    return candidate.data.meanings
+      .filter((entry) => entry.accepted_answer !== false && compatibleMeaning(entry.meaning))
+      .map((entry) => {
+        const parts = meaningParts(candidate, entry.meaning);
+        const grammarRank = targetParts.size === 0 || parts.size === 0
+          ? 1 : overlap(targetParts, parts) > 0 ? 2 : 0;
+        return { text: entry.meaning, primary: entry.primary, grammarRank };
+      })
+      .filter((entry) => entry.grammarRank > 0)
+      .sort((a, b) => b.grammarRank - a.grammarRank ||
+        Number(Boolean(b.primary)) - Number(Boolean(a.primary)));
+  };
   const random = randomFromSeed(seed);
-  const candidates = new Map<string, { text: string; score: number }>();
-  const add = (text: string, score: number) => {
+  const candidates = new Map<string, { text: string; score: number; grammarRank: number }>();
+  const add = (text: string, score: number, grammarRank = 1) => {
     const key = normalize(text, questionType);
     if (!key || excluded.has(key)) return;
     const existing = candidates.get(key);
-    if (!existing || score > existing.score)
+    if (!existing || grammarRank > existing.grammarRank ||
+      (grammarRank === existing.grammarRank && score > existing.score))
       candidates.set(key, {
         text: questionType === "reading" ? key : text,
         score,
+        grammarRank,
       });
   };
   const characters = new Set(subject.data.characters ?? "");
@@ -260,7 +359,6 @@ export function createReviewAnswerChoices({
   const isRadicalName =
     subject.object === "radical" && questionType === "meaning";
   const amalgamations = new Set(subject.data.amalgamation_subject_ids ?? []);
-  const targetParts = partsOfSpeech(subject);
   const targetWords = words(meanings.map((entry) => entry.meaning).join(" "));
   const targetFamilies = MEANING_FAMILIES.filter(
     (family) => overlap(family, targetWords) > 0,
@@ -277,7 +375,10 @@ export function createReviewAnswerChoices({
       add(text, score);
   }
   for (const candidate of subjects) {
-    if (candidate.id === subject.id || candidate.object !== subject.object)
+    const sharedVocabularyPool = questionType === "meaning" && targetParts.size > 0 &&
+      isVocabulary(subject) && isVocabulary(candidate);
+    if (candidate.id === subject.id ||
+      (candidate.object !== subject.object && !sharedVocabularyPool))
       continue;
     const commonCharacters = overlap(
       characters,
@@ -323,13 +424,8 @@ export function createReviewAnswerChoices({
         );
       }
     } else {
-      // Subjects sharing an accepted meaning may be synonyms of the prompt.
-      if (
-        candidate.data.meanings.some((entry) =>
-          excluded.has(normalize(entry.meaning, "meaning")),
-        )
-      )
-        continue;
+      const entry = meaningEntries(candidate)[0];
+      if (!entry) continue;
       const candidateWords = words(
         candidate.data.meanings.map((entry) => entry.meaning).join(" "),
       );
@@ -337,29 +433,22 @@ export function createReviewAnswerChoices({
         (family) => overlap(family, candidateWords) > 0,
       );
       const commonWords = overlap(targetWords, candidateWords);
-      const sharedPart = overlap(targetParts, partsOfSpeech(candidate)) > 0;
+      const sharedPart = entry.grammarRank === 2;
       const hasMeaningRelation =
         semantic || related > 0 || commonWords > 0 || sharedPart;
       // Radical mnemonics often have no semantic family or parts of speech.
       // Prefer related radicals, then other radical names from nearby levels.
       if (!hasMeaningRelation && !isRadicalName) continue;
-      const entry =
-        candidate.data.meanings.find(
-          (meaning) => meaning.primary && meaning.accepted_answer !== false,
-        ) ??
-        candidate.data.meanings.find(
-          (meaning) => meaning.accepted_answer !== false,
-        );
-      if (entry)
-        add(
-          entry.meaning,
-          related +
-            (semantic ? 40 : 0) +
-            commonWords * 12 +
-            (sharedPart ? 10 : 0) -
-            (hasMeaningRelation ? 0 : 40) -
-            Math.min(levelGap, 20),
-        );
+      add(
+        entry.text,
+        related +
+          (semantic ? 40 : 0) +
+          commonWords * 12 +
+          (sharedPart ? 10 : 0) -
+          (hasMeaningRelation ? 0 : 40) -
+          Math.min(levelGap, 20),
+        entry.grammarRank,
+      );
     }
   }
   const distractors = [...candidates.values()]
@@ -367,60 +456,84 @@ export function createReviewAnswerChoices({
       ...candidate,
       score: candidate.score + random() * 6,
     }))
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.grammarRank - a.grammarRank || b.score - a.score)
     .slice(0, 3);
-  if (distractors.length < 3 && learnedSubjectIds?.size) {
-    // Keep every difficult choice. Only missing slots use random learned answers,
-    // preferring the same subject type before widening to the rest of the pool.
+  if (distractors.length < 3) {
+    // Keep every difficult choice. Prefer learned answers and the same subject
+    // type, then widen to compatible catalog answers before the offline bank.
     const used = new Set([
       ...excluded,
       ...distractors.map(({ text }) => normalize(text, questionType)),
     ]);
     const fallback = subjects
-      .filter(
-        (candidate) =>
-          candidate.id !== subject.id && learnedSubjectIds.has(candidate.id),
-      )
-      .map((candidate) => ({ candidate, rank: random() }))
+      .filter((candidate) => candidate.id !== subject.id)
+      .map((candidate) => ({
+        candidate,
+        entries: questionType === "reading"
+          ? (candidate.data.readings ?? [])
+              .filter((entry) => entry.accepted_answer !== false)
+              .map((entry) => ({ text: entry.reading, primary: entry.primary, grammarRank: 1 }))
+              .sort((a, b) => Number(Boolean(b.primary)) - Number(Boolean(a.primary)))
+          : meaningEntries(candidate),
+        rank: random(),
+      }))
+      .filter(({ entries }) => entries.length > 0)
       .sort(
         (a, b) =>
+          b.entries[0].grammarRank - a.entries[0].grammarRank ||
+          Number(Boolean(learnedSubjectIds?.has(b.candidate.id))) -
+            Number(Boolean(learnedSubjectIds?.has(a.candidate.id))) ||
           Number(b.candidate.object === subject.object) -
             Number(a.candidate.object === subject.object) || a.rank - b.rank,
       );
-    for (const { candidate } of fallback) {
-      if (
-        questionType === "meaning" &&
-        candidate.data.meanings.some((entry) =>
-          excluded.has(normalize(entry.meaning, "meaning")),
-        )
-      )
-        continue;
-      const entries =
-        questionType === "reading"
-          ? (candidate.data.readings ?? [])
-              .filter((entry) => entry.accepted_answer !== false)
-              .map((entry) => ({ text: entry.reading, primary: entry.primary }))
-          : candidate.data.meanings
-              .filter((entry) => entry.accepted_answer !== false)
-              .map((entry) => ({ text: entry.meaning, primary: entry.primary }));
+    for (const { entries } of fallback) {
       // Try alternate accepted answers too if a primary answer is already used.
-      entries.sort(
-        (a, b) => Number(Boolean(b.primary)) - Number(Boolean(a.primary)),
-      );
-      for (const { text } of entries) {
+      for (const { text, grammarRank } of entries) {
         const key = normalize(text, questionType);
         if (!key || used.has(key)) continue;
         used.add(key);
         distractors.push({
           text: questionType === "reading" ? key : text,
           score: 0,
+          grammarRank,
         });
         if (distractors.length === 3) break;
       }
       if (distractors.length === 3) break;
     }
+    if (distractors.length < 3) {
+      const localAnswers = questionType === "reading"
+        ? FALLBACK_READINGS
+        : FALLBACK_MEANINGS[targetPart].map((text) => targetIsVerb
+            ? isVerbMeaning(text) ? text : `To Be ${text}`
+            : text.replace(/^To\s+/i, ""));
+      const localFallback = localAnswers.map((text) => ({ text, rank: random() }))
+        .sort((a, b) => a.rank - b.rank);
+      for (const { text } of localFallback) {
+        const key = normalize(text, questionType);
+        if (used.has(key)) continue;
+        used.add(key);
+        distractors.push({ text, score: 0, grammarRank: 2 });
+        if (distractors.length === 3) break;
+      }
+    }
+    // Even a custom prompt with aliases covering the entire local bank must
+    // keep four choices. Numeric phrases/readings provide an extensible reserve.
+    let number = 1 + Math.floor(random() * 100);
+    while (distractors.length < 3) {
+      const value = String(number++);
+      const text = questionType === "reading"
+        ? [...value].map((digit) => DIGIT_READINGS[Number(digit)]).join("")
+        : targetPart === "adjective" ? `${targetIsVerb ? "To Be " : ""}${value} Years Old`
+        : targetPart === "adverb" ? `Every ${value} Days`
+        : targetPart === "verb" ? `${targetIsVerb ? "To " : ""}Count To ${value}`
+        : `Number ${value}`;
+      const key = normalize(text, questionType);
+      if (used.has(key)) continue;
+      used.add(key);
+      distractors.push({ text, score: 0, grammarRank: 1 });
+    }
   }
-  if (distractors.length < 3) return [];
   const choices = [
     { text: correct, isCorrect: true },
     ...distractors.map(({ text }) => ({ text, isCorrect: false })),

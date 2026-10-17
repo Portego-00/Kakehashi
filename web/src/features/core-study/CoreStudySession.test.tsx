@@ -113,6 +113,7 @@ const fixtures = vi.hoisted(() => {
       showSrsIndicator: true,
       showReviewItemLevelAndSrsStage: false,
       showVocabularyFrequency: false,
+      showLessonVocabularyUnlockCounts: false,
       showVocabContextSentencesInReviews: false,
       allowSkippingReviews: false,
       reviewSearchButtonEnabled: false,
@@ -182,7 +183,8 @@ const fixtures = vi.hoisted(() => {
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user }) }));
 vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 
-vi.mock("@/features/settings/use-workspace-preferences", () => ({
+vi.mock("@/features/settings/use-workspace-preferences", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/features/settings/use-workspace-preferences")>(),
   useWebSettings: () => fixtures.settings,
 }));
 
@@ -212,14 +214,15 @@ vi.mock("@/lib/wanikani/client", () => ({
       const ids = endpoint.split("=")[1].split(",").map(Number);
       return [fixtures.subject, fixtures.componentKanji, fixtures.secondSubject].filter((subject) => ids.includes(subject.id));
     }
+    if (endpoint.startsWith("subjects?types=vocabulary&levels=")) return [fixtures.subject];
     if (endpoint.startsWith("study_materials?")) return fixtures.studyMaterialsRequest || [];
     return [];
   }),
 }));
 
-function renderSession(mode: "lessons" | "reviews") {
+function renderSession(mode: "lessons" | "reviews", pickLessons = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
-  return Object.assign(render(<QueryClientProvider client={client}><CoreStudySession mode={mode} /></QueryClientProvider>), { client });
+  return Object.assign(render(<QueryClientProvider client={client}><CoreStudySession mode={mode} pickLessons={pickLessons} /></QueryClientProvider>), { client });
 }
 
 async function submitAnswer(value: string, kind: "meaning" | "reading") {
@@ -230,6 +233,23 @@ async function submitAnswer(value: string, kind: "meaning" | "reading") {
 }
 
 describe("core study prompt layout", () => {
+  it.each([false, true])("loads same-level vocabulary for picker badges only when enabled: %s", async (enabled) => {
+    fixtures.settings.study.showLessonVocabularyUnlockCounts = enabled;
+    fixtures.lessonAssignmentsResponse = [
+      { ...fixtures.lessonAssignment, data: { ...fixtures.lessonAssignment.data, subject_id: 201, subject_type: "kanji" } },
+      fixtures.secondLessonAssignment,
+    ];
+    renderSession("lessons", true);
+    await screen.findByRole("heading", { name: "Pick lessons" });
+    if (enabled) {
+      expect(await screen.findByText("1 vocab")).toBeInTheDocument();
+      expect(screen.getByText("0 vocab")).toBeInTheDocument();
+    } else {
+      expect(screen.queryByText(/vocab$/)).not.toBeInTheDocument();
+    }
+    expect(vi.mocked(wkCollection).mock.calls.some(([endpoint]) => endpoint === "subjects?types=vocabulary&levels=4&hidden=false")).toBe(enabled);
+  });
+
   function enableChoices() {
     fixtures.settings.study.reviewMultipleChoiceEnabled = true;
     fixtures.settings.study.pauseOnCorrect = true;
@@ -339,12 +359,15 @@ describe("core study prompt layout", () => {
     expect(screen.queryByRole("button", { name: "Reveal answer" })).not.toBeInTheDocument();
   });
 
-  it("falls back to typing when the catalog has too few distinct answers", async () => {
+  it("keeps four selectable choices when the catalog has too few distinct answers", async () => {
     fixtures.settings.study.reviewMultipleChoiceEnabled = true;
+    fixtures.settings.study.pauseOnCorrect = true;
     renderSession("reviews");
-    expect(await screen.findByText(/Not enough distinct choices/)).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Your answer" })).toBeVisible();
-    await submitAnswer("River", "meaning");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    expect(within(group).getAllByRole("button")).toHaveLength(4);
+    expect(screen.queryByText(/Not enough distinct choices/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. River$/ }));
     expect(screen.getByText("Correct", { exact: true })).toBeInTheDocument();
   });
 
@@ -372,12 +395,14 @@ describe("core study prompt layout", () => {
     expect(await screen.findByRole("group", { name: "Answer choices" })).toBeVisible();
   });
 
-  it("keeps typing available when the choice catalog cannot be loaded", async () => {
+  it("keeps multiple choice available when the choice catalog cannot be loaded", async () => {
     fixtures.settings.study.reviewMultipleChoiceEnabled = true;
     fixtures.choiceCatalogError = true;
     renderSession("reviews");
-    expect(await screen.findByRole("textbox", { name: "Your answer" }, { timeout: 3000 })).toBeVisible();
-    expect(screen.getByText(/Not enough distinct choices/)).toBeVisible();
+    const group = await screen.findByRole("group", { name: "Answer choices" }, { timeout: 3000 });
+    expect(within(group).getAllByRole("button")).toHaveLength(4);
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Not enough distinct choices/)).not.toBeInTheDocument();
   });
 
   it("keeps an active review available when a background Vacation Mode check fails", async () => {
@@ -505,6 +530,35 @@ describe("core study prompt layout", () => {
   });
 
   it.each([
+    { control: "toggle", detailsKey: "d" },
+    { control: "tab", detailsKey: "d" },
+    { control: "link", detailsKey: "d" },
+    { control: "tab", detailsKey: "i" },
+  ])("toggles Anki details with $detailsKey from a focused $control and resumes keyboard grading", async ({ control, detailsKey }) => {
+    fixtures.settings.study.ankiMode = "both";
+    fixtures.settings.study.ankiGroupQuestions = true;
+    fixtures.settings.study.studyShortcuts = { ...DEFAULT_STUDY_SHORTCUTS, details: detailsKey };
+    renderSession("reviews");
+    await screen.findByRole("button", { name: "Reveal answer" });
+    fireEvent.keyDown(document.body, { key: "Enter" });
+    fireEvent.keyDown(document.body, { key: detailsKey });
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeVisible();
+    const focusedControl = control === "toggle" ? screen.getByRole("button", { name: "Hide subject details" })
+      : control === "tab" ? screen.getByRole("tab", { name: "Meaning" })
+      : screen.getByRole("link", { name: /Open full subject/ });
+    focusedControl.focus();
+    fireEvent.keyDown(document.activeElement!, { key: detailsKey.toUpperCase() });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Show subject details" })).toHaveAttribute("aria-expanded", "false"));
+    expect(screen.getByRole("region", { name: "meaning" })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: detailsKey });
+    expect(await screen.findByRole("heading", { name: "Subject details" })).toBeVisible();
+    fireEvent.keyDown(document.activeElement!, { key: detailsKey });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Show subject details" })).toHaveAttribute("aria-expanded", "false"));
+    fireEvent.keyDown(document.activeElement!, { key: DEFAULT_STUDY_SHORTCUTS.markCorrect });
+    expect(await screen.findByRole("heading", { name: "Reviews Complete" })).toBeVisible();
+  });
+
+  it.each([
     [true, true, "やま", true],
     [true, false, "やま", false],
     [false, true, "かわ", false],
@@ -579,6 +633,7 @@ describe("core study prompt layout", () => {
       reviewAnimatePreviousQuestion: true,
       showReviewItemLevelAndSrsStage: false,
       showVocabularyFrequency: false,
+      showLessonVocabularyUnlockCounts: false,
       showVocabContextSentencesInReviews: false,
       allowSkippingReviews: false,
       reviewSearchButtonEnabled: false,
@@ -1208,6 +1263,8 @@ describe("core study prompt layout", () => {
     expect(await screen.findByRole("heading", { name: "Subject details" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit meaning note" }));
     const meaningNote = screen.getByRole("textbox", { name: "Meaning note" });
+    fireEvent.keyDown(meaningNote, { key: "d" });
+    expect(screen.getByRole("button", { name: /Hide subject details/ })).toHaveAttribute("aria-expanded", "true");
     fireEvent.keyDown(meaningNote, { key: "Enter" });
     expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Subject details" })).toBeInTheDocument();

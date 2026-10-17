@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
-import { loadWebSettings, saveWebSettings, type WebSettings } from "@/features/settings/settings";
+import { useCallback, useState } from "react";
+import { updateWebSettings, WEB_SETTINGS_SAVE_ERROR, type WebSettings } from "@/features/settings/settings";
 import { useWorkspacePreferences } from "@/features/settings/use-workspace-preferences";
 
 type ForecastWorkspaceSettings = Pick<WebSettings["workspace"], "forecastViewMode" | "forecastChartMode" | "forecastBreakdown">;
@@ -10,6 +10,7 @@ export const REVIEW_FORECAST_PREVIEW_PREFERENCES = {
   viewMode: "chart" as const,
   chartMode: "hourly" as const,
   breakdown: "off" as const,
+  settingsError: "",
   onViewModeChange: () => {},
   onChartModeChange: () => {},
   onBreakdownChange: () => {},
@@ -17,15 +18,19 @@ export const REVIEW_FORECAST_PREVIEW_PREFERENCES = {
 
 export function useReviewForecastPreferences(username: string) {
   const workspace = useWorkspacePreferences(username);
+  const [settingsError, setSettingsError] = useState("");
   const update = useCallback((patch: Partial<ForecastWorkspaceSettings>) => {
-    const settings = loadWebSettings(window.localStorage, username);
-    saveWebSettings(window.localStorage, username, {
-      ...settings,
-      workspace: { ...settings.workspace, ...patch },
-    });
+    try {
+      updateWebSettings(window.localStorage, username, (settings) => ({
+        ...settings,
+        workspace: { ...settings.workspace, ...patch },
+      }));
+      setSettingsError("");
+    } catch { setSettingsError(WEB_SETTINGS_SAVE_ERROR); }
   }, [username]);
 
   return {
+    settingsError,
     viewMode: workspace.forecastViewMode,
     chartMode: workspace.forecastChartMode,
     breakdown: workspace.forecastBreakdown,

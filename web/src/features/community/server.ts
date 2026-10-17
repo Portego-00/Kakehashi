@@ -135,6 +135,45 @@ export async function communitySupporterUsernames(): Promise<ReadonlySet<string>
   return usernames;
 }
 
+export async function communityLikePeople(kind: "issue" | "comment", targetId: string, page: number) {
+  const table = kind === "issue" ? "issue_likes" : "comment_likes";
+  const column = kind === "issue" ? "issue_id" : "comment_id";
+  const rows = await supabaseRequest(`${table}?select=id,user_id&${column}=eq.${targetId}&order=created_at.asc,id.asc&limit=51&offset=${page * 50}`);
+  if (!Array.isArray(rows)) throw new Error("The people who liked this could not be loaded.");
+  const likes = rows.slice(0, 50) as JsonRecord[];
+  const userIds = [...new Set(likes.map((like) => String(like.user_id || "")).filter(Boolean))];
+  const names = new Map<string, string>();
+  function remember(author: JsonRecord, nameField = "user_username") {
+    const id = String(author.user_id || "");
+    const name = typeof author[nameField] === "string" ? author[nameField].trim() : "";
+    if (id && name && !names.has(id)) names.set(id, name);
+  }
+  if (userIds.length && communityMode() === "local-server") {
+    const store = readLocalStore();
+    [...store.issues, ...store.issue_comments].forEach((author) => remember(author));
+  } else if (userIds.length) {
+    const ids = userIds.map((id) => encodeURIComponent(JSON.stringify(id))).join(",");
+    // Public author names cover existing posts and replies without reading private fields.
+    const authors = await Promise.all([
+      supabaseRequest(`issues?select=user_id,user_username&user_id=in.(${ids})&order=created_at.desc&limit=1000`),
+      supabaseRequest(`issue_comments?select=user_id,user_username&user_id=in.(${ids})&order=created_at.desc&limit=1000`),
+    ]);
+    authors.forEach((entries) => { if (Array.isArray(entries)) entries.forEach((author) => remember(author)); });
+    // A learner can like something before ever posting. Resolve only their name,
+    // server-side, from the account's latest app session when one is available.
+    await Promise.all(userIds.filter((id) => !names.has(id)).map(async (id) => {
+      try {
+        const sessions = await supabaseRequest(`app_sessions?select=user_id,user_name&user_id=eq.${encodeURIComponent(JSON.stringify(id))}&order=session_started_at.desc&limit=1`);
+        if (Array.isArray(sessions)) sessions.forEach((session) => remember(session, "user_name"));
+      } catch { /* Older or read-only deployments may not expose session names. */ }
+    }));
+  }
+  return {
+    items: likes.map((like) => ({ id: String(like.id), username: names.get(String(like.user_id)) || "Unknown learner" })),
+    hasMore: rows.length > 50,
+  };
+}
+
 export async function syncCommunityAuthorEmail(identity: CommunityIdentity) {
   const email = normalizeGravatarEmail(identity.email);
   if (!email || email.endsWith("@users.noreply.local")) return;

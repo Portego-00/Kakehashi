@@ -1,9 +1,9 @@
 let mockTranslations = false;
 jest.mock("../../src/features/translation-packages/display", () => ({useLearningDisplay: () => ({meaning: (subject: any) => mockTranslations && subject.id === 1 ? "Bir" : subject.data.meanings[0].meaning})}));
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import SubjectListEditorScreen from "../(app)/subject-list/[id]";
 import { getAllSubjects } from "../../src/utils/cache";
 import type { Subject } from "../../src/utils/api";
@@ -18,6 +18,12 @@ jest.mock("../../src/utils/store", () => ({
   useAuthStore: Object.assign(() => ({ apiToken: "test-token" }), {
     getState: () => ({ userData: null }),
   }),
+  useSettingsStore: (selector: (state: { showVocabularyFrequency: boolean; setShowVocabularyFrequency: () => void }) => unknown) =>
+    selector({ showVocabularyFrequency: false, setShowVocabularyFrequency: jest.fn() }),
+}));
+jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
+jest.mock("../../src/hooks/useVocabularyFrequencyRanks", () => ({
+  useVocabularyFrequencyRanks: () => ({ ranks: new Map(), canUseResults: true, dataReady: true }),
 }));
 jest.mock("../../src/utils/cache", () => ({ getAllSubjects: jest.fn() }));
 jest.mock("../../src/utils/api", () => ({
@@ -50,12 +56,21 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 jest.mock("@expo/ui/swift-ui", () => {
-  const { View } = jest.requireActual("react-native");
-  return { Host: View, Menu: View, RNHostView: View, Button: () => null };
+  const { View, TouchableOpacity, Text } = jest.requireActual("react-native");
+  return {
+    Host: View, Menu: View, RNHostView: View,
+    Button: ({ label, onPress }: { label: string; onPress: () => void }) => (
+      <TouchableOpacity onPress={onPress}><Text>{label}</Text></TouchableOpacity>
+    ),
+  };
 });
 jest.mock("../../src/components/GlassButton", () => {
   const { TouchableOpacity } = jest.requireActual("react-native");
-  return { GlassButton: TouchableOpacity };
+  return {
+    GlassButton: ({ iconName, ...props }: { iconName: string }) => (
+      <TouchableOpacity {...props} accessibilityLabel={iconName} />
+    ),
+  };
 });
 
 const subjects: Subject[] = [
@@ -122,6 +137,69 @@ describe("list action selection", () => {
     expect(savedIds("source")).toEqual([1, 2, 3, 4]);
     fireEvent.press(screen.getByLabelText("Select Two for list actions"));
     expect(screen.getByText("0 selected")).toBeTruthy();
+  });
+
+  it("hides meanings from both tabs and accessibility labels, and remembers the preference", async () => {
+    const screen = await openList();
+    fireEvent.press(screen.getByText("Hide Meanings"));
+    expect(screen.queryByText("One")).toBeNull();
+    expect(screen.queryByLabelText("Select One for list actions")).toBeNull();
+    expect(screen.getByLabelText("Select 一 for list actions")).toBeTruthy();
+    expect(screen.getByLabelText("Save list changes").props.accessibilityState.disabled).toBe(true);
+    expect(savedIds("source")).toEqual([1, 2, 3, 4]);
+    expect(storage.get("subject_list_hide_meanings")).toBe("true");
+
+    fireEvent.press(screen.getByLabelText("Select 二 for list actions"));
+    expect(screen.getByText("1 selected")).toBeTruthy();
+    fireEvent.press(screen.getByText("Browse"));
+    expect(screen.queryByText("Two")).toBeNull();
+    expect(screen.getByText("二")).toBeTruthy();
+    fireEvent.press(screen.getByText("Show Meanings"));
+    expect(screen.getByText("Two")).toBeTruthy();
+    expect(storage.get("subject_list_hide_meanings")).toBe("false");
+    fireEvent.press(screen.getByText("Hide Meanings"));
+    screen.unmount();
+
+    const reopened = render(<SubjectListEditorScreen />);
+    await waitFor(() => expect(reopened.getByText("In List (4)")).toBeTruthy());
+    expect(reopened.queryByText("One")).toBeNull();
+    fireEvent.press(reopened.getByText("In List (4)"));
+    expect(reopened.getByLabelText("Select 一 for list actions")).toBeTruthy();
+    fireEvent.press(reopened.getByText("Show Meanings"));
+    expect(reopened.getByLabelText("Select One for list actions")).toBeTruthy();
+  });
+
+  it("does not reveal a radical meaning when its character and image are unavailable", async () => {
+    jest.mocked(getAllSubjects).mockResolvedValue([
+      ...subjects.slice(0, 3),
+      { ...subjects[3], object: "radical", data: { ...subjects[3].data, characters: null } },
+    ]);
+    const screen = await openList();
+    fireEvent.press(screen.getByText("Hide Meanings"));
+    expect(screen.queryByText("Four")).toBeNull();
+    expect(screen.getByText("?")).toBeTruthy();
+    expect(screen.getByLabelText("Select radical 4 for list actions")).toBeTruthy();
+    fireEvent.press(screen.getByText("Browse"));
+    expect(screen.queryByText("Four")).toBeNull();
+    expect(screen.getByText("?")).toBeTruthy();
+  });
+
+  it("toggles meanings from the fallback three-dot menu", async () => {
+    jest.replaceProperty(Platform, "OS", "android");
+    const screen = await openList();
+    fireEvent.press(screen.getByLabelText("ellipsis-horizontal"));
+    const hideAction = jest.mocked(Alert.alert).mock.calls.at(-1)?.[2]
+      ?.find((action) => action.text === "Hide Meanings");
+    expect(hideAction).toBeDefined();
+    act(() => hideAction?.onPress?.());
+    expect(screen.queryByText("One")).toBeNull();
+    expect(screen.getByLabelText("Select 一 for list actions")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("ellipsis-horizontal"));
+    const showAction = jest.mocked(Alert.alert).mock.calls.at(-1)?.[2]
+      ?.find((action) => action.text === "Show Meanings");
+    expect(showAction).toBeDefined();
+    act(() => showAction?.onPress?.());
+    expect(screen.getByText("One")).toBeTruthy();
   });
 
   it.each(["Copy", "Move"])("%s transfers only checked items and preserves the rest", async (mode) => {

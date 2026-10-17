@@ -15,9 +15,10 @@ const mockAssignments = () => Object.fromEntries(mockWords.map((word) => [word.i
   correctReviews: 0, incorrectReviews: 0, card: null,
 }]));
 let mockState = { enrolledPackIds: ["test-pack"], assignments: mockAssignments() };
+let mockPacks = [{ id: "test-pack", words: mockWords }];
 const mockCloud = {
   loading: false, error: null, state: mockState,
-  refresh: jest.fn(), completeLesson: jest.fn(), submitReview: jest.fn(),
+  packs: mockPacks, getPacks: jest.fn(() => mockPacks), refresh: jest.fn(), completeLesson: jest.fn(), submitReview: jest.fn(),
 };
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: jest.fn(() => true) };
 let mockUuid = 0;
@@ -35,8 +36,8 @@ jest.mock("../catalog", () => ({ get CUSTOM_VOCABULARY_PACKS() { return [{ id: "
 jest.mock("../client", () => ({ CustomSrsConflictError: class extends Error { readonly status = 409; } }));
 jest.mock("../data", () => ({
   useCustomSrs: () => mockCloud,
-  customLessonWords: (state: typeof mockState) => mockWords.filter((word) => state.assignments[word.id]?.stage === 0),
-  customReviewWords: (state: typeof mockState) => mockWords.filter((word) => state.assignments[word.id]?.stage > 0 && Boolean(state.assignments[word.id]?.availableAt) && Date.parse(state.assignments[word.id].availableAt!) <= Date.now()),
+  customLessonWords: (state: typeof mockState, packs: typeof mockPacks) => packs.flatMap((pack) => pack.words).filter((word) => state.assignments[word.id]?.stage === 0),
+  customReviewWords: (state: typeof mockState, packs: typeof mockPacks) => packs.flatMap((pack) => pack.words).filter((word) => state.assignments[word.id]?.stage > 0 && Boolean(state.assignments[word.id]?.availableAt) && Date.parse(state.assignments[word.id].availableAt!) <= Date.now()),
 }));
 jest.mock("../subject", () => ({
   customWordUsesKanji: (word: typeof mockWords[number]) => /\p{Script=Han}/u.test(word.characters),
@@ -87,11 +88,27 @@ beforeEach(() => {
   mockUuid = 0;
   mockWords.forEach((word, index) => { word.characters = `かな${index + 1}`; });
   mockState = { enrolledPackIds: ["test-pack"], assignments: mockAssignments() };
+  mockPacks = [{ id: "test-pack", words: mockWords }];
+  mockCloud.packs = mockPacks;
+  mockCloud.getPacks.mockImplementation(() => mockPacks);
   mockCloud.state = mockState;
   mockCloud.refresh.mockImplementation(async () => mockState);
   mockCloud.completeLesson.mockImplementation(confirmLesson);
   mockCloud.submitReview.mockImplementation(confirmLesson);
   jest.spyOn(Math, "random").mockReturnValue(0.999);
+});
+
+it("builds the first lesson batch from a personal deck fetched during session startup", async () => {
+  const deckId = "personal:11111111-1111-4111-8111-111111111111";
+  mockCloud.packs = [];
+  mockCloud.refresh.mockImplementationOnce(async () => {
+    mockPacks = [{ id: deckId, words: mockWords.slice(0, 2) }];
+    return mockState;
+  });
+  const screen = render(<CustomSrsSession mode="lessons" packId={deckId} />);
+  await waitFor(() => expect(screen.getByTestId("teaching-count").props.children).toBe(2));
+  expect(screen.getByTestId("teaching-word").props.children).toBe("かな1");
+  expect(mockCloud.getPacks).toHaveBeenCalled();
 });
 
 afterEach(() => jest.restoreAllMocks());

@@ -1,8 +1,10 @@
-import { act, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { router } from "expo-router";
 import React from "react";
 import { Alert } from "react-native";
 
 import type ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
+import type ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import ReviewScreen from "../(app)/reviews";
 
 let mockQuestionProps: React.ComponentProps<
@@ -179,12 +181,15 @@ jest.mock("../../src/components/ReviewQuestionScreen", () => {
 });
 jest.mock("../../src/components/ReviewResultsScreen", () => {
   const React = jest.requireActual<typeof import("react")>("react");
-  const { Text } =
+  const { Text, TouchableOpacity, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
   return {
     __esModule: true,
-    default: ({ submittingResults }: { submittingResults: boolean }) => (
-      <Text>{submittingResults ? "Submitting" : "Results"}</Text>
+    default: ({ submittingResults, onRedo }: React.ComponentProps<typeof ReviewResultsScreen>) => (
+      <View>
+        <Text>{submittingResults ? "Submitting" : "Results"}</Text>
+        {!submittingResults ? <TouchableOpacity onPress={onRedo} accessibilityLabel="Redo"><Text>Redo</Text></TouchableOpacity> : null}
+      </View>
     ),
   };
 });
@@ -297,6 +302,23 @@ describe("review parent manual-correction accounting", () => {
     await screen.findByTestId("accounting-question", {}, { timeout: 500 });
     expect(currentQuestion().item.id).toBe(10);
     expect(mockGetLiveAvailableReviews).toHaveBeenCalledWith("test-token");
+    screen.unmount();
+  });
+
+  it("repeats regular reviews as custom practice without submitting them again", async () => {
+    addCachedReviews(2);
+    const screen = render(<ReviewScreen />);
+    await screen.findByTestId("accounting-question");
+    for (let index = 0; index < 4; index += 1) {
+      await answerCurrent(true);
+    }
+    await screen.findByText("Results");
+    expect(mockPersistProgress).toHaveBeenCalledTimes(2);
+    fireEvent.press(screen.getByLabelText("Redo"));
+    const replay = jest.mocked(router.replace).mock.calls.at(-1)?.[0];
+    expect(replay).toMatchObject({ pathname: "/custom-review", params: { resume: "false" } });
+    expect(typeof replay === "object" && replay.params?.subjectIds?.toString().split(",").sort()).toEqual(["1", "2"]);
+    expect(mockPersistProgress).toHaveBeenCalledTimes(2);
     screen.unmount();
   });
 

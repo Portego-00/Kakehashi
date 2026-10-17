@@ -28,7 +28,7 @@ import { fetchImmersionExamples } from "@/features/study/immersion";
 import { playAnswerFeedback } from "@/features/study/feedback-audio";
 import { useSession } from "@/lib/session";
 import { WaniKaniApiError, wkCollection, wkRequest } from "@/lib/wanikani/client";
-import { userQuery, wkKeys } from "@/lib/wanikani/queries";
+import { subjectsQuery as catalogSubjectsQuery, userQuery, wkKeys } from "@/lib/wanikani/queries";
 import type { Assignment, ReviewStatistic, StudyMaterial, Subject } from "@/types/wanikani";
 import quiz from "@/features/study/study.module.css";
 import { AnkiAnswerContent } from "./AnkiAnswerContent";
@@ -59,6 +59,7 @@ import styles from "./core-study.module.css";
 import { reviewSubjectFont } from "./review-subject-font";
 import { useReviewFontReady } from "./use-review-font-ready";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
+import { getLessonVocabularyUnlockCounts } from "../../../../src/utils/lessonVocabularyUnlocks";
 
 import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import { ReviewExitGuard } from "./ReviewExitGuard";
@@ -88,6 +89,7 @@ const noopSubscribe = () => () => {};
 const singleKanji = /^[\u3400-\u4DBF\u4E00-\u9FFF]$/;
 const reviewShortcutInteractiveSelector = "input, textarea, select, button, a, audio, video, [contenteditable]:not([contenteditable=\"false\"])";
 const reviewAdvanceNativeEnterSelector = "input, textarea, select, a, audio, video, [contenteditable]:not([contenteditable=\"false\"])";
+const reviewDetailsEditingSelector = "input, textarea, select, audio, video, [role=\"slider\"], [contenteditable]:not([contenteditable=\"false\"])";
 const coreStudyIdsPerRequest = 500;
 const lessonTeachingTabs = new Set<SubjectDetailTab>(["meaning", "reading", "stroke", "context"]);
 
@@ -141,9 +143,9 @@ function formatNextReviewInterval(availableAt: string | null | undefined, stage:
   return `${months} ${months === 1 ? "month" : "months"}`;
 }
 
-function shouldIgnoreReviewShortcut(event: KeyboardEvent) {
+function shouldIgnoreReviewShortcut(event: KeyboardEvent, selector = reviewShortcutInteractiveSelector) {
   if (event.defaultPrevented) return true;
-  return event.target instanceof Element && Boolean(event.target.closest(reviewShortcutInteractiveSelector));
+  return event.target instanceof Element && Boolean(event.target.closest(selector));
 }
 
 function shouldIgnoreReviewAdvance(event: KeyboardEvent) {
@@ -331,6 +333,16 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     staleTime: 24 * 60 * 60_000,
   });
   const subjects = subjectsQuery.data || EMPTY_SUBJECTS;
+  const vocabularyUnlockLevels = useMemo(() => pickingLessons && preferences.showLessonVocabularyUnlockCounts
+    ? [...new Set(subjects.filter((subject) => subject.object === "kanji" && candidateIds.includes(subject.id)).map((subject) => subject.data.level))].sort((a, b) => a - b)
+    : [], [candidateIds, pickingLessons, preferences.showLessonVocabularyUnlockCounts, subjects]);
+  const vocabularyUnlockQuery = useQuery({
+    ...catalogSubjectsQuery(`types=vocabulary&levels=${vocabularyUnlockLevels.join(",")}&hidden=false`),
+    enabled: pickingLessons && preferences.showLessonVocabularyUnlockCounts && vocabularyUnlockLevels.length > 0 && !isOnVacation,
+  });
+  const vocabularyUnlockCounts = useMemo(() => preferences.showLessonVocabularyUnlockCounts && vocabularyUnlockQuery.data
+    ? getLessonVocabularyUnlockCounts(subjects, vocabularyUnlockQuery.data) : undefined,
+  [preferences.showLessonVocabularyUnlockCounts, subjects, vocabularyUnlockQuery.data]);
   const dailyRemaining = remainingDailyLessons(preferences.dailyLessonLimit, lessonStartsToday);
   const assignmentLimit = mode === "lessons" ? Math.min(preferences.lessonsBatchSize, dailyRemaining) : preferences.reviewBatchSize;
   const plannedAssignments = useMemo(
@@ -921,13 +933,20 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
       const action = studyShortcutAction(event.key, studyKeys);
       const fromAnsweredInput = event.target === inputRef.current && Boolean(feedback && feedback.status !== "blocked");
       if (action === "skip" && !feedback && !shouldIgnoreReviewShortcut(event)) { event.preventDefault(); skipCurrentQuestion(); return; }
-      if ((action === "details" || action === "replayAudio" || action === "markCorrect" || action === "markIncorrect" || action === "addSynonym") && (fromAnsweredInput || !shouldIgnoreReviewShortcut(event)) && !(ankiRevealed && !feedback && (action === "markCorrect" || action === "markIncorrect"))) {
+      if ((action === "details" || action === "replayAudio" || action === "markCorrect" || action === "markIncorrect" || action === "addSynonym") && (fromAnsweredInput || !shouldIgnoreReviewShortcut(event, action === "details" ? reviewDetailsEditingSelector : undefined)) && !(ankiRevealed && !feedback && (action === "markCorrect" || action === "markIncorrect"))) {
         if (revealStudyDetails && !advancingQuestion && !addSynonymMutation.isPending) {
           if (action === "markCorrect") { event.preventDefault(); markAnswer(true); }
           if (action === "markIncorrect") { event.preventDefault(); markAnswer(false); }
           if (action === "addSynonym") { event.preventDefault(); if (canAddSynonym && current) addSynonymMutation.mutate({ subject: current.subject, assignmentId: current.assignment.id, kind: current.kind, synonym: synonymCandidate, existingMaterial: material }); }
         }
-        if (action === "details" && revealStudyDetails) { event.preventDefault(); toggleStudyDetails(); }
+        if (action === "details" && revealStudyDetails) {
+          event.preventDefault();
+          toggleStudyDetails();
+          // Keep grading shortcuts available after leaving a focused details control.
+          if (studyDetailsOpen && event.target instanceof Element) {
+            event.target.closest<HTMLElement>('[data-study-session="active"]')?.focus({ preventScroll: true });
+          }
+        }
         if (action === "replayAudio" && current && revealStudyDetails) { event.preventDefault(); void playAudio(current.subject); }
         return;
       }
@@ -1081,6 +1100,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     subjects={subjects.filter((subject) => candidateIds.includes(subject.id))}
     limit={dailyRemaining}
     batchSize={preferences.lessonsBatchSize}
+    vocabularyUnlockCounts={vocabularyUnlockCounts}
+    vocabularyUnlockStatus={preferences.showLessonVocabularyUnlockCounts && vocabularyUnlockLevels.length > 0 ? vocabularyUnlockQuery.isError ? "error" : vocabularyUnlockQuery.isPending ? "loading" : undefined : undefined}
+    onRetryVocabularyUnlockCounts={() => void vocabularyUnlockQuery.refetch()}
     onStart={(subjectIds) => {
       const availableIds = new Set(candidateIds);
       const ids = subjectIds.filter((id) => availableIds.has(id)).slice(0, dailyRemaining);
@@ -1193,7 +1215,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
           {sessionError ? <p className={styles.error} role="alert">{sessionError}</p> : null}
         </div> : null;
 
-  return <div ref={reviewViewportRef} className={`${quiz.quizShell} ${!selfAssessment ? quiz.typedReviewShell : ""}`} data-study-session="active" data-review-layout={preferences.compactReviews ? "compact" : undefined} data-multiple-choice={hideTypedAnswer || undefined} data-details-open={studyDetailsExpanded || undefined} data-advancing={advancingQuestion || undefined} data-type={current.subject.object} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} role="region" aria-labelledby="study-prompt-title">
+  return <div ref={reviewViewportRef} className={`${quiz.quizShell} ${!selfAssessment ? quiz.typedReviewShell : ""}`} data-study-session="active" data-review-layout={preferences.compactReviews ? "compact" : undefined} data-multiple-choice={hideTypedAnswer || undefined} data-details-open={studyDetailsExpanded || undefined} data-advancing={advancingQuestion || undefined} data-type={current.subject.object} style={{ "--subject-color": subjectColor(current.subject), "--jitai-font": jitaiFamily } as React.CSSProperties} role="region" aria-labelledby="study-prompt-title" tabIndex={-1}>
         <ReviewExitGuard pendingSubjects={pendingSubjectIds.size} />
         <div className={quiz.quizTopbar}>
           <div className={styles.sessionProgress}><span>{mixed ? "Mixed reviews" : mode === "lessons" ? "Lesson Quiz" : "Reviews"}</span><strong>{Math.min(displayTotal, displayCompleted + 1)} / {displayTotal}</strong></div>

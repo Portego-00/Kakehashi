@@ -15,10 +15,67 @@ import type { BunproReviewQueueItem } from "./model";
 const session = vi.hoisted(() => ({ user: { data: { username: "Learner" } }, isDemo: false }));
 vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 vi.mock("@/lib/session", () => ({ useSession: () => session }));
-vi.mock("@/features/settings/use-workspace-preferences", () => ({ useWebSettings: vi.fn() }));
+vi.mock("@/features/settings/use-workspace-preferences", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/features/settings/use-workspace-preferences")>(),
+  useWebSettings: vi.fn(),
+}));
 vi.mock("@/features/study/feedback-audio", () => ({ playAnswerFeedback: vi.fn() }));
 vi.mock("./client", () => ({ bunpro: vi.fn() }));
 const item: BunproReviewQueueItem = { data: { id: "10", type: "review", attributes: { id: 10, ghost_count: 0, reviewable_id: 20, reviewable_type: "GrammarPoint" }, relationships: { study_question: { data: { id: "30", type: "study_question" } }, reviewable: { data: { id: "20", type: "grammar_point" } } } }, included: [{ id: "30", type: "study_question", attributes: { content: "私(わたし)は学生____。", answer: "です", alternate_grammar: ["だ"], alternate_answers: { "でした": { en: "Use the present tense." } }, translation: "I am a student." } }, { id: "20", type: "grammar_point", attributes: { title: "です", slug: "desu", meaning: "To be" } }] };
+it("runs a mastery round entirely locally, resets misses, and preserves first-attempt results", async () => {
+  setup(<BunproReviews practiceSession={{ mode: "mastery-loop", items: [item] }} />);
+  const input = await screen.findByLabelText("Your answer");
+  for (const [index, answer] of ["です", "ちがう", "です", "です"].entries()) {
+    fireEvent.change(input, { target: { value: answer } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    if (index === 0) expect(screen.getByText("1 / 2 consecutive correct answers")).toBeVisible();
+    if (index === 1) expect(screen.getByText("0 / 2 consecutive correct answers")).toBeVisible();
+    if (index < 3) expect(screen.queryByText("Mastery loop complete")).not.toBeInTheDocument();
+  }
+  expect(await screen.findByText("Mastery loop complete")).toBeVisible();
+  expect(screen.getByLabelText("1 correct and 0 missed")).toBeVisible();
+  expect(screen.getByText("Bunpro SRS is unchanged.")).toBeVisible();
+  expect(vi.mocked(bunpro)).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Practice again" }));
+  expect(await screen.findByLabelText("Your answer")).toHaveValue("");
+  expect(screen.getByText("0 / 2 consecutive correct answers")).toBeVisible();
+});
+it("allows a fresh local round containing only missed sentences", async () => {
+  setup(<BunproReviews practiceSession={{ mode: "sentence-drill", items: [item] }} />);
+  fireEvent.change(await screen.findByLabelText("Your answer"), { target: { value: "ちがう" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Sentence drill complete");
+  fireEvent.click(screen.getByRole("button", { name: "Practice missed sentences" }));
+  fireEvent.change(await screen.findByLabelText("Your answer"), { target: { value: "だ" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(await screen.findByLabelText("1 correct and 0 missed")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Practice missed sentences" })).not.toBeInTheDocument();
+  expect(vi.mocked(bunpro)).not.toHaveBeenCalled();
+});
+it("starts the no-hints challenge with translation concealed and reveals it on demand", async () => {
+  setup(<BunproReviews practiceSession={{ mode: "no-hints", items: [item] }} />);
+  await screen.findByLabelText("Your answer");
+  expect(screen.getByText("I am a student.").closest("[aria-hidden]")).toHaveAttribute("aria-hidden", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Hint level 0 of 4" }));
+  expect(screen.getByText("I am a student.").closest("[aria-hidden]")).toHaveAttribute("aria-hidden", "false");
+  expect(vi.mocked(bunpro)).not.toHaveBeenCalled();
+});
+it("conceals the Japanese text in listening cloze until the learner requests it", async () => {
+  setup(<BunproReviews practiceSession={{ mode: "listening-cloze", items: [item] }} />);
+  await screen.findByLabelText("Your answer");
+  const prompt = screen.getByLabelText("Bunpro review");
+  expect(within(prompt).queryByText("私")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Listen to sentence" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Show sentence" }));
+  expect(within(prompt).getByText("私")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Listen to sentence" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Hide sentence" }));
+  expect(within(prompt).queryByText("私")).not.toBeInTheDocument();
+  expect(vi.mocked(bunpro)).not.toHaveBeenCalled();
+});
 it("opens the first selected lesson review without loading the regular review queue", async () => {
   vi.mocked(bunpro).mockImplementation(async (query, options) => {
     if (query === "action=lesson-queue") return { data: [{ id: "1", attributes: { deck_id: 1, daily_goal: 2, batch_size: 1 } }], included: [{ id: "1", attributes: { title: "N5 Grammar", grammar_count: 100 } }] };

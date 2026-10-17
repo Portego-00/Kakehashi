@@ -10,7 +10,7 @@ This endpoint serves the private, Portego-only mobile custom vocabulary feature.
 - Keep the mapped `model`, `scheduler`, `types`, `srs-settings`, and `state-patch` imports extensionless, including the direct imports in `index.ts`. The Supabase CLI dependency collector otherwise applies the mapping twice and looks for `.ts.ts` files; Deno's local checker alone does not catch that deployment issue.
 - Writes use the existing revision-checked RPC. Conflicts re-read the latest cloud state, so mobile and web do not overwrite one another. Review retries must retain their original `eventId`; lessons and enrollment are intrinsically idempotent.
 - Unsupported policies or damaged learned cards fail closed. They are never replaced by an empty state.
-- The mobile cache is account-scoped and contains only confirmed server snapshots. Offline reading is available, but enrollment, lesson completion, and reviews require a confirmed cloud save.
+- The mobile cache is account-scoped and contains confirmed progress and personal-library definitions. Study answers are saved to the durable device outbox before background delivery. Starting a session, changing scheduling settings, and editing/importing library content require cloud confirmation.
 - This function never submits custom subjects or progress to WaniKani. The browser's existing cookie-authenticated API is unchanged.
 
 ## Verification and deployment
@@ -24,3 +24,11 @@ supabase functions deploy custom-srs --project-ref zcvoxqcvobgvcwcrqytz
 Deploy only this function. `supabase/config.toml` disables Supabase JWT verification for this function because authentication is performed with the WaniKani token inside the handler, not a Supabase user JWT. Supabase supplies the server-side service-role environment variable to deployed Edge Functions.
 
 Successful responses include `available: true` and `revision`, with a full state, a delta for a current client, or an unchanged revision confirmation. Failure responses are non-2xx and must never be interpreted as permission to save locally without syncing.
+
+## Mobile personal decks and scheduling
+
+The native vocabulary hub includes **Manage personal decks** and **Scheduling settings**, under the same Portego-only route guard. Personal decks and words imported on web are available in native lessons, reviews, and subject details. Native library management supports deck creation/rename, word editing, archive/restore, and UTF-8 CSV/TSV file or pasted-text import with the shared preview, column mapping, and duplicate rules.
+
+`read_library` serves the existing revision-paginated `read_custom_vocabulary` RPC. `mutate_library` validates the same word schema as web and calls `mutate_custom_vocabulary` with the verified WaniKani account, never a client-supplied identity. Library and SRS revisions remain separate. Complete library pages are cached per account before sessions use their definitions; archived words retain progress and stay out of study queues.
+
+`update_settings` uses the existing version-2 settings policy and revision-locked storage RPC. Fixed intervals and FSRS controls match web. Saves retain retry event IDs, reject stale settings revisions, and wait for pending study answers. No new database migration is required: deploy the updated Edge Function before releasing the mobile JavaScript update. Existing web and native study actions remain compatible.

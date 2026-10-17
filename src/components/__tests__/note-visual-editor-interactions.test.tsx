@@ -77,12 +77,13 @@ function insertBrowserText(editor: HTMLDivElement, text: string) {
   act(() => editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text })));
 }
 
-function mockCollapsedTypingCommands() {
+function mockCollapsedTypingCommands(delayedFormat?: string) {
   const originalExecCommand = Object.getOwnPropertyDescriptor(document, "execCommand");
   const originalQueryCommandState = Object.getOwnPropertyDescriptor(document, "queryCommandState");
   const selection = window.getSelection()!;
   const addRange = selection.addRange.bind(selection);
   const pendingFormats = new Set<string>();
+  const reportedFormats = new Set<string>();
   const formatTags = { bold: "b,strong", italic: "i,em", underline: "u" };
 
   // Browsers keep caret typing styles separately from existing DOM markup.
@@ -90,11 +91,15 @@ function mockCollapsedTypingCommands() {
   const restoreRange = jest.spyOn(selection, "addRange").mockImplementation((range) => {
     addRange(range);
     pendingFormats.clear();
+    reportedFormats.clear();
     const element = range.startContainer instanceof Element
       ? range.startContainer
       : range.startContainer.parentElement;
     for (const [format, tags] of Object.entries(formatTags)) {
-      if (element?.closest(tags)) pendingFormats.add(format);
+      if (element?.closest(tags)) {
+        pendingFormats.add(format);
+        reportedFormats.add(format);
+      }
     }
   });
   Object.defineProperty(document, "execCommand", {
@@ -108,7 +113,9 @@ function mockCollapsedTypingCommands() {
   });
   Object.defineProperty(document, "queryCommandState", {
     configurable: true,
-    value: jest.fn((format: string) => pendingFormats.has(format)),
+    value: jest.fn((format: string) =>
+      (format === delayedFormat ? reportedFormats : pendingFormats).has(format),
+    ),
   });
 
   return () => {
@@ -136,6 +143,119 @@ afterEach(() => {
 });
 
 describe("note visual editor interactions", () => {
+  it("reports italic toggles before typing when the browser reports stale command state", () => {
+    const restoreCommands = mockCollapsedTypingCommands("italic");
+    try {
+      const editor = renderEditor([{ text: "existing", formats: [] }]);
+      act(() => editor.focus());
+      select(editor.firstChild!, 4);
+
+      command({ type: "toggle-format", format: "italic" });
+
+      expect(document.queryCommandState("italic")).toBe(false);
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["italic"] });
+      act(() => document.dispatchEvent(new Event("selectionchange")));
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["italic"] });
+      command({ type: "toggle-format", format: "bold" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold", "italic"] });
+      command({ type: "toggle-format", format: "italic" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["bold"] });
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([{ text: "existing", formats: [] }]);
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("reports italic off inside italic text even while the browser still reports it on", () => {
+    const restoreCommands = mockCollapsedTypingCommands("italic");
+    try {
+      const editor = renderEditor([{ text: "existing", formats: ["italic"] }]);
+      act(() => editor.focus());
+      select(editor.firstChild!.firstChild!, 4);
+
+      command({ type: "toggle-format", format: "italic" });
+
+      expect(document.queryCommandState("italic")).toBe(true);
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+      act(() => document.dispatchEvent(new Event("selectionchange")));
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+      expect(readNoteVisualEditorRunsFromElement(editor)).toEqual([{ text: "existing", formats: ["italic"] }]);
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("uses the new caret's formatting after moving away from a pending italic toggle", () => {
+    const restoreCommands = mockCollapsedTypingCommands("italic");
+    try {
+      const editor = renderEditor([{ text: "existing", formats: [] }]);
+      act(() => editor.focus());
+      select(editor.firstChild!, 4);
+      command({ type: "toggle-format", format: "italic" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["italic"] });
+
+      select(editor.firstChild!, 2);
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+      select(editor.firstChild!, 4);
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("does not report italic on when the browser rejects the toggle", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([]);
+      act(() => editor.focus());
+      select(editor, 0);
+      jest.mocked(document.execCommand).mockReturnValue(false);
+
+      command({ type: "toggle-format", format: "italic" });
+
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("uses browser formatting after a keyboard formatting input at the same caret", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([{ text: "existing", formats: [] }]);
+      act(() => editor.focus());
+      select(editor.firstChild!, 4);
+      command({ type: "toggle-format", format: "italic" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["italic"] });
+
+      act(() => {
+        document.execCommand("italic");
+        editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "formatItalic" }));
+      });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: [] });
+    } finally {
+      restoreCommands();
+    }
+  });
+
+  it("uses replacement note formatting when its text and caret offset stay the same", () => {
+    const restoreCommands = mockCollapsedTypingCommands();
+    try {
+      const editor = renderEditor([{ text: "existing", formats: [] }]);
+      act(() => editor.focus());
+      select(editor.firstChild!, 4);
+      command({ type: "toggle-format", format: "bold" });
+      props = { ...props, runs: [{ text: "existing", formats: ["underline"] }] };
+      act(() => root.render(<NoteVisualEditorContent {...props} />));
+
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["underline"] });
+      command({ type: "toggle-format", format: "italic" });
+      expect(props.onSelectionChange).toHaveBeenLastCalledWith({ text: "", formats: ["italic", "underline"] });
+    } finally {
+      restoreCommands();
+    }
+  });
+
   it("combines pending caret formats before typing and lets either be disabled", () => {
     const restoreCommands = mockCollapsedTypingCommands();
     try {

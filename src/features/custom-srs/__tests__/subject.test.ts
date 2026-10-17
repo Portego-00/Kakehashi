@@ -44,4 +44,13 @@ describe("native custom vocabulary display adapter", () => {
     expect(details).not.toHaveProperty("meaningCorrect");
     expect(details).not.toHaveProperty("readingCurrentStreak");
   });
+
+  it("keeps thousands of personal UUIDs distinct and resolves links against the current account's words", () => {
+    const words = Array.from({ length: 10_000 }, (_, index) => ({ ...CUSTOM_VOCABULARY_WORDS[0], id: `personal:11111111-1111-4111-8111-${index.toString(16).padStart(12, "0")}` }));
+    const ids = words.map((word) => customVocabularySubjectId(word.id));
+    expect(new Set(ids).size).toBe(words.length);
+    expect(ids.every((id) => Number.isSafeInteger(id) && id < -5_000_000_000)).toBe(true);
+    expect(customSubjectIdToWord(ids[25], words)).toBe(words[25]);
+    expect(customSubjectIdToWord(ids[25], [])).toBeUndefined();
+  });
 });
