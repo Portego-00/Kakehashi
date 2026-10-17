@@ -77,6 +77,8 @@ type HomeDashboardWidgetProps = {
   srsBreakdownGroupStagesScope?: SrsBreakdownGroupStagesScope;
   activeExtraStudySessionModeIds?: readonly ExtraStudyModeId[];
   previewMode?: boolean;
+  // Unfiltered assignments for level progress when dashboardData is a learning page.
+  accountAssignments?: any[];
   style?: StyleProp<ViewStyle>;
 };
 
@@ -106,6 +108,7 @@ export default function HomeDashboardWidget({
   srsBreakdownGroupStagesScope,
   activeExtraStudySessionModeIds = [],
   previewMode = false,
+  accountAssignments,
   style,
 }: HomeDashboardWidgetProps) {
   const { theme } = useTheme();
@@ -537,7 +540,7 @@ export default function HomeDashboardWidget({
             <StudyPacePlanner
               currentLevel={dashboardData.currentLevel}
               subjects={dashboardData.subjects ?? []}
-              assignments={dashboardData.assignments ?? []}
+              assignments={accountAssignments ?? dashboardData.assignments ?? []}
               progressions={dashboardData.levelProgressions ?? []}
               paused={isOnVacation}
               loading={
@@ -573,7 +576,7 @@ export default function HomeDashboardWidget({
       return (
         <IncompleteLevelsProgress
           subjects={dashboardData.subjects}
-          assignments={dashboardData.assignments}
+          assignments={accountAssignments ?? dashboardData.assignments}
           currentLevel={dashboardData.currentLevel}
         />
       );

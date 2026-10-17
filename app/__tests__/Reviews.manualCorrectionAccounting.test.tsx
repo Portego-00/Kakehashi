@@ -33,6 +33,8 @@ let mockReviewBatchSize = 5;
 let mockReviewPresetId: string | undefined;
 let mockReviewPresetsEnabled = false;
 let mockReviewPresets: import("../../src/utils/review-presets").ReviewPreset[] = [];
+let mockLearningPageId: string | undefined;
+let mockLearningPages: import("../../src/utils/learningPages").LearningPage[] = [];
 const mockSubject = {
   id: 1,
   object: "vocabulary",
@@ -78,7 +80,10 @@ const mockGetCachedStudyMaterials = jest.fn(async () => []);
 let mockAcceptUserSynonymsAsAnswers = false;
 
 jest.mock("expo-router", () => ({
-  useLocalSearchParams: () => ({ reviewPresetId: mockReviewPresetId }),
+  useLocalSearchParams: () => ({
+    reviewPresetId: mockReviewPresetId,
+    learningPageId: mockLearningPageId,
+  }),
   router: { back: jest.fn(), replace: jest.fn(), dismissAll: jest.fn() },
 }));
 jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
@@ -119,6 +124,7 @@ jest.mock("../../src/utils/store", () => ({
     reviewBatchSize: mockReviewBatchSize,
     reviewPresetsEnabled: mockReviewPresetsEnabled,
     reviewPresets: mockReviewPresets,
+    learningPages: mockLearningPages,
     reviewWrapUpTargetSubjects: 10,
     autoplayVocabularyAudio: false,
     showAnswerStopSubjectDetails: false,
@@ -251,6 +257,8 @@ describe("review parent manual-correction accounting", () => {
     mockReviewPresetId = undefined;
     mockReviewPresetsEnabled = false;
     mockReviewPresets = [];
+    mockLearningPageId = undefined;
+    mockLearningPages = [];
     mockAcceptUserSynonymsAsAnswers = false;
     mockQuestionProps = null;
     mockQueueProgress.mockReset();
@@ -337,6 +345,22 @@ describe("review parent manual-correction accounting", () => {
     expect(mockReviewBatchSize).toBe(50);
     expect(mockReviewOrder).toBe("lowestLevelFirst");
     mockDashboard.assignments[0].data.srs_stage = 3;
+    screen.unmount();
+  });
+
+  it("only queues reviews that match the launch learning page", async () => {
+    addCachedReviews(3);
+    mockDashboard.subjects[1] = { ...mockDashboard.subjects[1], object: "kanji" };
+    mockLearningPageId = "kanji-page";
+    mockLearningPages = [{
+      id: "kanji-page",
+      name: "Kanji",
+      filter: { subjectTypes: ["kanji"], minLevel: null, maxLevel: null, jlptLevels: [], srsGroups: [], criticalOnly: false },
+    }];
+    const screen = render(<ReviewScreen />);
+    await screen.findByTestId("accounting-question");
+    expect(currentQuestion().totalItems).toBe(1);
+    expect(currentQuestion().item.id).toBe(11);
     screen.unmount();
   });
 

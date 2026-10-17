@@ -27,6 +27,7 @@ import BunproHomeStudy from "../../../src/components/bunpro/BunproHomeStudy";
 import { UserAvatar } from "../../../src/components/UserAvatar";
 import { useBackgroundTasks } from "../../../src/contexts/BackgroundTasksContext";
 import { useDashboardData } from "../../../src/hooks/useDashboardData";
+import { useLearningPageDashboardData } from "../../../src/hooks/useLearningPageDashboardData";
 import { useUsageStreak } from "../../../src/hooks/useUsageStreak";
 import { rateAppService } from "../../../src/services/rateAppService";
 import { requestStreakReview } from "../../../src/services/streakReviewPromptService";
@@ -38,6 +39,10 @@ import {
 import { apiDebugger } from "../../../src/utils/apiDebugger";
 import { updateBadgeWithReviewCount } from "../../../src/utils/badgeNotifications";
 import { normalizeHomeWidgetOrder } from "../../../src/utils/homeWidgets";
+import {
+  getLearningPage,
+} from "../../../src/utils/learningPages";
+import LearningPageSwitcher from "../../../src/components/LearningPageSwitcher";
 import {
   RESUMABLE_EXTRA_STUDY_MODE_SESSION_ENTRIES,
   type ExtraStudyModeId,
@@ -149,6 +154,13 @@ export default function StudyTab() {
     (state) => state.excludeKanaVocabularyFromLessons,
   );
   const homeWidgetOrder = useSettingsStore((state) => state.homeWidgetOrder);
+  const learningPages = useSettingsStore((state) => state.learningPages);
+  const activeLearningPageId = useSettingsStore(
+    (state) => state.activeLearningPageId,
+  );
+  const setActiveLearningPageId = useSettingsStore(
+    (state) => state.setActiveLearningPageId,
+  );
   const homeRecentLessonsWindow = useSettingsStore(
     (state) => state.homeRecentLessonsWindow,
   );
@@ -182,6 +194,14 @@ export default function StudyTab() {
     errorStatus,
     isFreshData,
   } = useDashboardData();
+  const activeLearningPage = useMemo(
+    () => getLearningPage(learningPages, activeLearningPageId),
+    [activeLearningPageId, learningPages],
+  );
+  // The OS widget, badge and daily limits keep using account-wide data.
+  const pageDashboardData = useLearningPageDashboardData(
+    dashboardData, activeLearningPage, apiToken, userData?.id,
+  );
   const params = useLocalSearchParams();
   const refreshTriggeredRef = useRef(false);
   const hasSeenInitialFocusRef = useRef(false);
@@ -213,23 +233,23 @@ export default function StudyTab() {
   );
   const availableLessonCount = useMemo(() => {
     if (!excludeKanaVocabularyFromLessons) {
-      return dashboardData.lessonCount;
+      return pageDashboardData.lessonCount;
     }
 
-    if (!Array.isArray(dashboardData.assignments)) {
+    if (!Array.isArray(pageDashboardData.assignments)) {
       return 0;
     }
 
     const subjectTypeById = new Map<number, string>();
-    if (Array.isArray(dashboardData.subjects)) {
-      dashboardData.subjects.forEach((subject) => {
+    if (Array.isArray(pageDashboardData.subjects)) {
+      pageDashboardData.subjects.forEach((subject) => {
         if (typeof subject?.id === "number" && typeof subject?.object === "string") {
           subjectTypeById.set(subject.id, subject.object);
         }
       });
     }
 
-    return dashboardData.assignments.filter((assignment: any) => {
+    return pageDashboardData.assignments.filter((assignment: any) => {
       if (
         !assignment?.data?.unlocked_at ||
         assignment.data.started_at ||
@@ -242,9 +262,9 @@ export default function StudyTab() {
       return subjectType !== "kana_vocabulary";
     }).length;
   }, [
-    dashboardData.assignments,
-    dashboardData.lessonCount,
-    dashboardData.subjects,
+    pageDashboardData.assignments,
+    pageDashboardData.lessonCount,
+    pageDashboardData.subjects,
     excludeKanaVocabularyFromLessons,
   ]);
   const effectiveLessonCount = useMemo(
@@ -288,16 +308,16 @@ export default function StudyTab() {
   );
   const recentLessonCountForWindow = useMemo(() => {
     if (homeRecentLessonsWindow === "apprentice") {
-      return dashboardData.recentLessonCount;
+      return pageDashboardData.recentLessonCount;
     }
 
     return filterRecentLessonAssignments(
-      dashboardData.assignments as Assignment[],
+      pageDashboardData.assignments as Assignment[],
       homeRecentLessonsWindow,
     ).length;
   }, [
-    dashboardData.assignments,
-    dashboardData.recentLessonCount,
+    pageDashboardData.assignments,
+    pageDashboardData.recentLessonCount,
     homeRecentLessonsWindow,
   ]);
   const widgetReviewUpcomingBuckets = useMemo(() => {
@@ -831,7 +851,7 @@ export default function StudyTab() {
     }
 
     // Navigate to lessons screen
-    router.push("/lessons");
+    router.push({ pathname: "/lessons", params: { learningPageId: activeLearningPage?.id } });
   };
 
   const handleLessonPicker = () => {
@@ -840,12 +860,15 @@ export default function StudyTab() {
     }
 
     // Navigate to lesson picker screen
-    router.push("/lesson-picker");
+    router.push({ pathname: "/lesson-picker", params: { learningPageId: activeLearningPage?.id } });
   };
 
   const handleReviewsPress = (preset?: ReviewPreset) => {
     // Navigate to reviews screen
-    router.push(preset ? { pathname: "/reviews", params: { reviewPresetId: preset.id } } : "/reviews");
+    router.push({
+      pathname: "/reviews",
+      params: { reviewPresetId: preset?.id, learningPageId: activeLearningPage?.id },
+    });
   };
 
   const handleUpdateApp = async () => {
@@ -893,7 +916,7 @@ export default function StudyTab() {
 
   const shouldUseNativeTabsPadding = supportsNativeTabs();
   const isOnVacation = Boolean(userData?.current_vacation_started_at);
-  const hasRecentMistakes = dashboardData.recentMistakes.length > 0;
+  const hasRecentMistakes = pageDashboardData.recentMistakes.length > 0;
   const shouldShowRecentMistakes = !isOnVacation && hasRecentMistakes;
 
   const canAccessBunpro = isPortegoUsername(userData?.username);
@@ -920,7 +943,8 @@ export default function StudyTab() {
             <View style={styles.secondaryCardColumn}>
               <HomeDashboardWidget
                 widgetId="recentMistakes"
-                dashboardData={dashboardData}
+                dashboardData={pageDashboardData}
+                accountAssignments={dashboardData.assignments}
                 userData={userData}
                 effectiveLessonCount={effectiveLessonCount}
                 isDailyLessonLimitReached={isDailyLessonLimitReached}
@@ -946,7 +970,8 @@ export default function StudyTab() {
             <View style={styles.secondaryCardColumn}>
               <HomeDashboardWidget
                 widgetId="streak"
-                dashboardData={dashboardData}
+                dashboardData={pageDashboardData}
+                accountAssignments={dashboardData.assignments}
                 userData={userData}
                 effectiveLessonCount={effectiveLessonCount}
                 isDailyLessonLimitReached={isDailyLessonLimitReached}
@@ -985,7 +1010,8 @@ export default function StudyTab() {
               <View style={styles.srsSplitColumn}>
                 <HomeDashboardWidget
                   widgetId="srsBreakdown"
-                  dashboardData={dashboardData}
+                  dashboardData={pageDashboardData}
+                  accountAssignments={dashboardData.assignments}
                   userData={userData}
                   effectiveLessonCount={effectiveLessonCount}
                   isDailyLessonLimitReached={isDailyLessonLimitReached}
@@ -1013,7 +1039,8 @@ export default function StudyTab() {
               <View style={styles.srsSplitColumn}>
                 <HomeDashboardWidget
                   widgetId="srsBreakdown"
-                  dashboardData={dashboardData}
+                  dashboardData={pageDashboardData}
+                  accountAssignments={dashboardData.assignments}
                   userData={userData}
                   effectiveLessonCount={effectiveLessonCount}
                   isDailyLessonLimitReached={isDailyLessonLimitReached}
@@ -1047,7 +1074,8 @@ export default function StudyTab() {
           <HomeDashboardWidget
             key={`${widgetId}-${index}-graph`}
             widgetId={widgetId}
-            dashboardData={dashboardData}
+            dashboardData={pageDashboardData}
+            accountAssignments={dashboardData.assignments}
             userData={userData}
             effectiveLessonCount={effectiveLessonCount}
             isDailyLessonLimitReached={isDailyLessonLimitReached}
@@ -1075,7 +1103,8 @@ export default function StudyTab() {
           <HomeDashboardWidget
             key={`${widgetId}-${index}-details`}
             widgetId={widgetId}
-            dashboardData={dashboardData}
+            dashboardData={pageDashboardData}
+            accountAssignments={dashboardData.assignments}
             userData={userData}
             effectiveLessonCount={effectiveLessonCount}
             isDailyLessonLimitReached={isDailyLessonLimitReached}
@@ -1106,7 +1135,8 @@ export default function StudyTab() {
         <HomeDashboardWidget
           key={`${widgetId}-${index}`}
           widgetId={widgetId}
-          dashboardData={dashboardData}
+          dashboardData={pageDashboardData}
+          accountAssignments={dashboardData.assignments}
           userData={userData}
           effectiveLessonCount={effectiveLessonCount}
           isDailyLessonLimitReached={isDailyLessonLimitReached}
@@ -1273,6 +1303,14 @@ export default function StudyTab() {
         color={theme.secondary}
         style={{ marginTop: 0 }}
       />
+
+      {learningPages.length > 0 && (
+        <LearningPageSwitcher
+          pages={learningPages}
+          activePageId={activeLearningPage?.id ?? null}
+          onSelectPage={setActiveLearningPageId}
+        />
+      )}
 
       <ScrollView
         style={styles.content}

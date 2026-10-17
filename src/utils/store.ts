@@ -72,6 +72,7 @@ import {
 } from "./appTextSize";
 import { normalizeLessonSrsThreshold } from "./lessonSrsThreshold";
 import { normalizeReviewPresets, type ReviewPreset } from "./review-presets";
+import { normalizeLearningPages, type LearningPage } from "./learningPages";
 import { type RecentLessonsWindow } from "./recentLessonsWindow";
 import { clearOfflineVocabularyAudioCache } from "../services/offlineVocabularyAudioService";
 import {
@@ -549,6 +550,8 @@ type SettingsState = {
   reviewBatchSize: number; // Number of items per review session when enabled (5-100, step 5)
   reviewPresetsEnabled: boolean;
   reviewPresets: ReviewPreset[];
+  learningPages: LearningPage[]; // Filtered Home pages, switchable at the top of Home
+  activeLearningPageId: string | null; // null (or a deleted page) shows the unfiltered Home
   reviewWrapUpTargetSubjects: number; // Subjects left after tapping Wrap Up (5-20, step 5)
   reviewSearchButtonEnabled: boolean; // Show quick search button below Wrap Up during reviews
   bunproHideFurigana: boolean;
@@ -754,6 +757,8 @@ type SettingsState = {
   setReviewBatchSize: (size: number) => void;
   setReviewPresetsEnabled: (enabled: boolean) => void;
   setReviewPresets: (presets: ReviewPreset[]) => void;
+  setLearningPages: (pages: LearningPage[]) => void;
+  setActiveLearningPageId: (id: string | null) => void;
   setReviewWrapUpTargetSubjects: (target: number) => void;
   setReviewSearchButtonEnabled: (enabled: boolean) => void;
   setBunproHideFurigana: (hidden: boolean) => void;
@@ -939,6 +944,8 @@ export const useSettingsStore = create<SettingsState>()(
       reviewBatchSize: 50, // Default batch size when enabled
       reviewPresetsEnabled: false,
       reviewPresets: [],
+      learningPages: [],
+      activeLearningPageId: null,
       reviewWrapUpTargetSubjects: 10, // Default to wrap up after 10 subjects
       reviewSearchButtonEnabled: false, // Default to disabled - keep review header focused unless enabled
       bunproHideFurigana: false,
@@ -1162,6 +1169,8 @@ export const useSettingsStore = create<SettingsState>()(
       setReviewBatchSize: (size) => set({ reviewBatchSize: size }),
       setReviewPresetsEnabled: (enabled) => set({ reviewPresetsEnabled: enabled }),
       setReviewPresets: (presets) => set({ reviewPresets: normalizeReviewPresets(presets) }),
+      setLearningPages: (pages) => set({ learningPages: normalizeLearningPages(pages) }),
+      setActiveLearningPageId: (id) => set({ activeLearningPageId: id }),
       setReviewWrapUpTargetSubjects: (target) =>
         set({
           reviewWrapUpTargetSubjects:
@@ -1504,6 +1513,7 @@ export const useSettingsStore = create<SettingsState>()(
           ankiAskIncorrectPart: persisted.ankiAskIncorrectPart === true,
           reviewPresetsEnabled: persisted.reviewPresetsEnabled === true,
           reviewPresets: normalizeReviewPresets(persisted.reviewPresets),
+          learningPages: normalizeLearningPages(persisted.learningPages),
         };
       },
       migrate: (persistedState, version) => {

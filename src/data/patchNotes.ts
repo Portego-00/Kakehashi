@@ -56,6 +56,34 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.5.4",
+    date: "2026-10-17",
+    changes: [
+      {
+        type: "feature",
+        title: "Optional Translation Packages",
+        description:
+          "Import translated meanings and example sentences under Appearance → Advanced settings.",
+        link: {
+          route: "/settings",
+          params: { category: "appearance" },
+          label: "Open Appearance Settings",
+        },
+      },
+      {
+        type: "feature",
+        title: "Learning Pages",
+        description:
+          "Create filtered versions of Home under Appearance → Advanced settings. Filter by subject type, level, JLPT, SRS stage, or critical items, then switch pages at the top of Home.",
+        link: {
+          route: "/settings",
+          params: { category: "appearance" },
+          label: "Open Learning Pages Settings",
+        },
+      },
+    ],
+  },
+  {
     version: "1.5.3",
     date: "2026-10-16",
     changes: [

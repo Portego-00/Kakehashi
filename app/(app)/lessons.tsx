@@ -56,6 +56,11 @@ import {
 import { revalidatePersistedLessonState } from "../../src/utils/lessonSessionRevalidation";
 import { getRemainingDailyLessonSlots } from "../../src/utils/dailyLessonLimit";
 import { useSubjectColors } from "../../src/utils/subjectColors";
+import {
+  createLearningPageSubjectMatcher,
+  filterAssignmentsForLearningPage,
+  getLearningPage,
+} from "../../src/utils/learningPages";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
@@ -177,13 +182,17 @@ export default function LessonsScreen() {
     interleaveLessonTypesEnabled,
     minimumRadicalKanjiPerBatchEnabled,
     excludeKanaVocabularyFromLessons,
+    learningPages,
   } = useSettingsStore();
   const effectiveAnkiGrouping =
     ankiCardMode && ankiGroupQuestions && ankiCardModeScope === "both";
   const preferredQuestionType: "meaning" | "reading" = meaningFirst
     ? "meaning"
     : "reading";
-  const { selectedLessonIds } = useLocalSearchParams();
+  const { selectedLessonIds, learningPageId } = useLocalSearchParams();
+  const [sessionLearningPage] = useState(() =>
+    getLearningPage(learningPages, learningPageId)
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [allLessons, setAllLessons] = useState<LessonItem[]>([]);
   const [lessonBatches, setLessonBatches] = useState<LessonBatch[]>([]);
@@ -691,7 +700,7 @@ export default function LessonsScreen() {
         lessonTypeOrderEnabled ||
         interleaveLessonTypesEnabled;
       const needsSubjectsForLessonFiltering =
-        excludeKanaVocabularyFromLessons;
+        excludeKanaVocabularyFromLessons || sessionLearningPage !== null;
       const needsSubjects =
         needsSubjectsForOrdering || needsSubjectsForLessonFiltering;
 
@@ -729,17 +738,26 @@ export default function LessonsScreen() {
         );
       }
 
-      const filteredAssignments = excludeKanaVocabularyFromLessons
+      const kanaFilteredAssignments = excludeKanaVocabularyFromLessons
         ? availableLessonAssignments.filter((assignment) => {
             const subject = subjectsById.get(assignment.data.subject_id);
             return subject?.object !== "kana_vocabulary";
           })
         : availableLessonAssignments;
+      const filteredAssignments = sessionLearningPage
+        ? filterAssignmentsForLearningPage(
+            kanaFilteredAssignments,
+            subjectsById,
+            createLearningPageSubjectMatcher(sessionLearningPage.filter)
+          )
+        : kanaFilteredAssignments;
 
       if (filteredAssignments.length === 0) {
         Alert.alert(
           "No Lessons Available",
-          "No lessons are available after applying your kana vocabulary filter.",
+          sessionLearningPage
+            ? `No lessons are available on “${sessionLearningPage.name}” right now.`
+            : "No lessons are available after applying your kana vocabulary filter.",
           [{ text: "OK", onPress: () => router.back() }]
         );
         return;
