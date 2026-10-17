@@ -1,5 +1,5 @@
 import { useLearningDisplay } from "../../src/features/translation-packages/display";
-import { practiceSentence, practicePrompt, practiceHintLabels } from "../../src/features/translation-packages/practice-display";
+import { practiceSentence, practicePrompt, practiceHintLabels, practiceReadingHints } from "../../src/features/translation-packages/practice-display";
 import { usePracticeSubjects } from "../../src/features/translation-packages/use-practice-subjects";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
@@ -829,10 +829,11 @@ export default function MeaningReadingSessionScreen() {
     ?.filter((s: any) => s.en)
     .map((s: any) => ({ en: practiceSentence(display, current.subject, s.ja, s.en) }));
   const joinedKanjiHintText = vocabularyMeaningHintsForKanji.join(", ");
-  const hintsForCurrentQuestion = current.subject.object === "kanji"
+  const sourceHints = current.subject.object === "kanji"
     ? (joinedKanjiHintText ? [{ en: joinedKanjiHintText }] : [])
-    : defaultContextHints;
-  const contextHintMaxItems = current.subject.object === "kanji" ? 1 : 3;
+    : (defaultContextHints ?? []).slice(0, 3);
+  const hintsForCurrentQuestion = practiceReadingHints(display, current.subject, sourceHints);
+  const contextHintMaxItems = hintsForCurrentQuestion.length;
 
   // Prepare readings, ensuring kana_vocabulary has a reading fallback
   const originalCharacters = current.subject.data.characters;
@@ -875,7 +876,7 @@ export default function MeaningReadingSessionScreen() {
       forceDisableAnkiGrouping={true}
       // Override prompt to show English meaning instead of characters
       overridePromptText={practicePrompt(display, current.subject, primaryMeaning)}
-      overridePromptSubtext={(!current.promptMeaning && display.resolveMeaning(current.subject) ? display.resolveMeaning(current.subject)!.alternatives.map(display.formatMeaning).join(", ") : alternativeMeanings) || undefined}
+      overridePromptSubtext={display.resolveMeaning(current.subject) ? undefined : alternativeMeanings || undefined}
       // Pass context sentences (English only) as hints to disambiguate similar meanings
       contextSentencesHint={hintsForCurrentQuestion}
       contextHintMaxItems={contextHintMaxItems}

@@ -11,19 +11,23 @@ function meaningKey(value: string): string {
   return value.normalize("NFKC").trim().toLowerCase().replace(/-/g, " ").replace(/[.'\/]/g, "").replace(/\s+/g, " ");
 }
 
-// A reading question can use any accepted English meaning. Alternatives have
-// no one-to-one translation mapping, so show the subject's full translated
-// meaning set rather than inventing a translation for the selected English sense.
+// Keep the reading prompt to one translated meaning for every accepted source
+// sense. Other package meanings belong in the existing context-hint content.
 export function practicePrompt(display: PracticeDisplay, subject: { data: { meanings?: { meaning: string; primary?: boolean; accepted_answer?: boolean }[]; auxiliary_meanings?: { meaning: string; type: string }[] | null } }, original: string): string {
   const meanings = subject.data.meanings ?? [];
-  const primary = meanings.find(meaning => meaning.primary) ?? meanings[0];
   const translated = display.resolveMeaning(subject);
   if (!translated) return original;
   const accepted = [...meanings.filter(meaning => meaning.accepted_answer !== false), ...(subject.data.auxiliary_meanings ?? []).filter(meaning => meaning.type === "whitelist")];
   const key = meaningKey(original);
   if (!accepted.some(meaning => meaningKey(meaning.meaning) === key)) return original;
-  if (primary && meaningKey(primary.meaning) === key) return display.formatMeaning(translated.primary);
-  return [...new Set([translated.primary, ...translated.alternatives].map(display.formatMeaning))].join(", ");
+  return display.formatMeaning(translated.primary);
+}
+
+export function practiceReadingHints(display: PracticeDisplay, subject: unknown, hints: { en?: string; ja?: string }[]) {
+  const translated = display.resolveMeaning(subject);
+  if (!translated) return hints;
+  const alternatives = practiceAlternatives(display, subject, translated.primary);
+  return alternatives.length ? [{ en: alternatives.join(", ") }, ...hints] : hints;
 }
 
 export function practiceHintLabels(display: PracticeDisplay, originals: string[], sources: unknown[]): string[] {

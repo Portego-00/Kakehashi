@@ -1,7 +1,7 @@
 import data from "../../../../tests/fixtures/translation-packages/tr-learning-pilot.json";
 import { learningDisplay } from "../display";
 import { parseTranslationPackage } from "../resolver";
-import { practiceAlternatives, practiceClue, practicePrompt, practiceSentence, practiceHintLabels } from "../practice-display";
+import { practiceAlternatives, practiceClue, practicePrompt, practiceSentence, practiceHintLabels, practiceReadingHints } from "../practice-display";
 import { selectEnglishJapaneseQuestions } from "../../../utils/englishJapanesePractice";
 
 const packet = parseTranslationPackage(data)!;
@@ -42,16 +42,28 @@ it("displays translations for primary, alternative and whitelisted reading group
   const display = learningDisplay(extended, true);
   const questions = selectEnglishJapaneseQuestions([current], 10, () => 0.5);
   const before = JSON.stringify(questions);
-  const fullLabel = [extended.subjects["2761"].meaning.primary, ...extended.subjects["2761"].meaning.alternatives].map(display.formatMeaning);
   for (const question of questions) {
     expect(practicePrompt(display, question.subject, question.promptMeaning)).not.toBe(question.promptMeaning);
     expect(question.acceptedAnswers.length).toBeGreaterThan(0);
   }
-  expect(practicePrompt(display, current, "small pond")).toBe([...new Set(fullLabel)].join(", "));
+  expect(practicePrompt(display, current, "small pond")).toBe("Gölet");
   expect(practicePrompt(display, current, "Rejected sense")).toBe("Rejected sense");
   expect(practicePrompt(display, current, "Bad pool")).toBe("Bad pool");
   expect(practicePrompt(learningDisplay(extended, false), current, "Small-Pond")).toBe("Small-Pond");
   expect(JSON.stringify(questions)).toBe(before);
+});
+
+it("keeps one prompt meaning and puts alternatives only in context hints without losing sentences", () => {
+  const extended = parseTranslationPackage(JSON.parse(JSON.stringify(data)))!;
+  extended.subjects["2761"].meaning.alternatives = ["Su birikintisi", "Gölet"];
+  const display = learningDisplay(extended, true);
+  const hints = [{ en: "Sentence one" }, { en: "Sentence two" }, { en: "Sentence three" }];
+  const before = JSON.stringify(hints);
+  expect(practicePrompt(display, subject, "Pond")).toBe("Gölet");
+  expect(practiceReadingHints(display, subject, hints)).toEqual([{ en: "Su Birikintisi" }, ...hints]);
+  expect(practiceReadingHints(learningDisplay(extended, false), subject, hints)).toBe(hints);
+  expect(practiceReadingHints(learningDisplay(null, true), subject, hints)).toBe(hints);
+  expect(JSON.stringify(hints)).toBe(before);
 });
 
 it("translates saved kanji vocabulary hints from full cached sources and retains unavailable hints", () => {
