@@ -1,13 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {useLearningContentStore} from "./store";
 import {packageManager} from "./package-store";
 import {getAssignments, getFreshSynonymSubjects, getStudyMaterials, fetchAllPages} from "../../utils/api";
 import {saveMeaningSynonymsWithReceipt} from "../../utils/studyMaterialSynonyms";
-import {formatTurkishMeaning} from "./format";
 import {displaySubject} from "./display";
 import {resolveSynonymAnswers, type TranslationPackage} from "./resolver";
 import {createTransferJournal, createTransferRunner, prepareTransferRows, type TransferFilters, type TransferTransport, synonymKey, studyState} from "./synonym-transfer";
 
 function activeSynonymPackage(): TranslationPackage {
+  if (!useLearningContentStore.getState().enabled) throw new Error("Enable your translation package before preparing additions.");
   const packet = packageManager.state.getState().packet;
   if (packet && packet.language !== "tr")
     throw new Error("Synonym transfer currently supports Turkish packages only. Other languages still work for display.");
@@ -43,15 +44,15 @@ export async function prepareSynonymPreview(token: string, filters: TransferFilt
 }
 export function synonymTransport(token: string, canWrite: () => boolean, filters: TransferFilters, undo = false): TransferTransport {
   const packet = packageManager.state.getState().packet;
-  const guardedWrite = () => canWrite() && (undo || packet === packageManager.state.getState().packet);
+  const guardedWrite = () => canWrite() && (undo || (useLearningContentStore.getState().enabled && packet === packageManager.state.getState().packet));
   return {
     validate: async row => {
       const [page, assignments] = await Promise.all([getFreshSynonymSubjects(token, {ids: [row.id]}), getAssignments(token, {subject_ids: [row.id]})]);
       const source = page.data.find((subject: any) => subject.id === row.id);
       const normalized = displaySubject(source);
       const answers = normalized && resolveSynonymAnswers(packet, normalized);
-      const allowed = answers ? new Set(answers.map(formatTurkishMeaning).map(synonymKey)) : new Set<string>();
-      return Boolean(packet === packageManager.state.getState().packet && answers?.length && row.type === source.object && row.selected.every(value => allowed.has(synonymKey(value))) && !source.data.hidden_at && source.data.level === row.level && filters.levels.includes(source.data.level) && !assignments.data[0]?.data.hidden && filters.states.includes(studyState(assignments.data[0])));
+      const allowed = answers ? new Set(answers) : new Set<string>();
+      return Boolean(packet === packageManager.state.getState().packet && answers?.length && row.type === source.object && row.selected.every(value => allowed.has(value)) && !source.data.hidden_at && source.data.level === row.level && filters.levels.includes(source.data.level) && !assignments.data[0]?.data.hidden && filters.states.includes(studyState(assignments.data[0])));
     },
     current: async id => (await currentMaterials(token, [id])).find(material => material.data.subject_id === id)?.data?.meaning_synonyms ?? [],
     save: (id, original, edited) => saveMeaningSynonymsWithReceipt(token, id, original, edited, {canWrite: guardedWrite, normalizeKey: synonymKey}),

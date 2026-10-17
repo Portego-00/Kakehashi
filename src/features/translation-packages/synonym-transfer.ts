@@ -1,6 +1,5 @@
 import {displaySubject} from "./display";
 import {resolveSynonymAnswers, type TranslationPackage} from "./resolver";
-import {formatTurkishMeaning} from "./format";
 import type {SynonymSaveReceipt} from "../../utils/studyMaterialSynonyms";
 
 export type StudyState = "learning" | "unstarted" | "burned" | "locked";
@@ -35,7 +34,7 @@ export function prepareTransferRows(packet: TranslationPackage, subjects: any[],
     const normalized = displaySubject(subject);
     const answers = normalized && resolveSynonymAnswers(packet, normalized);
     if (!answers?.length) continue;
-    const candidates = uniqueSynonyms(answers.map(formatTurkishMeaning));
+    const candidates = uniqueSynonyms(answers);
     const existing = materialMap.get(subject.id)?.data?.meaning_synonyms ?? [];
     const existingKeys = new Set(existing.map(synonymKey));
     const sourceKeys = new Set(subject.data.meanings.filter((m: any) => m.accepted_answer !== false).map((m: any) => synonymKey(m.meaning)));

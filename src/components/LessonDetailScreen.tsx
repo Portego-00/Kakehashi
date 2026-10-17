@@ -1776,10 +1776,10 @@ const SubjectContent = ({
 
     if (isRevealed) {
       return (
-        <View>
+        translated ? <View>
           <Text selectable style={textStyle}>{visibleTranslation}</Text>
-          {translated && <SentenceExplanation english={translation} usage={translated.usage} />}
-        </View>
+          <SentenceExplanation english={translation} usage={translated.usage} />
+        </View> : <Text selectable style={textStyle}>{translation}</Text>
       );
     }
 
@@ -2694,7 +2694,7 @@ const SubjectContent = ({
                               {relatedSubjects[id]?.data.characters || id}
                             </Text>
                             <Text style={styles.relatedItemMeaning}>
-                              {display.meaning(relatedSubjects[id], "Loading...")}
+                              {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                             </Text>
                           </TouchableOpacity>
                         ))}
@@ -2739,7 +2739,7 @@ const SubjectContent = ({
                       >
                         <RelatedSubjectCharacter subj={relatedSubjects[id]} />
                         <Text style={styles.relatedItemMeaning}>
-                          {display.meaning(relatedSubjects[id], "Loading...")}
+                          {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -2916,7 +2916,7 @@ const SubjectContent = ({
                           {relatedSubjects[id]?.data.characters || id}
                         </Text>
                         <Text style={styles.relatedItemMeaning}>
-                          {display.meaning(relatedSubjects[id], "Loading...")}
+                          {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -3349,7 +3349,7 @@ const SubjectContent = ({
                                   {relatedSubjects[id]?.data.characters || id}
                                 </Text>
                                 <Text style={styles.relatedItemMeaning}>
-                                  {display.meaning(relatedSubjects[id], "Loading...")}
+                                  {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                                 </Text>
                               </TouchableOpacity>
                             ))}
@@ -3396,7 +3396,7 @@ const SubjectContent = ({
                                   subj={relatedSubjects[id]}
                                 />
                                 <Text style={styles.relatedItemMeaning}>
-                                  {display.meaning(relatedSubjects[id], "Loading...")}
+                                  {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                                 </Text>
                               </TouchableOpacity>
                             )
@@ -3619,7 +3619,7 @@ const SubjectContent = ({
                                   {relatedSubjects[id]?.data.characters || id}
                                 </Text>
                                 <Text style={styles.relatedItemMeaning}>
-                                  {display.meaning(relatedSubjects[id], "Loading...")}
+                                  {display.meaning(relatedSubjects[id], relatedSubjects[id]?.data.meanings.find((m: any) => m.primary)?.meaning || relatedSubjects[id]?.data.meanings[0]?.meaning || "Loading...")}
                                 </Text>
                               </TouchableOpacity>
                             )
@@ -5495,7 +5495,11 @@ export default function LessonDetailScreen({
 
                 <LessonMeaningPill
                   meaning={
-                    display.meaning(pageSubject)
+                    display.meaning(
+                      pageSubject,
+                      pageSubject.data.meanings.find((m: any) => m.primary)?.meaning ||
+                        pageSubject.data.meanings[0]?.meaning || "No meaning available"
+                    )
                   }
                 />
                 {/* Show reading in header for vocabulary/kanji in single page view */}

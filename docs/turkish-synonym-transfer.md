@@ -1,6 +1,6 @@
 # Optional Turkish synonym transfer
 
-Settings → Appearance → Add Turkish synonyms to WaniKani opens a separate account
+Settings → Appearance → Advanced settings → Translation package → Turkish synonyms opens a separate account
 workflow. Display supports other languages; account transfer currently supports
 Turkish only because normalization and duplicate comparison use Turkish casing.
 An imported v3 package must declare display-and-synonyms and explicit reviewed
@@ -35,3 +35,5 @@ All automated transfer checks use mocked API calls. No actual account transfer
 was performed while preparing this PR. The earlier personal prototype was tested
 by its user for pause/resume and undo; the newly isolated upstream branch still
 needs maintainer/device review before release.
+
+The transfer entry appears inside the expanded translation setting only while an eligible Turkish package is enabled. Preparing or resuming additions requires that opt-in to remain enabled; recorded additions can still be explicitly undone. Explicit synonym answers retain the file’s spelling and case when saved. Display capitalization must not be applied to accepted answers (for example, `iş` must not become `İş`).

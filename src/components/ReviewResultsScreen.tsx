@@ -418,7 +418,7 @@ export default function ReviewResultsScreen({
         numberOfLines={1}
         adjustsFontSizeToFit
       >
-        {display.meaning(subject, "—")}
+        {display.meaning(subject, subject.data.meanings[0].meaning)}
       </Text>
     );
   };
@@ -429,7 +429,7 @@ export default function ReviewResultsScreen({
     const hasMeaning = isMeaningApplicable(item);
     const hasReading = isReadingApplicable(item);
     const isRevealed = !hideAnswersForRequiz || revealedItemIds.has(item.id);
-    const primaryMeaning = display.meaning(item.subject, "—");
+    const primaryMeaning = display.meaning(item.subject, item.subject.data.meanings[0]?.meaning ?? "—");
     const primaryReading = hasReading ? getPrimaryReading(item.subject) : null;
 
     return (

@@ -86,7 +86,7 @@ export default function KanjiReadingExamples({
     isLast: boolean
   ) => {
     const primaryReading = getPrimaryReading(example);
-    const primaryMeaning = display.meaning({...example, object: "vocabulary"}, "No meaning");
+    const primaryMeaning = display.meaning({...example, object: "vocabulary"}, example.meanings[0] ?? "No meaning");
 
     return (
       <TouchableOpacity

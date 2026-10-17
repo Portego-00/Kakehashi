@@ -895,6 +895,7 @@ describe("LessonDetailScreen synonym safety", () => {
 it.each([false, true])("shows package translations and usage in lesson context (single page: %s)", async singlePage => {
   const packet = parseTranslationPackage(translationData)!;
   const entry = packet.subjects["2761"];
+  await packageManager.hydrate();
   packageManager.state.setState({packet, hydrated: true});
   useLearningContentStore.setState({enabled: true});
   mockSinglePageLessonView = singlePage; mockRenderContextTab = true;

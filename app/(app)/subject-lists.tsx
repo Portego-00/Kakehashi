@@ -57,7 +57,7 @@ function getSubjectPreviewLabel(subject: any, translatedMeaning: string): string
     typeof subject?.data?.meanings?.[0]?.meaning === "string"
       ? translatedMeaning.trim()
       : "";
-  return meaning ? meaning.slice(0, 2).toLocaleUpperCase("tr-TR") : "•";
+  return meaning ? meaning.slice(0, 2).toUpperCase() : "•";
 }
 
 function formatUpdatedAt(updatedAt: string): string {
@@ -431,7 +431,7 @@ export default function SubjectListsScreen() {
                             <Text
                               style={styles.previewChipText}
                             >
-                              {getSubjectPreviewLabel(subject, display.meaning(subject, ""))}
+                              {getSubjectPreviewLabel(subject, display.meaning(subject, subject?.data?.meanings?.[0]?.meaning ?? ""))}
                             </Text>
                           </View>
                         ))}

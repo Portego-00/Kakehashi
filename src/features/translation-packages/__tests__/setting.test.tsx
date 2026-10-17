@@ -1,10 +1,44 @@
+import synonymPacket from "../../../../translation-packages/example-tr-v3.json";
+jest.mock("react-native-reanimated", () => {
+  const { View } = jest.requireActual("react-native");
+  const animationBuilder = {
+    duration: () => animationBuilder,
+    easing: () => animationBuilder,
+    easingHeight: () => animationBuilder,
+    easingWidth: () => animationBuilder,
+    easingX: () => animationBuilder,
+    easingY: () => animationBuilder,
+    reduceMotion: () => animationBuilder,
+  };
+
+  return {
+    __esModule: true,
+    default: { View },
+    CurvedTransition: animationBuilder,
+    Easing: {
+      bezier: jest.fn(),
+      cubic: jest.fn(),
+      in: (easing: unknown) => easing,
+      out: (easing: unknown) => easing,
+    },
+    FadeInDown: animationBuilder,
+    FadeOutUp: animationBuilder,
+    interpolate: (value: number, _inputRange: number[], outputRange: number[]) =>
+      value === 0 ? outputRange[0] : outputRange[1],
+    ReduceMotion: { System: "system" },
+    useAnimatedStyle: (factory: () => unknown) => factory(),
+    useSharedValue: (value: number) => ({ value }),
+    withTiming: (value: number) => value,
+  };
+});
+
 import { selectTranslationPackage } from "../import-file";
 import { packageManager } from "../package-store";
 import { parsePackageText } from "../resolver";
 import data from "../../../../tests/fixtures/translation-packages/tr-learning-pilot.json";
 jest.mock("../import-file", () => ({selectTranslationPackage: jest.fn()}));
 import React from "react";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { ContentLanguageSetting } from "../ContentLanguageSetting";
 import { useLearningContentStore } from "../store";
 
@@ -12,9 +46,11 @@ jest.mock("../../../utils/theme", () => ({useTheme: () => ({theme: {
   textColor: "#111", textSecondary: "#555", primary: "#08f",
 }})}));
 
-it("lets the user turn Turkish content off and back on", () => {
+it("lets the user turn Turkish content off and back on", async () => {
+  await packageManager.activate(parsePackageText(JSON.stringify(data)));
   useLearningContentStore.setState({enabled: true});
   const screen = render(<ContentLanguageSetting />);
+  fireEvent.press(screen.getByText("Translation package"));
   const toggle = screen.getByLabelText("Use translation package");
   fireEvent(toggle, "valueChange", false);
   expect(useLearningContentStore.getState().enabled).toBe(false);
@@ -27,6 +63,7 @@ it("previews an imported file before activating it", async () => {
   await packageManager.reset();
   (selectTranslationPackage as jest.Mock).mockResolvedValueOnce(parsePackageText(JSON.stringify({...data, name: "Test paketi"})));
   const screen = render(<ContentLanguageSetting />);
+  fireEvent.press(screen.getByText("Translation package"));
   fireEvent.press(screen.getByText("Import translation file"));
   await waitFor(() => expect(screen.getByText("Use this package")).toBeTruthy());
   expect(packageManager.state.getState().packet).toBeNull();
@@ -39,6 +76,7 @@ it("keeps current content after picker validation failure", async () => {
   await packageManager.hydrate();
   (selectTranslationPackage as jest.Mock).mockRejectedValueOnce(new Error("The file is not valid JSON."));
   const screen = render(<ContentLanguageSetting />);
+  fireEvent.press(screen.getByText("Translation package"));
   fireEvent.press(screen.getByText("Import translation file"));
   await waitFor(() => expect(screen.getByText("The file is not valid JSON.")).toBeTruthy());
   expect(packageManager.state.getState().packet).toBeNull();
@@ -47,6 +85,7 @@ it("keeps current content after picker validation failure", async () => {
 it("shows no demo content when no package is loaded", async () => {
  await packageManager.reset();
  const screen=render(<ContentLanguageSetting/>);
+ fireEvent.press(screen.getByText("Translation package"));
  expect(screen.getByText("No translation package loaded")).toBeTruthy();
  expect(screen.queryByText("Restore bundled content")).toBeNull();
 });
@@ -54,7 +93,21 @@ it("shows no demo content when no package is loaded", async () => {
 it("keeps package details collapsed and compresses contiguous levels", async () => {
  await packageManager.activate(parsePackageText(JSON.stringify({...data,name:"Hidden long package name"})));
  const screen=render(<ContentLanguageSetting/>);
+ fireEvent.press(screen.getByText("Translation package"));
  expect(screen.queryByText(/Hidden long package name/)).toBeNull();
  fireEvent.press(screen.getByText("Package details"));expect(screen.getByText(/Hidden long package name/)).toBeTruthy();
+ screen.unmount();await packageManager.reset();
+});
+
+it("shows synonym transfer only after explicit opt-in to an eligible package", async () => {
+ await packageManager.activate(parsePackageText(JSON.stringify(synonymPacket)));
+ useLearningContentStore.setState({enabled:false});
+ const screen=render(<ContentLanguageSetting/>);
+ fireEvent.press(screen.getByText("Translation package"));
+ expect(screen.queryByLabelText("Open Turkish synonym transfer")).toBeNull();
+ await act(async()=>{useLearningContentStore.setState({enabled:true});});
+ expect(screen.getByLabelText("Open Turkish synonym transfer")).toBeTruthy();
+ await act(async()=>{useLearningContentStore.setState({enabled:false});});
+ expect(screen.queryByLabelText("Open Turkish synonym transfer")).toBeNull();
  screen.unmount();await packageManager.reset();
 });

@@ -774,7 +774,7 @@ export default function RadicalDetails({
                                   kanjiMeaning.length * 3,
                                 gridItemMaxWidth
                               ),
-                              minHeight: smallCardHeight,
+                              ...(translatedMeaning ? {minHeight: smallCardHeight} : {height: smallCardHeight}),
                               margin: gridSpacing / 2,
                               opacity: isAboveUserLevel ? 0.8 : 1,
                             },

@@ -174,3 +174,9 @@ it("records the server spelling when it normalizes a newly added Turkish synonym
  const receipt=await saveMeaningSynonymsWithReceipt("fixture-token",1001,[],["Hayalet"],{normalizeKey:v=>v.toLocaleLowerCase("tr-TR")});
  expect(receipt.added).toEqual(["hayalet"]);
 });
+
+it('preserves legacy manual-save response handling without transfer receipt validation', async () => {
+ const legacyResponse = {id:77,data:{meaning_note:'Untouched note'}};
+ jest.mocked(updateStudyMaterial).mockResolvedValueOnce(legacyResponse);
+ await expect(saveMeaningSynonyms('fixture-token',1001,[],['manual addition'])).resolves.toEqual(legacyResponse);
+});

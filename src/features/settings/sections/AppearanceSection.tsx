@@ -10,6 +10,10 @@ import type { Href } from "expo-router";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 
 import { useSettingsControllerContext } from "../SettingsControllerContext";
+import {
+  AdvancedSetting,
+  AdvancedSettingsGroup,
+} from "../components/AdvancedSettings";
 import { styles } from "../styles";
 import { formatAppTextSizeScale, useSettingsStore } from "../../../utils/store";
 
@@ -43,18 +47,6 @@ export function AppearanceSection() {
         >
           Appearance
         </Text>
-
-        <ContentLanguageSetting />
-        <TouchableOpacity style={styles.settingItem} accessibilityRole="button"
-          accessibilityLabel="Open Turkish synonym transfer"
-          onPress={() => router.push("/turkish-synonyms" as Href)}>
-          <Ionicons name="cloud-upload-outline" size={24} color={theme.primary} style={styles.settingIcon}/>
-          <View style={{flex: 1}}>
-            <SettingsLabel style={{color: theme.textColor, fontSize: 16}}>Add Turkish synonyms to WaniKani</SettingsLabel>
-            <Text style={{color: theme.textSecondary, fontSize: 14}}>Choose levels and review suggestions.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary}/>
-        </TouchableOpacity>
 
         {showAppTextSizeSetting ? (
           <TouchableOpacity
@@ -180,6 +172,11 @@ export function AppearanceSection() {
             color={theme.textSecondary}
           />
         </TouchableOpacity>
+        <AdvancedSettingsGroup>
+          <AdvancedSetting>
+            <ContentLanguageSetting />
+          </AdvancedSetting>
+        </AdvancedSettingsGroup>
       </SettingsSectionSurface>
     </>
   );

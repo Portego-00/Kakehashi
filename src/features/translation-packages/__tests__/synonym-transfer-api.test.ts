@@ -1,3 +1,4 @@
+import {useLearningContentStore} from "../store";
 import {packageManager} from "../package-store";
 import {parseTranslationPackage} from "../resolver";
 import catalog from "../../../../translation-packages/example-tr-v3.json";
@@ -12,7 +13,7 @@ const subject={id:80,object:source.type,data:{characters:source.word,level:sourc
 const assignment={data:{subject_id:80,started_at:"now",unlocked_at:"now"}};
 const filters={levels:[source.level],types:["radical"],states:["learning" as const]};
 const row={id:80,type:"radical",level:source.level,selected:["Hayalet"]} as any;
-beforeEach(()=>{packageManager.state.setState({packet:synonymCatalog,hydrated:true});jest.resetAllMocks();jest.mocked(getFreshSynonymSubjects).mockResolvedValue({data:[subject]} as any);jest.mocked(getAssignments).mockResolvedValue({data:[assignment]} as any);jest.mocked(getStudyMaterials).mockResolvedValue({data:[]});});
+beforeEach(()=>{useLearningContentStore.setState({enabled:true});packageManager.state.setState({packet:synonymCatalog,hydrated:true});jest.resetAllMocks();jest.mocked(getFreshSynonymSubjects).mockResolvedValue({data:[subject]} as any);jest.mocked(getAssignments).mockResolvedValue({data:[assignment]} as any);jest.mocked(getStudyMaterials).mockResolvedValue({data:[]});});
 it("reads fresh source and complete online materials without writing during preview",async()=>{
  const rows=await prepareSynonymPreview("fixture-token",filters);expect(rows[0].selected).toContain("Hayalet");
  expect(getStudyMaterials).toHaveBeenCalledWith("fixture-token",{subject_ids:[80]},{skipCache:true,allowOfflineFallback:false});expect(saveMeaningSynonymsWithReceipt).not.toHaveBeenCalled();
@@ -65,4 +66,22 @@ it("blocks queued additions after package replacement but permits receipt-based 
  expect(jest.mocked(saveMeaningSynonymsWithReceipt).mock.calls.at(-1)![4]!.canWrite!()).toBe(false);
  await undo.save(80,["Hayalet"],[]);
  expect(jest.mocked(saveMeaningSynonymsWithReceipt).mock.calls.at(-1)![4]!.canWrite!()).toBe(true);
+});
+
+it("does no network work while opted out and blocks queued additions when disabled", async () => {
+ const transport = synonymTransport("fixture-token", () => true, filters);
+ useLearningContentStore.setState({enabled:false});
+ await expect(prepareSynonymPreview("fixture-token", filters)).rejects.toThrow("Enable");
+ expect(getFreshSynonymSubjects).not.toHaveBeenCalled();
+ expect(getAssignments).not.toHaveBeenCalled();
+ await transport.save(80, [], ["Hayalet"]);
+ expect(jest.mocked(saveMeaningSynonymsWithReceipt).mock.calls.at(-1)![4]!.canWrite!()).toBe(false);
+});
+
+it("blocks old title-cased pending selections instead of writing altered Turkish answers", async () => {
+ const packet={...synonymCatalog,subjects:{...synonymCatalog.subjects,"80":{...synonymCatalog.subjects["80"],synonymAnswers:{values:["iş"],reviewStatus:"editorial-reviewed" as const}}}};
+ packageManager.state.setState({packet});
+ const transport=synonymTransport("fixture-token",()=>true,filters);
+ expect(await transport.validate({...row,selected:["iş"]})).toBe(true);
+ expect(await transport.validate({...row,selected:["İş"]})).toBe(false);
 });

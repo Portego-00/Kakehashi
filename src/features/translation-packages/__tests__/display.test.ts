@@ -35,3 +35,13 @@ it("loads the small v3 example and matches every included meaning", () => {
       meanings: record.source.meaningsEn, readings: record.source.readingsJa})?.primary).toBe(record.meaning.primary);
   }
 });
+
+it.each([false, true])("preserves caller English fallbacks exactly when translation is unavailable (enabled=%s)", enabled => {
+ const missing = {...subject, id: -1};
+ const display = learningDisplay(packet, enabled);
+ for (const fallback of ["first English meaning", "", "Loading...", "—"]) {
+  expect(display.meaning(missing, fallback)).toBe(fallback);
+  expect(learningDisplay(null, enabled).meaning(subject, fallback)).toBe(fallback);
+ }
+ expect(learningDisplay(packet, false).meaning(subject, "first, not primary")).toBe("first, not primary");
+});

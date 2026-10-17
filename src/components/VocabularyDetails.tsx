@@ -1,8 +1,5 @@
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
-import { useActiveContent } from "../features/translation-packages/package-store";
-import { resolveTranslatedMeaning, resolveTranslatedSentence } from "../features/translation-packages/resolver";
-import { useLearningContentStore } from "../features/translation-packages/store";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
 import { Ionicons } from "@expo/vector-icons";
@@ -612,9 +609,7 @@ export default function VocabularyDetails({
     null;
 
   // Determine the primary meaning
-  const translationsEnabled = useLearningContentStore(state => state.enabled);
-  const translationContent = useActiveContent();
-  const translatedMeaning = translationsEnabled ? resolveTranslatedMeaning(translationContent, vocabulary) : null;
+  const translatedMeaning = contentDisplay.resolveMeaning(vocabulary);
   const originalPrimaryMeaning =
     vocabulary.meanings.find((m) => m.primary)?.meaning ||
     vocabulary.meanings[0]?.meaning ||
@@ -1751,8 +1746,7 @@ export default function VocabularyDetails({
         >
           {contextSentences.map((sentence, index) => {
             const sentenceId = `wk-${index}`;
-            const translatedSentence = translationsEnabled
-              ? resolveTranslatedSentence(translationContent, vocabulary, sentence) : null;
+            const translatedSentence = contentDisplay.sentence(vocabulary, sentence);
             return (
               <View
                 key={sentenceId}
@@ -2153,8 +2147,30 @@ export default function VocabularyDetails({
                   primary={translatedMeaning.primary} alternatives={translatedMeaning.alternatives}
                   english={originalPrimaryMeaning} englishAlternatives={vocabulary.meanings.filter(m => !m.primary && m.meaning !== originalPrimaryMeaning).map(m => m.meaning)}
                   rowStyle={styles.row} labelStyle={[styles.label, {color: theme.textSecondary}]} valueStyle={[styles.value, {color: theme.textColor}]} /> : <>
-                  <View style={styles.row}><Text style={[styles.label, {color: theme.textSecondary}]}>Primary</Text><Text style={[styles.value, {color: theme.textColor}]}>{originalPrimaryMeaning}</Text></View>
-                  {vocabulary.meanings.length > 1 && <View style={styles.row}><Text style={[styles.label, {color: theme.textSecondary}]}>Alternative</Text><Text style={[styles.value, {color: theme.textColor}]}>{vocabulary.meanings.filter(m => !m.primary).map(m => m.meaning).join(", ")}</Text></View>}
+                <View style={[styles.row, { marginBottom: 8 }]}>
+                  <Text style={[styles.label, { color: theme.textSecondary }]}>
+                    Primary
+                  </Text>
+                  <Text style={[styles.value, { color: theme.textColor }]}>
+                    {primaryMeaning}
+                  </Text>
+                </View>
+
+                {vocabulary.meanings.length > 1 && (
+                  <View style={[styles.row, { marginBottom: 8 }]}>
+                    <Text
+                      style={[styles.label, { color: theme.textSecondary }]}
+                    >
+                      Alternative
+                    </Text>
+                    <Text style={[styles.value, { color: theme.textColor }]}>
+                      {vocabulary.meanings
+                        .filter((m) => !m.primary)
+                        .map((m) => m.meaning)
+                        .join(", ")}
+                    </Text>
+                  </View>
+                )}
                 </>}
 
                 <View

@@ -192,6 +192,7 @@ export default function CriticalItemsScreen() {
               id: subject.id,
               characters: subject.data.characters || "",
               meaning: subject.data.meanings[0].meaning,
+              source: subject,
               type: subject.object as ItemType,
             partsOfSpeech: subject.data.parts_of_speech,
               percentage: stat.data.percentage_correct,

@@ -75,8 +75,8 @@ export function createPackageManager(storage = AsyncStorage) {
   return {state, hydrate, activate, reset};
 }
 export const packageManager = createPackageManager();
-export function useActiveContent() {
+export function useActiveContent(enabled = true) {
   const packet = packageManager.state(s => s.packet);
-  useEffect(() => { void packageManager.hydrate(); }, []);
+  useEffect(() => { if (enabled) void packageManager.hydrate(); }, [enabled]);
   return packet;
 }

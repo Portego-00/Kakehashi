@@ -1,6 +1,6 @@
 # Optional translation packages
 
-Settings → Appearance → Optional translation package → Import translation file.
+Settings → Appearance → Advanced settings → Translation package → Import translation file.
 Review the package language, version and item counts, then choose Use this package.
 Activation replaces the current package; files are not merged. Disable the switch
 to show English, or remove the package to delete its local copy. No package is
@@ -48,10 +48,16 @@ so the display feature can be reviewed independently.
 Run the project's Jest setup with:
 
 ```sh
-npx jest --runInBand --testPathPattern="src/features/translation-packages/__tests__"
+npx jest --runInBand --testPathPattern="src/features/translation-packages/__tests__" --testPathIgnorePatterns="/output/"
 ```
 
 Legacy compatibility fixtures are test data, not runtime imports. The small v3
 example exercises radical, image-only radical, kanji, vocabulary and kana records.
 Tests cover other package languages, exact source matching, fallback, activation
 failure, restart persistence, inline originals and explicit account writes.
+
+## Opt-in boundary
+
+Translations default to off. Importing a file only previews it; choosing **Use this package** activates it on this device. Turning it off keeps the file but restores the existing English text and layouts. The settings entry remains available to opt in later.
+
+Study screens do not hydrate packages while disabled. Summary lists validate against the complete subject that produced each current item, without loading a separate catalog snapshot. Review grading, scheduling, existing manual synonym saves, and Bunpro flows retain their existing behavior.

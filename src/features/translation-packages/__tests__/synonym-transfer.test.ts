@@ -1,3 +1,4 @@
+import {AnswerCheckerResult, checkAnswerWithDetails} from "../../../utils/answerChecker";
 import bundled from "../../../../translation-packages/example-tr-v3.json";
 import {parseTranslationPackage} from "../resolver";
 import {createTransferJournal, createTransferRunner, prepareTransferRows, studyState, synonymKey, type TransferJob, type TransferRow, type TransferTransport} from "../synonym-transfer";
@@ -108,4 +109,12 @@ it("does not claim undo success when the server retained the owned synonym",asyn
  const s=setup();await s.journal.create(s.job);s.job.rows[0].status="done";s.job.rows[0].added=["Hayalet"];s.server.set(80,["old","Hayalet"]);
  jest.mocked(s.transport.save).mockResolvedValueOnce({material:{data:{subject_id:80,meaning_synonyms:["old","Hayalet"]}},added:[],removed:[]});
  await expect(s.runner.run(s.job,s.transport,()=>true,()=>{},"undo")).rejects.toThrow("confirm removal");expect(s.job.rows[0].status).toBe("undoing");
+});
+
+it.each(["iş", "ırk", "il"])("preserves explicit answer spelling so lowercase %s still grades precisely", answer => {
+ const packet = {...catalog, subjects: {...catalog.subjects, "80": {...catalog.subjects["80"], synonymAnswers: {values: [answer], reviewStatus: "editorial-reviewed" as const}}}};
+ const source = subject(80);
+ const [row] = prepareTransferRows(packet, [source], [assignment(80)], [], filters);
+ expect(row.selected).toEqual([answer]);
+ expect(checkAnswerWithDetails(answer, source as any, "meaning", {meaning_synonyms: row.selected})).toBe(AnswerCheckerResult.Precise);
 });

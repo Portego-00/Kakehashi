@@ -112,6 +112,7 @@ export interface SubjectTypeBreakdown {
 }
 
 export interface UnlockItem {
+  source?: unknown;
   id: number;
   characters: string;
   meaning: string;
@@ -125,6 +126,7 @@ export interface UnlockItem {
 }
 
 export interface CriticalItem {
+  source?: unknown;
   id: number;
   characters: string;
   meaning: string;
@@ -140,6 +142,7 @@ export interface CriticalItem {
 }
 
 export interface BurnedItem {
+  source?: unknown;
   id: number;
   characters: string;
   meaning: string;
