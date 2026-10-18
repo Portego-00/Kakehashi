@@ -39,7 +39,9 @@ export function ContentLanguageSetting() {
   };
   const detailsText = (packet: TranslationPackage) => {
     const count = packageSummary(packet);
-    return `${packet.name}\n${count.radical} radicals · ${count.kanji} kanji · ${count.vocabulary + count.kana_vocabulary} vocabulary\n${packet.scope === "display-and-synonyms" ? "Includes reviewed synonym suggestions." : "Display only."}`;
+    const mnemonics = Object.values(packet.subjects).reduce((total, entry) =>
+      total + Object.values(entry.mnemonics ?? {}).filter(text => text.reviewStatus === "editorial-reviewed").length, 0);
+    return `${packet.name}\n${count.radical} radicals · ${count.kanji} kanji · ${count.vocabulary + count.kana_vocabulary} vocabulary\n${packet.scope === "display-and-synonyms" ? "Includes reviewed synonym suggestions." : "Display only."}${mnemonics ? `\n${mnemonics} mnemonic and hint texts` : ""}`;
   };
   async function pick() {
     setBusy(true);
@@ -120,7 +122,7 @@ export function ContentLanguageSetting() {
   const canTransfer =
     enabled &&
     imported?.language === "tr" &&
-    imported.schemaVersion === 3 &&
+    imported.schemaVersion >= 3 &&
     imported.scope === "display-and-synonyms";
   return (
     <SettingsFoldout
@@ -130,7 +132,7 @@ export function ContentLanguageSetting() {
       description={
         imported && enabled
           ? `${imported.language.toUpperCase()} · On this device`
-          : "Optional meanings and example translations"
+          : "Optional learning content translations"
       }
     >
       <View style={styles.body}>
@@ -141,7 +143,7 @@ export function ContentLanguageSetting() {
             </Text>
             <Text style={[styles.help, { color: theme.textSecondary }]}>
               {imported
-                ? "Show imported meanings and example sentences"
+                ? "Show translated content available in your package"
                 : "Import a file to get started"}
             </Text>
           </View>

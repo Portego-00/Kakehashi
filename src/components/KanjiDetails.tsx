@@ -1,3 +1,4 @@
+import { TranslatedStudyText } from "../features/translation-packages/TranslatedStudyText";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { Ionicons } from "@expo/vector-icons";
@@ -1068,7 +1069,7 @@ export default function KanjiDetails({
                 ]}
               >
                 <View style={styles.mnemonicContainer}>
-                  {formatMnemonic(kanji.meaningMnemonic)}
+                  <TranslatedStudyText subject={kanji} field="meaningMnemonic" original={kanji.meaningMnemonic} render={formatMnemonic} />
                 </View>
               </View>
             </View>
@@ -1092,7 +1093,7 @@ export default function KanjiDetails({
                   ]}
                 >
                   <View style={styles.mnemonicContainer}>
-                    {formatMnemonic(kanji.meaningHint)}
+                    <TranslatedStudyText subject={kanji} field="meaningHint" original={kanji.meaningHint} render={formatMnemonic} />
                   </View>
                 </View>
               </View>
@@ -1212,7 +1213,7 @@ export default function KanjiDetails({
                 ]}
               >
                 <View style={styles.mnemonicContainer}>
-                  {formatMnemonic(kanji.readingMnemonic)}
+                  <TranslatedStudyText subject={kanji} field="readingMnemonic" original={kanji.readingMnemonic} render={formatMnemonic} />
                 </View>
               </View>
             </View>
@@ -1230,7 +1231,7 @@ export default function KanjiDetails({
                   ]}
                 >
                   <View style={styles.mnemonicContainer}>
-                    {formatMnemonic(kanji.readingHint)}
+                    <TranslatedStudyText subject={kanji} field="readingHint" original={kanji.readingHint} render={formatMnemonic} />
                   </View>
                 </View>
               </View>
@@ -1460,7 +1461,7 @@ export default function KanjiDetails({
                   </Text>
                   {expandedComponent.mnemonic ? (
                     <View style={styles.mnemonicContainer}>
-                      {formatMnemonic(expandedComponent.mnemonic)}
+                      <TranslatedStudyText subject={{ ...expandedComponent, object: "radical", readings: [] }} field="meaningMnemonic" original={expandedComponent.mnemonic} render={formatMnemonic} />
                     </View>
                   ) : (
                     <Text

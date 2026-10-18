@@ -1,3 +1,4 @@
+import { TranslatedStudyText } from "../features/translation-packages/TranslatedStudyText";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -358,10 +359,7 @@ export default function SubjectTabs({
 
           <View style={styles.infoSection}>
             <Text style={styles.sectionTitle}>Mnemonic</Text>
-            <Text style={styles.mnemonicText}>
-              {cleanMnemonicText(subject.data.meaning_mnemonic) ||
-                "No mnemonic available"}
-            </Text>
+            <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic ?? ""} render={text => <Text style={styles.mnemonicText}>{cleanMnemonicText(text) || "No mnemonic available"}</Text>} />
           </View>
         </View>
       );
@@ -459,10 +457,7 @@ export default function SubjectTabs({
 
             <View style={styles.infoSection}>
               <Text style={styles.sectionTitle}>Mnemonic</Text>
-              <Text style={styles.mnemonicText}>
-                {cleanMnemonicText(subject.data.meaning_mnemonic) ||
-                  "No mnemonic available"}
-              </Text>
+              <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic ?? ""} render={text => <Text style={styles.mnemonicText}>{cleanMnemonicText(text) || "No mnemonic available"}</Text>} />
             </View>
           </View>
         );
@@ -540,10 +535,7 @@ export default function SubjectTabs({
 
             <View style={styles.infoSection}>
               <Text style={styles.sectionTitle}>Reading Mnemonic</Text>
-              <Text style={styles.mnemonicText}>
-                {cleanMnemonicText(subject.data.reading_mnemonic) ||
-                  "No reading mnemonic available"}
-              </Text>
+              <TranslatedStudyText subject={subject} field="readingMnemonic" original={subject.data.reading_mnemonic ?? ""} render={text => <Text style={styles.mnemonicText}>{cleanMnemonicText(text) || "No reading mnemonic available"}</Text>} />
             </View>
           </View>
         );
@@ -654,10 +646,7 @@ export default function SubjectTabs({
 
             <View style={styles.infoSection}>
               <Text style={styles.sectionTitle}>Mnemonic</Text>
-              <Text style={styles.mnemonicText}>
-                {cleanMnemonicText(subject.data.meaning_mnemonic) ||
-                  "No mnemonic available"}
-              </Text>
+              <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic ?? ""} render={text => <Text style={styles.mnemonicText}>{cleanMnemonicText(text) || "No mnemonic available"}</Text>} />
             </View>
           </View>
         );
@@ -716,10 +705,7 @@ export default function SubjectTabs({
 
             <View style={styles.infoSection}>
               <Text style={styles.sectionTitle}>Reading Mnemonic</Text>
-              <Text style={styles.mnemonicText}>
-                {cleanMnemonicText(subject.data.reading_mnemonic) ||
-                  "No reading mnemonic available"}
-              </Text>
+              <TranslatedStudyText subject={subject} field="readingMnemonic" original={subject.data.reading_mnemonic ?? ""} render={text => <Text style={styles.mnemonicText}>{cleanMnemonicText(text) || "No reading mnemonic available"}</Text>} />
             </View>
           </View>
         );

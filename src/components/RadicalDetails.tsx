@@ -1,3 +1,4 @@
+import { TranslatedStudyText } from "../features/translation-packages/TranslatedStudyText";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
@@ -647,7 +648,7 @@ export default function RadicalDetails({
             style={[styles.infoBox, { backgroundColor: theme.cardBackground }]}
           >
             <View style={styles.mnemonicContainer}>
-              {formatMnemonic(radical.mnemonic)}
+              <TranslatedStudyText subject={radical} field="meaningMnemonic" original={radical.mnemonic} render={formatMnemonic} />
             </View>
             {showMnemonicIllustrations && mnemonicImageUrl ? (
               mnemonicImageKind === "svg" && themedMnemonicSvgXml ? (
