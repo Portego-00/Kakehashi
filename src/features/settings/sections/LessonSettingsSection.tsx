@@ -518,14 +518,14 @@ export function LessonSettingsSection() {
                 <SettingsRowIcon setting="lesson-count" color={theme.primary} />
                 <View style={styles.settingTextContainer}>
                   <SettingsLabel style={[styles.settingText, { color: theme.textColor }]}>
-                    Vocabulary Unlock Counts
+                    Lesson Unlock Counts
                   </SettingsLabel>
                   <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
-                    Show how many same-level vocabulary words depend on each kanji in the lesson picker. All kanji in a word must reach Guru to unlock it.
+                    Show kanji unlocks on radicals and vocabulary unlocks on kanji. Tap a number to see the same-level subjects.
                   </Text>
                 </View>
                 <Switch
-                  accessibilityLabel="Vocabulary Unlock Counts"
+                  accessibilityLabel="Lesson Unlock Counts"
                   value={showLessonVocabularyUnlockCounts}
                   onValueChange={setShowLessonVocabularyUnlockCounts}
                   trackColor={{ false: "#767577", true: theme.primary }}

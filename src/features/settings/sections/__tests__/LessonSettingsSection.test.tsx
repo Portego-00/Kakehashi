@@ -72,14 +72,14 @@ afterEach(() => useSettingsStore.setState(useSettingsStore.getInitialState(), tr
 
 it("keeps vocabulary unlock counts inside advanced lesson preferences and saves the choice", () => {
   const screen = render(<LessonSettingsSection />);
-  expect(screen.queryByLabelText("Vocabulary Unlock Counts")).toBeNull();
+  expect(screen.queryByLabelText("Lesson Unlock Counts")).toBeNull();
   fireEvent.press(screen.getByLabelText("Advanced settings"));
-  const toggle = screen.getByLabelText("Vocabulary Unlock Counts");
+  const toggle = screen.getByLabelText("Lesson Unlock Counts");
   expect(toggle.props.value).toBe(false);
   fireEvent(toggle, "valueChange", true);
-  expect(screen.getByLabelText("Vocabulary Unlock Counts").props.value).toBe(true);
+  expect(screen.getByLabelText("Lesson Unlock Counts").props.value).toBe(true);
   expect(useSettingsStore.getState().showLessonVocabularyUnlockCounts).toBe(true);
   expect(JSON.parse(permanentStorage.getString("wanikani-settings")!).state.showLessonVocabularyUnlockCounts).toBe(true);
   fireEvent.press(screen.getByLabelText("Collapse advanced settings"));
-  expect(screen.queryByLabelText("Vocabulary Unlock Counts")).toBeNull();
+  expect(screen.queryByLabelText("Lesson Unlock Counts")).toBeNull();
 });

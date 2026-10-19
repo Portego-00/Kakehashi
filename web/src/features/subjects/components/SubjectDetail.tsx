@@ -699,10 +699,12 @@ export function SubjectDetailPanels({
         </section>
 
         {hasReadingTab ? <section id={panelId("reading")} role="tabpanel" aria-labelledby={tabId("reading")} aria-hidden={resolvedActiveTab !== "reading"} inert={resolvedActiveTab !== "reading" ? true : undefined} data-tab-position={tabPosition("reading")} className={styles.detailPanelStack} style={tabPagerStyle("reading")}>
-          <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}><ReadingGroups readings={record.data.readings ?? []} pitchAccents={settings.showPitchAccent ? pitchAccents : []} /></DetailSection>
+          <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}>
+            <ReadingGroups readings={record.data.readings ?? []} pitchAccents={settings.showPitchAccent ? pitchAccents : []} />
+            {pronunciationAudios.length ? <div className={styles.readingGroup}><h3>Audio</h3><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></div> : null}
+          </DetailSection>
           {readingMnemonic.length ? <DetailSection title="Reading mnemonic"><Mnemonic paragraphs={readingMnemonic} />{!compact && record.data.reading_hint ? <div className={styles.subjectHint}><Mnemonic paragraphs={mnemonicParagraphs(record.data.reading_hint)} /></div> : null}</DetailSection> : null}
           {!compact ? readingExtras : null}
-          {pronunciationAudios.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
         </section> : null}
 
         {record.object === "kanji" && settings.showStrokeOrder ? <section id={panelId("stroke")} role="tabpanel" aria-labelledby={tabId("stroke")} aria-hidden={resolvedActiveTab !== "stroke"} inert={resolvedActiveTab !== "stroke" ? true : undefined} data-tab-position={tabPosition("stroke")} className={styles.detailPanelStack} style={tabPagerStyle("stroke")}>

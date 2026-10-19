@@ -61,3 +61,11 @@ failure, restart persistence, inline originals and explicit account writes.
 Translations default to off. Importing a file only previews it; choosing **Use this package** activates it on this device. Turning it off keeps the file but restores the existing English text and layouts. The settings entry remains available to opt in later.
 
 Study screens do not hydrate packages while disabled. Summary lists validate against the complete subject that produced each current item, without loading a separate catalog snapshot. Review grading, scheduling, existing manual synonym saves, and Bunpro flows retain their existing behavior.
+
+## Import safety
+
+Packages are JSON data, rendered as plain native text. Package URLs, schema names, and IDs are never executed, fetched, or used as storage paths. Importing or activating a package does not read credentials or make network requests. Account writes require a separately confirmed synonym transfer to the fixed WaniKani API.
+
+The runtime parser bounds individual strings and lists, validates each subject separately, and stops on the first invalid entry. This prevents oversized lists and validation-error floods in otherwise small files. Meanings are limited to 256 characters, example translations to 4,096, usage explanations to 8,192, and alternatives to 32 per subject; source meanings and readings are limited to 64 each. The file, subject, and total-example caps also apply. The v3 JSON schema records the field limits.
+
+An editorial review marker is publisher-supplied metadata, not a verified signature. Packages can still contain incorrect or misleading text; users should inspect synonym suggestions before confirming account changes.

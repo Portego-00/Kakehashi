@@ -541,7 +541,7 @@ type SettingsState = {
   lessonPickerViewMode: LessonPickerViewMode; // Default visual style for lesson picker subject selection
   singlePageLessonView: boolean; // Show all lesson content in a single scrollable page instead of tabs
   lessonSearchButtonEnabled: boolean; // Show quick search on lesson details cards
-  showLessonVocabularyUnlockCounts: boolean; // Show same-level vocabulary dependencies on kanji in the lesson picker
+  showLessonVocabularyUnlockCounts: boolean; // Saved key retained for radical and kanji lesson unlock badges
   skipCustomLessonQuiz: boolean; // Skip custom lesson quiz and jump straight to batch completion
   excludeKanaVocabularyFromLessons: boolean; // Hide kana vocabulary from lesson queue and lesson counts
 
