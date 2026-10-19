@@ -58,6 +58,7 @@ import {
 } from "../utils/answerChecker";
 import { getSubjectTypeColor } from "../utils/subjectColors";
 import { resolveReadingModeResult } from "../utils/readingAnswerMode";
+import { formatKanjiReadingAnswer } from "../utils/katakanaMadness";
 import {
   createStudyMaterial,
   updateStudyMaterial,
@@ -1065,6 +1066,7 @@ export default function ReviewQuestionScreen({
     acceptUserSynonymsAsAnswers,
     showAddSynonymButton,
     acceptAnyKanjiOnyomiReading,
+    showOnyomiInKatakana,
     jitaiEnabled,
     jitaiCycleAllFonts,
     autoSwitchKeyboard,
@@ -5305,6 +5307,15 @@ export default function ReviewQuestionScreen({
     ],
   );
 
+  const acceptedReadingAnswerDisplayText = acceptedReadingAnswerOptions.map(
+    (reading) => formatKanjiReadingAnswer(
+      reading,
+      subject.object,
+      subject.data.readings ?? [],
+      showOnyomiInKatakana,
+    ),
+  ).join(", ");
+
   const pausedCorrectAnswerText =
     overridePausedCorrectAnswerText ??
     (questionType === "meaning"
@@ -5313,9 +5324,9 @@ export default function ReviewQuestionScreen({
         ? customAcceptedReadingAnswerDisplayText
       : showCharactersAndReadingForReadingQuestion
         ? buildCharactersAndReadingAnswerText(
-            acceptedReadingAnswerOptions.join(", "),
+            acceptedReadingAnswerDisplayText,
           )
-        : acceptedReadingAnswerOptions.join(", "));
+        : acceptedReadingAnswerDisplayText);
   const answerInputPlaceholder =
     questionType === "reading" ? "答え" : "Your Response";
 

@@ -27,7 +27,7 @@ import { SvgXml } from "react-native-svg";
 import PagerView from "react-native-pager-view";
 import SubjectMetadataRows from "./SubjectMetadataRows";
 import { SRS_COLORS } from "../constants/srsColors";
-import { hiraganaToKata } from "../utils/katakanaMadness";
+import { formatOnyomiReading, hiraganaToKata } from "../utils/katakanaMadness";
 import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
 import {
   getMnemonicImageAsset,
@@ -493,10 +493,14 @@ export default function KanjiDetails({
   const primaryMeaning = translatedMeaning ? contentDisplay.formatMeaning(translatedMeaning.primary) : originalPrimaryMeaning;
 
   // Determine the primary reading (fallback to first available reading)
-  const primaryReading =
-    kanji.readings.find((r) => r.primary)?.reading ||
-    kanji.readings[0]?.reading ||
-    "";
+  const primaryReadingEntry =
+    kanji.readings.find((r) => r.primary) ?? kanji.readings[0];
+  const primaryReading = primaryReadingEntry?.reading ?? "";
+  const displayedPrimaryReading = formatOnyomiReading(
+    primaryReading,
+    primaryReadingEntry?.type === "onyomi",
+    showOnyomiInKatakana,
+  );
 
   // Group readings by type
   const onyomiReadings = kanji.readings.filter((r) => r.type === "onyomi");
@@ -2021,7 +2025,7 @@ export default function KanjiDetails({
 
           <Text style={styles.mainTitle}>{primaryMeaning}</Text>
           {!!primaryReading && (
-            <Text style={styles.mainReading}>{primaryReading}</Text>
+            <Text style={styles.mainReading}>{displayedPrimaryReading}</Text>
           )}
         </View>
         )}
