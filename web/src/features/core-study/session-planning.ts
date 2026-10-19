@@ -61,6 +61,7 @@ function orderReviewAssignments(assignments: Assignment[], subjectById: Map<numb
   const randomized = shuffle([...assignments], randomFn);
   const randomRank = new Map(randomized.map((assignment, index) => [assignment.id, index]));
   const ordered = settings.reviewOrder === "random" ? randomized : [...assignments];
+  const isSrsOrder = settings.reviewOrder === "ascendingSrsStage" || settings.reviewOrder === "descendingSrsStage";
   const reviewTypeOrder = normalizeReviewTypeOrder(settings.reviewTypeOrder);
   const typeRank = new Map(reviewTypeOrder.map((type, index) => [type, index]));
 
@@ -80,7 +81,7 @@ function orderReviewAssignments(assignments: Assignment[], subjectById: Map<numb
     const reviewComparison = compareByReviewOrder(left, right, subjectById, settings.reviewOrder, now);
     if (reviewComparison !== 0) return reviewComparison;
 
-    if (!settings.reviewTypeOrderEnabled) {
+    if (!settings.reviewTypeOrderEnabled && !isSrsOrder) {
       const typeComparison = TYPE_ORDER[left.data.subject_type] - TYPE_ORDER[right.data.subject_type];
       if (typeComparison !== 0) return typeComparison;
     }

@@ -1011,7 +1011,7 @@ describe("extra-study quiz interaction", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
     expect(screen.getByRole("heading", { name: "Readings" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reading mnemonic" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Pronunciation" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Audio", level: 3 })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Context" }));
     expect(screen.getByRole("heading", { name: "Context sentences" })).toBeInTheDocument();

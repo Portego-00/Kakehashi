@@ -25,6 +25,7 @@ export function SettingsFoldout({
   icon = "settings",
   children,
   accessibilityLabel,
+  showTopBorder = true,
   theme,
 }: {
   title: string;
@@ -32,6 +33,7 @@ export function SettingsFoldout({
   icon?: string;
   children: React.ReactNode;
   accessibilityLabel?: string;
+  showTopBorder?: boolean;
   theme: Theme;
 }) {
   const [open, setOpen] = useState(false);
@@ -58,7 +60,10 @@ export function SettingsFoldout({
   return (
     <Animated.View
       layout={settingsLayoutTransition}
-      style={{ borderTopWidth: 1, borderTopColor: theme.border }}
+      style={{
+        borderTopWidth: showTopBorder ? 1 : 0,
+        borderTopColor: theme.border,
+      }}
     >
       <Pressable
         ref={heading}

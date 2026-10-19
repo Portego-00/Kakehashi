@@ -406,6 +406,7 @@ function generateCustomReviewQuestions(dataset: StudyDataset, filters: StudyFilt
 function orderCustomReviewSubjects(subjects: Subject[], assignments: Assignment[], options: StudyQuestionGenerationOptions, random: () => number, now: Date) {
   const assignmentBySubject = assignmentMap(assignments);
   const order = options.customReviewOrder ?? "random";
+  const isSrsOrder = order === "ascendingSrsStage" || order === "descendingSrsStage";
   const randomized = shuffle(subjects, random);
   const randomRank = new Map(randomized.map((subject, index) => [subject.id, index]));
   const ordered = order === "random" ? randomized : [...subjects];
@@ -424,7 +425,7 @@ function orderCustomReviewSubjects(subjects: Subject[], assignments: Assignment[
     if (order === "random") return (randomRank.get(left.id) ?? 0) - (randomRank.get(right.id) ?? 0);
     const orderComparison = compareCustomReviewSubjects(left, right, assignmentBySubject, order, now);
     if (orderComparison !== 0) return orderComparison;
-    if (!options.reviewTypeOrderEnabled) {
+    if (!options.reviewTypeOrderEnabled && !isSrsOrder) {
       const typeComparison = REVIEW_TYPE_FALLBACK[left.object] - REVIEW_TYPE_FALLBACK[right.object];
       if (typeComparison !== 0) return typeComparison;
     }

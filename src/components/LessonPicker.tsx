@@ -9,6 +9,7 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -18,6 +19,8 @@ import {
 import { SvgXml } from "react-native-svg";
 import AddToSubjectListsModal from "./AddToSubjectListsModal";
 import { CommonFilterModal } from "./CommonFilterModal";
+import LessonUnlocksModal from "./LessonUnlocksModal";
+import type { LessonUnlocks } from "../utils/lessonUnlocks";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { getVocabularyFrequency } from "../services/vocabularyFrequencyService";
 import { useSettingsStore } from "../utils/store";
@@ -66,9 +69,9 @@ interface LessonPickerProps {
   lessons: LessonPickerItem[];
   onStart: (selectedLessons: LessonPickerItem[]) => void;
   onCancel: () => void;
-  vocabularyUnlockCounts?: ReadonlyMap<number, number>;
-  vocabularyUnlockStatus?: "loading" | "error";
-  onRetryVocabularyUnlockCounts?: () => void;
+  lessonUnlocks?: LessonUnlocks;
+  unlockStatus?: "loading" | "error";
+  onRetryUnlocks?: () => void;
 }
 
 type LessonListHeaderItem = {
@@ -299,19 +302,29 @@ const LessonItemCharacter = React.memo(
 
 LessonItemCharacter.displayName = "LessonItemCharacter";
 
-function VocabularyUnlockBadge({ count, selected = false }: { count?: number; selected?: boolean }) {
+function LessonUnlockBadge({ item, count, onPress }: {
+  item: LessonPickerItem;
+  count?: number;
+  onPress: (item: LessonPickerItem) => void;
+}) {
   const { theme } = useTheme();
   if (count === undefined) return null;
+  const target = item.subject.object === "radical" ? "kanji" : "vocabulary";
+  const label = item.subject.data.characters || item.subject.data.meanings[0]?.meaning || "this subject";
   return (
-    <Text
-      accessibilityLabel={`${count} same-level vocabulary ${count === 1 ? "word depends" : "words depend"} on this kanji reaching Guru`}
-      style={[styles.vocabularyUnlockBadge, {
-        color: selected ? "#ffffff" : theme.textColor,
-        borderColor: selected ? "#ffffff" : theme.border,
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={`Show ${count} same-level ${target} unlocks for ${label}`}
+      accessibilityHint="Opens the subjects that depend on this item reaching Guru"
+      onPress={() => onPress(item)}
+      hitSlop={10}
+      style={[styles.unlockBadge, {
+        backgroundColor: theme.textColor,
+        borderColor: theme.cardBackground,
       }]}
     >
-      {count} vocab
-    </Text>
+      <Text style={[styles.unlockBadgeText, { color: theme.cardBackground }]}>{count}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -321,41 +334,47 @@ const LessonItem = React.memo(
     isSelected,
     onToggle,
     sizing,
-    vocabularyUnlockCount,
+    unlockCount,
+    onShowUnlocks,
   }: {
     item: LessonPickerItem;
     isSelected: boolean;
     onToggle: (id: number) => void;
     sizing: SubjectIconSizing;
-    vocabularyUnlockCount?: number;
+    unlockCount?: number;
+    onShowUnlocks: (item: LessonPickerItem) => void;
   }) => {
     const { theme } = useTheme();
     const typeColor = getTypeColor(item.subject.object, theme);
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.lessonItem,
-          {
-            backgroundColor: isSelected ? typeColor : theme.cardBackground,
-            borderColor: typeColor,
-            paddingHorizontal: sizing.itemPaddingHorizontal,
-            paddingVertical: sizing.itemPaddingVertical,
-            minWidth: sizing.itemMinSize,
-            minHeight: sizing.itemMinSize,
-            borderRadius: sizing.itemBorderRadius,
-          },
-        ]}
-        onPress={() => onToggle(item.id)}
-      >
-        <LessonItemCharacter
-          item={item}
-          isSelected={isSelected}
-          theme={theme}
-          sizing={sizing}
-        />
-        {item.subject.object === "kanji" ? <VocabularyUnlockBadge count={vocabularyUnlockCount} selected={isSelected} /> : null}
-      </TouchableOpacity>
+      <View style={unlockCount !== undefined ? styles.badgedLesson : undefined}>
+        <TouchableOpacity
+          style={[
+            styles.lessonItem,
+            {
+              backgroundColor: isSelected ? typeColor : theme.cardBackground,
+              borderColor: typeColor,
+              paddingHorizontal: sizing.itemPaddingHorizontal,
+              paddingVertical: sizing.itemPaddingVertical,
+              minWidth: sizing.itemMinSize,
+              minHeight: sizing.itemMinSize,
+              borderRadius: sizing.itemBorderRadius,
+            },
+          ]}
+          onPress={() => onToggle(item.id)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isSelected }}
+        >
+          <LessonItemCharacter
+            item={item}
+            isSelected={isSelected}
+            theme={theme}
+            sizing={sizing}
+          />
+        </TouchableOpacity>
+        <LessonUnlockBadge item={item} count={unlockCount} onPress={onShowUnlocks} />
+      </View>
     );
   }
 );
@@ -411,7 +430,8 @@ const LessonGroup = React.memo(
     onToggleSection,
     isLast,
     sizing,
-    vocabularyUnlockCounts,
+    lessonUnlocks,
+    onShowUnlocks,
   }: {
     title: string;
     items: LessonPickerItem[];
@@ -420,7 +440,8 @@ const LessonGroup = React.memo(
     onToggleSection: (items: LessonPickerItem[]) => void;
     isLast: boolean;
     sizing: SubjectIconSizing;
-    vocabularyUnlockCounts?: ReadonlyMap<number, number>;
+    lessonUnlocks?: LessonUnlocks;
+    onShowUnlocks: (item: LessonPickerItem) => void;
   }) => {
     const { theme } = useTheme();
 
@@ -448,7 +469,8 @@ const LessonGroup = React.memo(
               isSelected={selectedItems.has(item.id)}
               onToggle={onToggleItem}
               sizing={sizing}
-              vocabularyUnlockCount={vocabularyUnlockCounts?.get(item.subjectId)}
+              unlockCount={lessonUnlocks?.get(item.subjectId)?.length}
+              onShowUnlocks={onShowUnlocks}
             />
           ))}
         </View>
@@ -471,14 +493,16 @@ const LevelSection = React.memo(
     onToggleItem,
     onToggleSection,
     sizing,
-    vocabularyUnlockCounts,
+    lessonUnlocks,
+    onShowUnlocks,
   }: {
     section: LevelSectionData;
     selectedItems: Set<number>;
     onToggleItem: (id: number) => void;
     onToggleSection: (items: LessonPickerItem[]) => void;
     sizing: SubjectIconSizing;
-    vocabularyUnlockCounts?: ReadonlyMap<number, number>;
+    lessonUnlocks?: LessonUnlocks;
+    onShowUnlocks: (item: LessonPickerItem) => void;
   }) => {
     const { theme } = useTheme();
     const sections = [
@@ -511,7 +535,8 @@ const LevelSection = React.memo(
               onToggleSection={onToggleSection}
               isLast={index === sections.length - 1}
               sizing={sizing}
-              vocabularyUnlockCounts={vocabularyUnlockCounts}
+              lessonUnlocks={lessonUnlocks}
+              onShowUnlocks={onShowUnlocks}
             />
           ))}
         </View>
@@ -526,9 +551,9 @@ export default function LessonPicker({
   lessons,
   onStart,
   onCancel,
-  vocabularyUnlockCounts,
-  vocabularyUnlockStatus,
-  onRetryVocabularyUnlockCounts,
+  lessonUnlocks,
+  unlockStatus,
+  onRetryUnlocks,
 }: LessonPickerProps) {
   const contentDisplay = useLearningDisplay();
   const { theme } = useTheme();
@@ -538,13 +563,23 @@ export default function LessonPicker({
   const showVocabularyFrequency = useSettingsStore(
     (state) => state.showVocabularyFrequency
   );
+  const showUnlockCounts = useSettingsStore(
+    (state) => state.showLessonVocabularyUnlockCounts,
+  );
+  const setShowUnlockCounts = useSettingsStore(
+    (state) => state.setShowLessonVocabularyUnlockCounts,
+  );
+  const hasUnlockLessons = lessons.some(
+    (lesson) => lesson.subject.object === "radical" || lesson.subject.object === "kanji",
+  );
+  const [unlockLesson, setUnlockLesson] = useState<LessonPickerItem | null>(null);
   const { width: screenWidth } = useWindowDimensions();
   const iconSizing = useMemo(
     () => getResponsiveSubjectIconSizing(screenWidth),
     [screenWidth]
   );
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
-  const pickerExtraData = useMemo(() => ({ selectedItems, vocabularyUnlockCounts }), [selectedItems, vocabularyUnlockCounts]);
+  const pickerExtraData = useMemo(() => ({ selectedItems, lessonUnlocks }), [selectedItems, lessonUnlocks]);
   const [searchQuery, setSearchQuery] = useState("");
   const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
   const [collapsedLevels, setCollapsedLevels] = useState<Set<number>>(new Set());
@@ -983,11 +1018,12 @@ export default function LessonPicker({
           onToggleItem={toggleItem}
           onToggleSection={toggleSection}
           sizing={iconSizing}
-          vocabularyUnlockCounts={vocabularyUnlockCounts}
+          lessonUnlocks={lessonUnlocks}
+          onShowUnlocks={setUnlockLesson}
         />
       </View>
     ),
-    [iconSizing, selectedItems, toggleItem, toggleSection, vocabularyUnlockCounts]
+    [iconSizing, selectedItems, toggleItem, toggleSection, lessonUnlocks]
   );
 
   const listModeData = useMemo<LessonListDataItem[]>(() => {
@@ -1088,65 +1124,73 @@ export default function LessonPicker({
       const characters = lesson.subject.data.characters || "";
 
       return (
-        <TouchableOpacity
-          style={[
-            styles.listLessonRow,
-            {
-              backgroundColor: theme.cardBackground,
-              borderColor: theme.border,
-            },
-          ]}
-          onPress={() => toggleItem(lesson.id)}
-          activeOpacity={0.7}
-        >
-          <View
+        <View style={lessonUnlocks?.has(lesson.subjectId) ? styles.badgedLesson : undefined}>
+          <TouchableOpacity
             style={[
-              styles.listLessonCharacterBox,
-              { backgroundColor: typeColor },
-              (lesson.subject.object === "vocabulary" ||
-                lesson.subject.object === "kana_vocabulary") &&
-                characters.length > 1 && {
-                  minWidth: 48 + (characters.length - 2) * 24 + 16,
-                },
+              styles.listLessonRow,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
             ]}
+            onPress={() => toggleItem(lesson.id)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isSelected }}
           >
-            <LessonItemCharacter
-              item={lesson}
-              isSelected
-              theme={theme}
-              sizing={LIST_SUBJECT_ICON_SIZING}
-            />
-          </View>
-          <View style={styles.listLessonDetails}>
-            <Text style={[styles.listLessonMeaning, { color: theme.textColor }]}>
-              {contentDisplay.meaning(lesson.subject, getPrimaryMeaning(lesson))}
-            </Text>
-            <View style={styles.listLessonMetaRow}>
-              <Text style={[styles.listLessonType, { color: theme.textSecondary }]}>
-                {lesson.subject.object === "kana_vocabulary"
-                  ? "Kana Vocab"
-                  : lesson.subject.object.charAt(0).toUpperCase() +
-                    lesson.subject.object.slice(1)}
-              </Text>
-              {primaryReading ? (
-                <Text
-                  style={[
-                    styles.listLessonReading,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  {primaryReading}
-                </Text>
-              ) : null}
+            <View
+              style={[
+                styles.listLessonCharacterBox,
+                { backgroundColor: typeColor },
+                (lesson.subject.object === "vocabulary" ||
+                  lesson.subject.object === "kana_vocabulary") &&
+                  characters.length > 1 && {
+                    minWidth: 48 + (characters.length - 2) * 24 + 16,
+                  },
+              ]}
+            >
+              <LessonItemCharacter
+                item={lesson}
+                isSelected
+                theme={theme}
+                sizing={LIST_SUBJECT_ICON_SIZING}
+              />
             </View>
-            {lesson.subject.object === "kanji" ? <VocabularyUnlockBadge count={vocabularyUnlockCounts?.get(lesson.subjectId)} /> : null}
-          </View>
-          <Ionicons
-            name={isSelected ? "checkmark-circle" : "ellipse-outline"}
-            size={22}
-            color={isSelected ? getSubjectTypeColor("kanji") : theme.textLight}
+            <View style={styles.listLessonDetails}>
+              <Text style={[styles.listLessonMeaning, { color: theme.textColor }]}>
+                {contentDisplay.meaning(lesson.subject, getPrimaryMeaning(lesson))}
+              </Text>
+              <View style={styles.listLessonMetaRow}>
+                <Text style={[styles.listLessonType, { color: theme.textSecondary }]}>
+                  {lesson.subject.object === "kana_vocabulary"
+                    ? "Kana Vocab"
+                    : lesson.subject.object.charAt(0).toUpperCase() +
+                      lesson.subject.object.slice(1)}
+                </Text>
+                {primaryReading ? (
+                  <Text
+                    style={[
+                      styles.listLessonReading,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    {primaryReading}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            <Ionicons
+              name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+              size={22}
+              color={isSelected ? getSubjectTypeColor("kanji") : theme.textLight}
+            />
+          </TouchableOpacity>
+          <LessonUnlockBadge
+            item={lesson}
+            count={lessonUnlocks?.get(lesson.subjectId)?.length}
+            onPress={setUnlockLesson}
           />
-        </TouchableOpacity>
+        </View>
       );
     },
     [
@@ -1157,7 +1201,7 @@ export default function LessonPicker({
       toggleItem,
       toggleLevelCollapsed,
       toggleSection,
-      vocabularyUnlockCounts,
+      lessonUnlocks,
     ]
   );
 
@@ -1305,17 +1349,42 @@ export default function LessonPicker({
         </TouchableOpacity>
       </View>
 
-      {vocabularyUnlockCounts || vocabularyUnlockStatus ? (
-        <View style={styles.vocabularyUnlockNote}>
-          <Text style={{ color: theme.textSecondary }} accessibilityLiveRegion="polite">
-            {vocabularyUnlockStatus === "loading"
-              ? "Loading vocabulary unlock counts…"
-              : vocabularyUnlockStatus === "error"
-                ? "Vocabulary unlock counts could not load."
-                : "Counts show same-level vocabulary. All kanji in a word must reach Guru to unlock it."}
+      {hasUnlockLessons ? (
+        <TouchableOpacity
+          style={[
+            styles.unlockSetting,
+            { borderBottomColor: theme.border },
+          ]}
+          onPress={() => setShowUnlockCounts(!showUnlockCounts)}
+          activeOpacity={0.75}
+          accessibilityRole="switch"
+          accessibilityLabel="Lesson unlock counts"
+          accessibilityHint="Shows kanji counts on radicals and vocabulary counts on kanji. Saves your choice in lesson settings."
+          accessibilityState={{ checked: showUnlockCounts }}
+        >
+          <Text style={[styles.unlockLabel, { color: theme.textColor }]}>
+            Lesson unlock counts
           </Text>
-          {vocabularyUnlockStatus === "error" ? (
-            <TouchableOpacity accessibilityRole="button" onPress={onRetryVocabularyUnlockCounts}>
+          <Switch
+            accessible={false}
+            value={showUnlockCounts}
+            onValueChange={setShowUnlockCounts}
+            trackColor={{ false: "#767577", true: theme.primary }}
+            thumbColor="#f4f3f4"
+          />
+        </TouchableOpacity>
+      ) : null}
+      {showUnlockCounts && (lessonUnlocks || unlockStatus) ? (
+        <View style={styles.unlockNote}>
+          <Text style={{ color: theme.textSecondary }} accessibilityLiveRegion="polite">
+            {unlockStatus === "loading"
+              ? "Loading lesson unlock counts…"
+              : unlockStatus === "error"
+                ? "Lesson unlock counts could not load."
+                : "Tap a number to see same-level kanji or vocabulary unlocks. Other components must also reach Guru."}
+          </Text>
+          {unlockStatus === "error" ? (
+            <TouchableOpacity accessibilityRole="button" onPress={onRetryUnlocks}>
               <Text style={{ color: theme.primary }}>Retry counts</Text>
             </TouchableOpacity>
           ) : null}
@@ -1569,22 +1638,55 @@ export default function LessonPicker({
         subjectLabel={`${selectedItems.size} selected lessons`}
         onClose={() => setIsBookmarkModalVisible(false)}
       />
+      {unlockLesson && showUnlockCounts ? (
+        <LessonUnlocksModal
+          source={unlockLesson.subject}
+          subjects={lessonUnlocks?.get(unlockLesson.subjectId) ?? []}
+          onClose={() => setUnlockLesson(null)}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  vocabularyUnlockBadge: {
-    alignSelf: "flex-start",
-    fontSize: 12,
-    fontWeight: "600",
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    marginTop: 4,
+  unlockSetting: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    minHeight: 52,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  vocabularyUnlockNote: {
+  unlockLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  badgedLesson: {
+    paddingTop: 6,
+    paddingRight: 6,
+  },
+  unlockBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    zIndex: 1,
+    minWidth: 24,
+    minHeight: 24,
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unlockBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  unlockNote: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     gap: 6,

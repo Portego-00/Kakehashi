@@ -141,7 +141,7 @@ describe("reviewOrdering", () => {
     ]);
   });
 
-  it("sorts by ascending SRS stage and subject type", () => {
+  it("sorts by ascending SRS stage", () => {
     const items = [
       createTestItem({ id: 1, subjectType: "vocabulary", srsStage: 1 }),
       createTestItem({ id: 2, subjectType: "radical", srsStage: 1, hasReading: false }),
@@ -172,6 +172,32 @@ describe("reviewOrdering", () => {
     });
 
     expect(sorted.map((item) => item.id)).toEqual([2, 3, 1]);
+  });
+
+  it.each([
+    ["ascendingSrsStage", false, [2, 3, 4, 5, 6, 1, 7, 8, 9, 10, 11, 12]],
+    ["descendingSrsStage", false, [7, 8, 9, 10, 11, 12, 2, 3, 4, 5, 6, 1]],
+    ["ascendingSrsStage", true, [2, 4, 6, 8, 10, 12, 3, 1, 7, 9, 5, 11]],
+    ["descendingSrsStage", true, [8, 10, 12, 2, 4, 6, 7, 9, 3, 1, 11, 5]],
+  ] as const)("shuffles ties in %s unless item type grouping is enabled (%s)", (reviewOrder, reviewTypeOrderEnabled, expectedIds) => {
+    const subjectTypes: SubjectType[] = ["kanji", "vocabulary", "kanji", "vocabulary", "radical", "kana_vocabulary"];
+    const items = [1, 5].flatMap((srsStage, stageIndex) => subjectTypes.map((subjectType, index) => createTestItem({
+      id: stageIndex * subjectTypes.length + index + 1,
+      subjectType,
+      srsStage,
+    })));
+
+    const sorted = sortReviewItemsForQueue(items, {
+      reviewOrder,
+      reviewTypeOrderEnabled,
+      reviewTypeOrder: ["vocabulary", "kanji", "radical"],
+      prioritizeCriticalItems: false,
+      randomFn: constantRandom(0),
+      now: NOW,
+    });
+
+    expect(sorted.map((item) => item.id)).toEqual([...expectedIds]);
+    expect(items.map((item) => item.id)).toEqual(Array.from({ length: 12 }, (_, index) => index + 1));
   });
 
   it("groups by custom item type order before applying the selected review order", () => {

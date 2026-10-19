@@ -229,6 +229,44 @@ describe("normal vocabulary context speech", () => {
 });
 
 describe("subject detail media buttons", () => {
+  it.each([
+    { surface: "subject and lesson pages", embedded: false, compact: false },
+    { surface: "expanded review and extra study details", embedded: true, compact: false },
+    { surface: "compact review details", embedded: true, compact: true },
+  ])("keeps pitch accents and audio in one readings card in $surface", ({ embedded, compact }) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}><SubjectDetailPanels
+      record={{ ...audioSubject, data: { ...audioSubject.data, reading_mnemonic: "A long reading mnemonic should follow the listening controls." } }}
+      material={material}
+      materialLoading={false}
+      materialsKey={["study-material", audioSubject.id]}
+      relatedSubjects={[]}
+      pitchAccents={[{ r: "ねっしん", p: [0, 1] }]}
+      usagePatterns={[]}
+      immersionExamples={[]}
+      immersionLoading={false}
+      immersionFailed={false}
+      settings={{ showContextSentences: false, showImmersionExamples: false, showPitchAccent: true, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+      returnTo="/subjects"
+      initialTab="reading"
+      embedded={embedded}
+      compact={compact}
+    /></QueryClientProvider>);
+
+    const readingPanel = within(screen.getByRole("tabpanel", { name: "Reading" }));
+    const readings = readingPanel.getByRole("heading", { name: "Readings" }).closest("section")!;
+    const readingsCard = readings.lastElementChild;
+    if (!(readingsCard instanceof HTMLElement)) throw new Error("Readings card is missing");
+    const graphs = readingPanel.getAllByRole("img", { name: /ねっしん, .* pitch accent/u });
+    expect(graphs).toHaveLength(2);
+    for (const graph of graphs) expect(readingsCard).toContainElement(graph);
+    expect(within(readingsCard).getByRole("heading", { name: "Audio", level: 3 })).toBeInTheDocument();
+    expect(within(readingsCard).getByRole("button", { name: "Play Kyoko pronunciation" })).toBeEnabled();
+    expect(within(readingsCard).getByRole("button", { name: "Play Kenichi pronunciation" })).toBeEnabled();
+    expect(readingPanel.queryByRole("heading", { name: "Pronunciation" })).not.toBeInTheDocument();
+    expect(readings.nextElementSibling).toContainElement(readingPanel.getByRole("heading", { name: "Reading mnemonic" }));
+  });
+
   it("uses compact custom controls for pronunciation and anime context", () => {
     const { container } = renderAudioSubject();
 

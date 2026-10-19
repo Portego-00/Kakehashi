@@ -56,6 +56,41 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.5.6",
+    date: "2026-10-19",
+    changes: [
+      {
+        type: "fix",
+        title: "Review Forecast Scrolling",
+        description:
+          "Switching between hourly and daily charts now resets the plot to the start so bars stay visible.",
+      },
+      {
+        type: "fix",
+        title: "SRS Review Ordering",
+        description:
+          "Reviews sorted by SRS now shuffle items within each stage when Group by item type is off, on mobile and web.",
+      },
+    ],
+  },
+  {
+    version: "1.5.5",
+    date: "2026-10-18",
+    changes: [
+      {
+        type: "feature",
+        title: "Lesson Unlock Counts",
+        description:
+          "See same-level kanji unlocks on radicals and vocabulary unlocks on kanji. Tap a number badge to view the subjects.",
+        link: {
+          route: "/settings",
+          params: { category: "lessons" },
+          label: "Open Lesson Settings",
+        },
+      },
+    ],
+  },
+  {
     version: "1.5.4",
     date: "2026-10-17",
     changes: [

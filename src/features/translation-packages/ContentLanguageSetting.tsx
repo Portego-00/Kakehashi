@@ -126,6 +126,7 @@ export function ContentLanguageSetting() {
     <SettingsFoldout
       title="Translation package"
       icon="language-outline"
+      showTopBorder={false}
       theme={theme}
       description={
         imported && enabled
