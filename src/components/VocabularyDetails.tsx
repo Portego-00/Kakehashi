@@ -1,3 +1,4 @@
+import { TranslatedStudyText } from "../features/translation-packages/TranslatedStudyText";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
@@ -2290,7 +2291,7 @@ export default function VocabularyDetails({
                   ]}
                 >
                   <View style={styles.mnemonicContainer}>
-                    {formatMnemonic(vocabulary.meaningMnemonic)}
+                    <TranslatedStudyText subject={vocabulary} field="meaningMnemonic" original={vocabulary.meaningMnemonic} render={formatMnemonic} />
                   </View>
                 </View>
               </View>
@@ -2309,7 +2310,7 @@ export default function VocabularyDetails({
                   ]}
                 >
                   <View style={styles.mnemonicContainer}>
-                    {formatMnemonic(vocabulary.meaningHint)}
+                    <TranslatedStudyText subject={vocabulary} field="meaningHint" original={vocabulary.meaningHint} render={formatMnemonic} />
                   </View>
                 </View>
               </View>
@@ -2444,7 +2445,7 @@ export default function VocabularyDetails({
                   ]}
                 >
                   <View style={styles.mnemonicContainer}>
-                    {formatMnemonic(vocabulary.readingMnemonic)}
+                    <TranslatedStudyText subject={vocabulary} field="readingMnemonic" original={vocabulary.readingMnemonic} render={formatMnemonic} />
                   </View>
                 </View>
               </View>
@@ -2463,7 +2464,7 @@ export default function VocabularyDetails({
                   ]}
                 >
                   <View style={styles.mnemonicContainer}>
-                    {formatMnemonic(vocabulary.readingHint)}
+                    <TranslatedStudyText subject={vocabulary} field="readingHint" original={vocabulary.readingHint} render={formatMnemonic} />
                   </View>
                 </View>
               </View>

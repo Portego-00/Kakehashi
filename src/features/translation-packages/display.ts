@@ -4,6 +4,8 @@ import { useLearningContentStore } from "./store";
 import {
   resolveTranslatedMeaning,
   resolveTranslatedSentence,
+  resolveTranslatedMnemonic,
+  type MnemonicField,
   type DisplaySubject,
   type TranslationPackage,
 } from "./resolver";
@@ -74,6 +76,11 @@ export function learningDisplay(
     meaning,
     resolveMeaning,
     sentence,
+    mnemonic: (value: unknown, field: MnemonicField, source: string) => {
+      if (!enabled || !packet) return null;
+      const subject = displaySubject(value);
+      return subject ? resolveTranslatedMnemonic(packet, subject, field, source) : null;
+    },
     formatMeaning: (value: string) =>
       formatDisplayMeaning(value, packet?.language ?? "en"),
   };

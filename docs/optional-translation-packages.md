@@ -25,7 +25,8 @@ Source hashes are metadata, not a substitute for matching the actual source.
 Files are limited to 20 MB, 12,000 subjects and 40,000 examples. Imports are
 validated before chunked storage and atomic activation. A malformed file or failed
 activation leaves the previous package active. Missing, draft or source-mismatched
-translations fall back to English. Mnemonics and hints are not translated.
+translations fall back to English. Optional mnemonic and hint fields require
+format v4; v1–v3 packages retain their existing behavior.
 
 ## Display coverage
 
@@ -35,6 +36,51 @@ Items, subject lists, critical/burned/unlocked lists and review result cards use
 the package. Detail meanings reveal original English inline on request. Compact
 lists use the translated primary meaning without an extra toggle. Sentence
 translation and usage explanation are separate; original English is optional.
+
+## Optional mnemonic fields (format v4)
+
+Format v4 adds an optional `mnemonics` object to each subject. The independently
+optional keys are `meaningMnemonic`, `readingMnemonic`, `meaningHint` and
+`readingHint`. Each contains the exact original `source` string (including markup),
+its metadata `sourceSha256`, the `translation` and `reviewStatus`. See
+`translation-packages/translation-package-v4.schema.json`. Radical and kana
+vocabulary entries cannot have reading fields. The runtime parser is authoritative.
+
+Only editorial-reviewed fields with an exact current source and matching subject
+identity, meanings and readings appear. Each field falls back independently.
+Hashes are metadata, not signatures. No mnemonic translations are bundled.
+Older applications must continue to receive v3 files until they support v4.
+
+For example, a subject may contain only a meaning mnemonic:
+
+```json
+{
+  "mnemonics": {
+    "meaningMnemonic": {
+      "source": "The exact original mnemonic, including its tags.",
+      "sourceSha256": "<SHA-256 of the original UTF-8 text>",
+      "translation": "The translated mnemonic, with its relevant tags preserved.",
+      "reviewStatus": "draft"
+    }
+  }
+}
+```
+
+This is an authoring sketch, not an importable package or reviewed content. Use
+the real original and its 64-character lowercase checksum. Keep translations and
+their second review separately in the author's working data before publishing
+an `editorial-reviewed` field. A missing field is preferable to an empty placeholder.
+
+Subject details, lesson sections, the legacy subject tabs and expanded radical
+components use their existing text renderers and mnemonic tag colors. A translated
+section can switch to its original English in the same place. Personal notes,
+mnemonic illustrations, third-party stories and answer grading are untouched.
+Importing a v4 package does not authorize account writes; optional synonym transfer
+retains the existing explicit confirmation workflow.
+
+Package authors should preserve `<radical>`, `<kanji>`, `<vocabulary>`, `<reading>`,
+`<ja>` and `<em>` markup. These are native text tokens, not executable HTML. A
+changed original requires a new review; do not translate or replace raw API data.
 
 ## Account changes are separate
 

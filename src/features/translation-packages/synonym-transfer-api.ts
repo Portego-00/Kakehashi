@@ -12,8 +12,8 @@ function activeSynonymPackage(): TranslationPackage {
   const packet = packageManager.state.getState().packet;
   if (packet && packet.language !== "tr")
     throw new Error("Synonym transfer currently supports Turkish packages only. Other languages still work for display.");
-  if (!packet || packet.schemaVersion !== 3 || packet.scope !== "display-and-synonyms")
-    throw new Error("Import a translation package with explicit synonym answers (format v3) before preparing or resuming additions. Older packages still work for display.");
+  if (!packet || packet.schemaVersion < 3 || packet.scope !== "display-and-synonyms")
+    throw new Error("Import a translation package with explicit synonym answers (format v3 or v4) before preparing or resuming additions. Older packages still work for display.");
   return packet;
 }
 export const transferJournal = createTransferJournal(AsyncStorage);
