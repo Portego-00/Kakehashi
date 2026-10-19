@@ -1159,9 +1159,10 @@ export default function ReviewForecast({
       layout={Layout.duration(200).easing(Easing.ease)}
       style={styles.chartContainer}
     >
-      {/* Bar chart */}
+      {/* Separate scroll views so each time scale starts at the origin. */}
       {chartMode === "hourly" ? (
         <ScrollView
+          key="hourly"
           horizontal
           showsHorizontalScrollIndicator={usesLargeText}
           style={[styles.chartScrollView, { minHeight: chartViewportHeight }]}
@@ -1267,6 +1268,7 @@ export default function ReviewForecast({
         </ScrollView>
       ) : (
         <ScrollView
+          key="daily"
           horizontal
           scrollEnabled={usesLargeText}
           showsHorizontalScrollIndicator={usesLargeText}

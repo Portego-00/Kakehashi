@@ -61,6 +61,12 @@ export const PATCH_NOTES: PatchNote[] = [
     changes: [
       {
         type: "fix",
+        title: "Review Forecast Scrolling",
+        description:
+          "Switching between hourly and daily charts now resets the plot to the start so bars stay visible.",
+      },
+      {
+        type: "fix",
         title: "SRS Review Ordering",
         description:
           "Reviews sorted by SRS now shuffle items within each stage when Group by item type is off, on mobile and web.",
