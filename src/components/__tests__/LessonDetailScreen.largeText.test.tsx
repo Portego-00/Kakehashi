@@ -29,6 +29,7 @@ let mockSinglePageLessonView = false;
 let mockRetainModalDuringDismiss = false;
 let mockRenderContextTab = false;
 let mockRenderMeaningTab = false;
+let mockRenderRadicalsTab = false;
 const mockContextSettings = {
   showJLPTLevel: false,
   showVocabularyFrequency: false,
@@ -145,7 +146,7 @@ jest.mock("react-native-tab-view", () => {
   return {
     TabBar: () => null,
     TabView: ({ renderScene }: { renderScene: (props: { route: { key: string } }) => React.ReactNode }) =>
-      mockRenderMeaningTab ? renderScene({ route: { key: "meaning" } }) : mockRenderContextTab ? renderScene({ route: { key: "context" } }) : <View testID="mock-tab-view" />,
+      mockRenderRadicalsTab ? renderScene({ route: { key: "radicals" } }) : mockRenderMeaningTab ? renderScene({ route: { key: "meaning" } }) : mockRenderContextTab ? renderScene({ route: { key: "context" } }) : <View testID="mock-tab-view" />,
   };
 });
 
@@ -914,4 +915,44 @@ it.each([false, true])("shows package translations and usage in lesson context (
   expect(screen.getByText(entry.examples[0].source.en)).toBeTruthy();
   screen.unmount(); packageManager.state.setState({packet: null});
   mockSinglePageLessonView = false; mockRenderContextTab = false;
+});
+
+it.each([
+  [false, "translated"], [true, "translated"],
+  [false, "disabled"], [true, "disabled"],
+  [false, "stale"], [true, "stale"],
+] as const)("resolves visually similar kanji meanings in lessons (single page: %s, %s)", async (singlePage, mode) => {
+  const packet = parseTranslationPackage(translationData)!;
+  const entry = packet.subjects["440"];
+  await packageManager.hydrate();
+  packageManager.state.setState({ packet, hydrated: true });
+  useLearningContentStore.setState({ enabled: mode !== "disabled" });
+  mockSinglePageLessonView = singlePage;
+  mockRenderRadicalsTab = true;
+  const related = { id: 440, object: "kanji", data: {
+    characters: entry.source.word, level: 1,
+    meanings: entry.source.meaningsEn.map((meaning, i) => ({ meaning: mode === "stale" ? "Changed source meaning" : meaning, primary: i === 0 })),
+    readings: entry.source.readingsJa.map(reading => ({ reading, primary: true })),
+  }};
+  const subject = { id: 999999, object: "kanji", data: {
+    characters: "二", level: 1, meanings: [{ meaning: "Two", primary: true }],
+    readings: [], component_subject_ids: [], visually_similar_subject_ids: [440],
+  }};
+  const screen = render(<LessonDetailScreen item={{ id: subject.id, subject }}
+    batchItems={[{ id: subject.id, subject }]} relatedSubjects={{ 440: related }}
+    currentBatchIndex={0} onNext={jest.fn()} onPrev={jest.fn()} canGoBack={false} canGoForward={false}
+    progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }} onExit={jest.fn()} />);
+  try {
+    expect(await screen.findByText("Visually Similar Kanji")).toBeTruthy();
+    const expected = mode === "translated" ? "Bir" : mode === "stale" ? "Changed source meaning" : "One";
+    expect(screen.getByText(expected)).toBeTruthy();
+    if (mode === "translated") expect(screen.queryByText("One")).toBeNull();
+    else expect(screen.queryByText("Bir")).toBeNull();
+  } finally {
+    screen.unmount();
+    packageManager.state.setState({ packet: null });
+    useLearningContentStore.setState({ enabled: false });
+    mockSinglePageLessonView = false;
+    mockRenderRadicalsTab = false;
+  }
 });

@@ -1,3 +1,5 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
+import { practiceClue, practiceAlternatives, type PracticeDisplay } from "../../src/features/translation-packages/practice-display";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -358,22 +360,15 @@ function buildAllowedSrsStages(config: CrosswordConfig): Set<number> {
 function buildHintMessagesForWord(
   word: PlacedCrosswordWord,
   subject: ApiSubject | null,
-  clueDisplayMode: CrosswordClueDisplayMode
+  clueDisplayMode: CrosswordClueDisplayMode,
+  display?: PracticeDisplay
 ): string[] {
+  const meaning = display?.meaning(subject, word.meaning) ?? word.meaning;
   const messages: string[] = [];
-  const alternativeMeanings =
-    subject?.data?.meanings
-      ?.filter((meaning) => !meaning.primary)
-      .map((meaning) => meaning.meaning.trim())
-      .filter(
-        (meaning) =>
-          meaning.length > 0 &&
-          meaning.toLowerCase() !== word.meaning.toLowerCase(),
-      ) ?? [];
-  const uniqueAlternativeMeanings = Array.from(new Set(alternativeMeanings));
+  const uniqueAlternativeMeanings = practiceAlternatives(display, subject, word.meaning);
 
   if (clueDisplayMode === "kanji") {
-    messages.push(`Meaning: ${word.meaning}`);
+    messages.push(`Meaning: ${meaning}`);
     if (uniqueAlternativeMeanings.length > 0) {
       messages.push(
         `Alternative meanings: ${uniqueAlternativeMeanings.join(", ")}`
@@ -452,19 +447,10 @@ function subjectSupportsKanjiAudioHint(
 function getClueTextForWord(
   word: PlacedCrosswordWord,
   clueDisplayMode: CrosswordClueDisplayMode,
-  subject: ApiSubject | null
+  subject: ApiSubject | null,
+  display?: PracticeDisplay
 ): string {
-  const kanjiForm = getSubjectKanjiForm(subject, word.word);
-
-  if (clueDisplayMode === "kanji") {
-    return kanjiForm ?? word.word;
-  }
-
-  if (clueDisplayMode === "english_kanji") {
-    return kanjiForm ? `${word.meaning} • ${kanjiForm}` : word.meaning;
-  }
-
-  return word.meaning;
+  return practiceClue(display, subject, word.meaning, clueDisplayMode, getSubjectKanjiForm(subject, word.word), word.word);
 }
 
 function containsJapaneseCharacters(value: string): boolean {
@@ -474,6 +460,7 @@ function containsJapaneseCharacters(value: string): boolean {
 export default function CrosswordSessionScreen() {
   useActivityTracking("crossword");
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const { apiToken, userData } = useAuthStore();
   const vocabularyAudioVoice = useSettingsStore(
     (state) => state.vocabularyAudioVoice
@@ -1559,7 +1546,8 @@ export default function CrosswordSessionScreen() {
     const availableHintMessages = buildHintMessagesForWord(
       selectedWord,
       subject,
-      clueDisplayMode
+      clueDisplayMode,
+      display
     );
     const hintCount = availableHintMessages.length;
     setHintAvailableCountByWordId((prev) => ({
@@ -1582,7 +1570,7 @@ export default function CrosswordSessionScreen() {
       [selectedWord.id]: availableHintMessages.slice(0, nextHintStage),
     }));
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [clueDisplayMode, hintStageByWordId, selectedWord]);
+  }, [clueDisplayMode, hintStageByWordId, selectedWord, display]);
 
   const handleAudioHint = useCallback(async () => {
     if (!selectedWord) {
@@ -1702,7 +1690,8 @@ export default function CrosswordSessionScreen() {
       const hintCount = buildHintMessagesForWord(
         selectedWord,
         subject,
-        clueDisplayMode
+        clueDisplayMode,
+        display
       ).length;
       if (!hasHintCount) {
         setHintAvailableCountByWordId((prev) => ({
@@ -1729,6 +1718,7 @@ export default function CrosswordSessionScreen() {
   }, [
     audioHintAvailableByWordId,
     clueDisplayMode,
+    display,
     hintAvailableCountByWordId,
     selectedWord,
   ]);
@@ -1760,8 +1750,8 @@ export default function CrosswordSessionScreen() {
       return "Pick a clue or tap a cell";
     }
     const subject = subjectByIdRef.current.get(selectedWord.subjectId) ?? null;
-    return getClueTextForWord(selectedWord, clueDisplayMode, subject);
-  }, [clueDisplayMode, selectedWord]);
+    return getClueTextForWord(selectedWord, clueDisplayMode, subject, display);
+  }, [clueDisplayMode, selectedWord, display]);
   const useLargePromptClue = useMemo(
     () => containsJapaneseCharacters(selectedClueText),
     [selectedClueText]
@@ -2364,6 +2354,7 @@ function ClueList({
   onSelect,
   theme,
 }: ClueListProps) {
+  const display = useLearningDisplay();
   const items = puzzle.words
     .filter((w) => w.direction === direction)
     .sort((a, b) => a.number - b.number);
@@ -2377,7 +2368,7 @@ function ClueList({
         const isSelected = word.id === selectedWordId;
         const isSolved = completedWordIds.has(word.id);
         const subject = subjectById.get(word.subjectId) ?? null;
-        const clueText = getClueTextForWord(word, clueDisplayMode, subject);
+        const clueText = getClueTextForWord(word, clueDisplayMode, subject, display);
         const useLargeClueText = containsJapaneseCharacters(clueText);
         return (
           <TouchableOpacity
@@ -2601,6 +2592,7 @@ function CrosswordSummary({
   onBackToDashboard,
 }: CrosswordSummaryProps) {
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const total = puzzle.words.length;
   const solved = puzzle.words.filter((w) => completedWordIds.has(w.id)).length;
   const revealed = puzzle.words.filter((w) => revealedWordIds.has(w.id)).length;
@@ -2623,7 +2615,7 @@ function CrosswordSummary({
         subjectId: w.subjectId,
         kanji: getSubjectKanjiSolutionForm(subject, w.word),
         hiragana: w.word,
-        meaning: w.meaning,
+        meaning: display.meaning(subject, w.meaning),
         number: w.number,
         direction: w.direction,
         level: w.level,

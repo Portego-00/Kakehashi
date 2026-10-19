@@ -1,3 +1,5 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
+import { practiceSentence } from "../../src/features/translation-packages/practice-display";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -651,8 +653,9 @@ function SummaryAnswerCard({
   theme: any;
 }) {
   const subjectColors = useSubjectColors();
+  const display = useLearningDisplay();
   const vocabText = answer.vocab.data.characters || "";
-  const primaryMeaning = answer.vocab.data.meanings[0]?.meaning || "";
+  const primaryMeaning = display.meaning(answer.vocab, answer.vocab.data.meanings[0]?.meaning || "");
   const expectedAnswer = vocabText || "—";
 
   const renderHighlightedSentence = () => {
@@ -779,7 +782,7 @@ function SummaryAnswerCard({
       >
         {renderHighlightedSentence()}
         <Text style={[summaryStyles.translationText, { color: theme.textSecondary }]}>
-          {answer.translation}
+          {practiceSentence(display, answer.vocab, answer.sentence, answer.translation)}
         </Text>
       </View>
 
