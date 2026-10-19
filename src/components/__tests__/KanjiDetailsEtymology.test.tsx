@@ -1,10 +1,9 @@
-import {act} from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import {parsePackageText} from "../../features/translation-packages/resolver";
 import {packageManager} from "../../features/translation-packages/package-store";
 import {useLearningContentStore} from "../../features/translation-packages/store";
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 
 import { useSettingsStore } from "../../utils/store";
@@ -255,4 +254,28 @@ it("shows translated Composition radicals and switches back to English",async()=
  expect(screen.getAllByText("Hayalet").length).toBeGreaterThan(0);
  await act(async()=>{useLearningContentStore.setState({enabled:false});});
  expect(screen.queryAllByText("Hayalet")).toHaveLength(0);expect(screen.getAllByText(e.source.meaningsEn[0]).length).toBeGreaterThan(0);
+});
+
+
+it.each([
+  [false, "onyomi", "きゅう"],
+  [true, "onyomi", "キュウ"],
+  [true, "kunyomi", "きゅう"],
+  [true, "nanori", "きゅう"],
+])("formats the header reading with katakana=%s and type=%s", (enabled, type, expected) => {
+  mockSettings(false);
+  const settings = (useSettingsStore as unknown as jest.Mock)();
+  settings.showOnyomiInKatakana = enabled;
+  const screen = render(<KanjiDetails kanji={{ ...kanji, readings: [{ reading: "きゅう", primary: true, type: type as "onyomi" | "kunyomi" | "nanori" }] }} progressionStatus="success" embedded />);
+  expect(screen.getAllByText(expected).length).toBeGreaterThan(0);
+});
+
+it("formats the fallback header reading without mutating its source", () => {
+  mockSettings(false);
+  const settings = (useSettingsStore as unknown as jest.Mock)();
+  settings.showOnyomiInKatakana = true;
+  const readings = [{ reading: "きゅう", primary: false, type: "onyomi" as const }];
+  const screen = render(<KanjiDetails kanji={{ ...kanji, readings }} progressionStatus="success" embedded />);
+  expect(screen.getAllByText("キュウ").length).toBeGreaterThan(0);
+  expect(readings[0].reading).toBe("きゅう");
 });
