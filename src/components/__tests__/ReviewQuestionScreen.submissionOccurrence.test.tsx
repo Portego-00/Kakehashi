@@ -83,6 +83,7 @@ const mockSettings = {
   acceptUserSynonymsAsAnswers: false,
   showAddSynonymButton: false,
   acceptAnyKanjiOnyomiReading: false,
+  showOnyomiInKatakana: false,
   jitaiEnabled: false,
   jitaiCycleAllFonts: false,
   jitaiSelectedFontIds: [] as string[],
@@ -451,6 +452,36 @@ function getSubmitButton(screen: ReturnType<typeof render>) {
 }
 
 describe("ReviewQuestionScreen question occurrences", () => {
+  it.each([
+    [false, true, "ホウ"],
+    [true, true, "ホウ"],
+    [false, false, "ほう"],
+    [true, false, "ほう"],
+  ])("formats paused kanji answers (lesson: %s, Katakana Madness: %s)", async (isLessonFlow, enabled, expected) => {
+    mockSettings.showOnyomiInKatakana = enabled;
+    mockSettings.disableAutoProgressOnWrong = true;
+    const item = {
+      id: 999,
+      subject: {
+        id: 999,
+        object: "kanji" as const,
+        data: {
+          characters: "方",
+          meanings: [{ meaning: "Direction", primary: true, accepted_answer: true }],
+          readings: [
+            { reading: "ほう", type: "onyomi", primary: true, accepted_answer: true },
+            { reading: "かた", type: "kunyomi", primary: false, accepted_answer: false },
+          ],
+        },
+      },
+    };
+    const screen = render(<ReviewQuestionScreen item={item} questionType="reading" onAnswer={jest.fn()} isLessonFlow={isLessonFlow} />);
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing", { nativeEvent: { text: "け" } });
+    await waitFor(() => expect(screen.getByText("Correct answer:")).toBeTruthy());
+    expect(screen.getByText(expected)).toBeTruthy();
+    expect(item.subject.data.readings[0].reading).toBe("ほう");
+  });
+
   beforeEach(() => {
     mockAlert.mockClear();
     mockAppStateListener.mockClear();

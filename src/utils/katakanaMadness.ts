@@ -147,3 +147,19 @@ export function formatOnyomiReading(
 
   return reading;
 }
+
+/** Format a canonical answer for display only; vocabulary and kun'yomi stay unchanged. */
+export function formatKanjiReadingAnswer(
+  reading: string,
+  subjectType: string,
+  readings: readonly { reading: string; type?: string }[],
+  showInKatakana: boolean,
+): string {
+  return formatOnyomiReading(
+    reading,
+    subjectType === "kanji" && readings.some(
+      (candidate) => candidate.reading === reading && candidate.type === "onyomi",
+    ),
+    showInKatakana,
+  );
+}
