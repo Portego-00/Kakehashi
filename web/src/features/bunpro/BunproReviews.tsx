@@ -1,4 +1,6 @@
 "use client";
+import { ReviewAsrAnswer } from "@/features/speech/ReviewAsrAnswer";
+import { canUseReviewAsr } from "@/features/speech/review-asr-access";
 import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { ReviewSettingsButton } from "@/features/study/components/ReviewSettingsButton";
 import { advanceReviewRetrySchedule, createReviewRetrySchedule, insertReviewRetry, orderReviewRetries, retainWrapUpReviews } from "@/features/study/review-queue";
@@ -50,7 +52,8 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const detailsId = `${id}-bunpro-details`;
   const alternativesId = `${id}-bunpro-alternatives`;
   const helperId = `${id}-bunpro-helper`;
-  const { user } = useSession();
+  const { user, isDemo, status: sessionStatus } = useSession();
+  const localAsrAllowed = sessionStatus === "authenticated" && canUseReviewAsr(user?.data.username, isDemo);
   const preferences = useWebSettings(user?.data.username ?? "anonymous").study;
   useEffect(() => { void installCustomJitaiFonts(preferences.jitaiCustomFonts).catch(() => undefined); }, [preferences.jitaiCustomFonts]);
   const queryClient = useQueryClient();
@@ -130,6 +133,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const reportMixedResults = useEffectEvent(() => mixed?.reportResults?.({ items: results, durationMs, pendingCount: 0 }));
   useEffect(() => { reportMixedResults(); }, [results, durationMs]);
   const current = queue[0];
+  const [voiceQuestionKey, setVoiceQuestionKey] = useState<string | null>(null);
   const currentKey = current ? reviewKey(current) : "";
   const currentReviewType = current ? reviewType(current) : "review";
   const specialReviewLabel = currentReviewType === "ghost_review" ? "Ghost review" : currentReviewType === "self_study_review" ? "Self-study review" : "";
@@ -177,7 +181,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
   const sentence = parseQuestionSentence(sanitizeQuestionContent(question.content));
   const answer = pickCanonicalAnswer(question);
   const questionKind = bunproQuestionKind(current);
-  const selfAssessment = usesSelfAssessment(questionKind, preferences);
+  const selfAssessment = voiceQuestionKey !== currentKey && usesSelfAssessment(questionKind, preferences);
   const revealed = Boolean(outcome || (selfAssessment && ankiRevealed));
   const reviewViewportRef = useMobileReviewViewport<HTMLElement>(mixed?.active !== false && phase === "review" && !selfAssessment);
   const jitaiFamily = resolveJitaiFontFamily(preferences, `bunpro:${currentKey}`);
@@ -490,7 +494,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
           {practiceSession?.mode === "mastery-loop" ? <p>{practiceStreaks.get(current.data.id) ?? 0} / 2 consecutive correct answers</p> : !practiceSession && handledIds.has(currentKey) ? <p>Retrying missed item</p> : null}
           {question.tense && (!selfAssessment || showQuestionHints) ? <p className={showQuestionHints ? undefined : styles.concealedHint} aria-hidden={!showQuestionHints}><BunproText value={question.tense} /></p> : null}
           {practiceSession?.mode === "listening-cloze" && !revealed ? <div><Button tone="ghost" onClick={() => void replayAudio()}><Volume2 size={20} />Listen to sentence</Button><Button tone="ghost" aria-pressed={practiceSentenceShown} onClick={() => setPracticeSentenceShown(value => !value)}>{practiceSentenceShown ? "Hide sentence" : "Show sentence"}</Button></div> : null}
-          {practiceSession?.mode === "listening-cloze" && !revealed && !practiceSentenceShown ? null : <div className={styles.sentence} lang="ja" style={{ fontSize: `calc(clamp(1.6rem, 3vw, 2.8rem) * ${preferences.reviewCharacterFontScale})` }}><BunproSentence parts={sentence}><span className={styles.blank} data-correct={outcome?.correct}><RubyText text={revealed ? answer : input || "　　"} /></span></BunproSentence></div>}
+          {practiceSession?.mode === "listening-cloze" && !revealed && !practiceSentenceShown ? null : <div className={styles.sentence} lang="ja" style={{ color: preferences.bunproReviewPromptTextColor || undefined, fontSize: `calc(clamp(1.6rem, 3vw, 2.8rem) * ${preferences.reviewCharacterFontScale})` }}><BunproSentence parts={sentence}><span className={styles.blank} data-correct={outcome?.correct}><RubyText text={revealed ? answer : input || "　　"} /></span></BunproSentence></div>}
           {question.word_prompt && (!selfAssessment || showQuestionHints) ? <p lang="ja" className={showQuestionHints ? undefined : styles.concealedHint} aria-hidden={!showQuestionHints}><BunproText value={question.word_prompt} /></p> : null}
           {!selfAssessment || showTranslation ? <div className={`${styles.translation} ${showTranslation ? "" : styles.concealedHint}`} aria-hidden={!showTranslation}><BunproText value={question.translation} /></div> : null}
           {hintLevel >= 3 ? <div className={styles.grammarHint} aria-live="polite">{hintLevel >= 4 ? <p lang="ja"><BunproText value={content.attributes.nuance} /></p> : null}<p><BunproText value={content.attributes.nuance_translation} /></p>{question.extra_info ? <p><BunproText value={question.extra_info} /></p> : null}</div> : null}
@@ -518,7 +522,8 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
         </form>}
         {hint ? <div id={`${helperId}-feedback`} role="status" className={!outcome ? styles.closeFeedback : quiz.answerStatus}>{!outcome ? <strong><TriangleAlert size={19} aria-hidden /> Close — try another answer</strong> : null}<p>{hint}</p></div> : null}
         <div className={`${styles.answerControls} ${quiz.reviewTools} ${quiz.reviewAnswerControls}`} aria-label="Answer controls">
-          {preferences.voiceAnswers && !outcome ? <Button type="button" tone="ghost" aria-label="Answer with voice" disabled={listening || saving} onClick={startVoiceAnswer}><Mic size={18} aria-hidden />{listening ? "Listening…" : "Speak"}</Button> : null}
+          {localAsrAllowed ? <ReviewAsrAnswer language={questionKind === "meaning" ? "en" : "ja"} enabled={preferences.reviewAsrEnabled} questionKey={currentKey} value={input} blocked={Boolean(outcome) || saving || mixed?.active === false || reviewSettingsOpen} onStart={() => { recognitionRef.current?.stop(); setVoiceQuestionKey(currentKey); }} onTranscript={setInput} /> : null}
+          {preferences.voiceAnswers && !localAsrAllowed && !outcome ? <Button type="button" tone="ghost" aria-label="Answer with voice" disabled={listening || saving} onClick={startVoiceAnswer}><Mic size={18} aria-hidden />{listening ? "Listening…" : "Speak"}</Button> : null}
           {content.kind === "grammar" ? <Button tone="ghost" aria-label={`Hint level ${hintLevel} of 4`} onClick={() => setHintLevel((level) => (level + 1) % 5)}><Lightbulb size={17} aria-hidden />Hint <span className={styles.hintDots} aria-hidden>{Array.from({ length: 4 }, (_, i) => <span key={i} data-active={i < hintLevel} />)}</span></Button> : null}
           {outcome ? <>
             <Button tone="ghost" disabled={saving || (!practiceSession && handledIds.has(currentKey))} onClick={resetAnswer}><RotateCcw size={17} aria-hidden />Undo{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.undo)}</kbd> : null}</Button>

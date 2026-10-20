@@ -7,6 +7,18 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("defaults invalid prompt colors and saves WaniKani and Bunpro colors independently", () => {
+    for (const value of [undefined, null, true, 42, "red", "#fff", "#12345678", "var(--color-ink)"]) {
+      expect(loadWebSettings(storage({ study: { reviewPromptTextColor: value, bunproReviewPromptTextColor: value } }), "tester").study).toMatchObject({ reviewPromptTextColor: "", bunproReviewPromptTextColor: "" });
+    }
+    let saved = "";
+    const target = { getItem: () => saved || null, setItem: (_key: string, value: string) => { saved = value; } };
+    const settings = { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewPromptTextColor: "#ABCDEF", bunproReviewPromptTextColor: "#123456" } };
+    saveWebSettings(target, "tester", settings);
+    expect(loadWebSettings(target, "tester").study).toMatchObject({ reviewPromptTextColor: "#abcdef", bunproReviewPromptTextColor: "#123456" });
+    saveWebSettings(target, "tester", { ...settings, study: { ...settings.study, reviewPromptTextColor: "" } });
+    expect(loadWebSettings(target, "tester").study).toMatchObject({ reviewPromptTextColor: "", bunproReviewPromptTextColor: "#123456" });
+  });
   it("keeps vocabulary unlock counts opt-in and restores explicit choices", () => {
     for (const value of [undefined, "true", 1, null]) {
       expect(loadWebSettings(storage({ study: { showLessonVocabularyUnlockCounts: value } }), "tester").study.showLessonVocabularyUnlockCounts).toBe(false);
@@ -812,4 +824,9 @@ it("keeps automatic wrong-answer details opt-in and persists the preference", ()
   const memory = { getItem: (key: string) => saved.get(key) ?? null, setItem: (key: string, value: string) => { saved.set(key, value); } };
   saveWebSettings(memory, "tester", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, showDetailsOnWrongAnswer: true } });
   expect(loadWebSettings(memory, "tester").study.showDetailsOnWrongAnswer).toBe(true);
+});
+
+ it("keeps Japanese ASR opt-in and restores only explicit booleans", () => {
+  for (const value of [undefined, null, "true", 1]) expect(loadWebSettings(storage({ study: { reviewAsrEnabled: value } }), "Portego").study.reviewAsrEnabled).toBe(false);
+  expect(loadWebSettings(storage({ study: { reviewAsrEnabled: true } }), "Portego").study.reviewAsrEnabled).toBe(true);
 });

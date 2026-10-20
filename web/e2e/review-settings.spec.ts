@@ -103,6 +103,28 @@ async function answer(page: Page, value: string) {
   await page.getByRole("button", { name: "Check", exact: true }).click();
 }
 
+test("prompt text color updates immediately, preserves the answer and background, and resets to default", async ({ page }) => {
+  await openQuiz(page, { study: { bunproReviewPromptTextColor: "#abcdef" } });
+  const prompt = page.locator('[aria-label="Review prompt"] h2');
+  const background = await page.locator('[aria-label="Review prompt"]').evaluate((node) => getComputedStyle(node).backgroundColor);
+  const defaultColor = await prompt.evaluate((node) => getComputedStyle(node).color);
+  const input = page.getByRole("textbox", { name: "Your answer" });
+  await input.fill("Ri");
+  await page.getByRole("button", { name: "Review settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Review settings" });
+  await dialog.getByLabel("WaniKani prompt text color mode", { exact: true }).selectOption("custom");
+  await dialog.getByLabel("WaniKani prompt text color", { exact: true }).fill("#123456");
+  await expect(prompt).toHaveCSS("color", "rgb(18, 52, 86)");
+  await expect(page.locator('[aria-label="Review prompt"]')).toHaveCSS("background-color", background);
+  await dialog.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(input).toHaveValue("Ri");
+  await page.getByRole("button", { name: "Review settings", exact: true }).click();
+  await expect(dialog.getByLabel("WaniKani prompt text color", { exact: true })).toHaveValue("#123456");
+  await dialog.getByLabel("WaniKani prompt text color mode", { exact: true }).selectOption("default");
+  await expect(prompt).toHaveCSS("color", defaultColor);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("kakehashi-web:settings:portego:v1")!).study.bunproReviewPromptTextColor)).toBe("#abcdef");
+});
+
 
 
 

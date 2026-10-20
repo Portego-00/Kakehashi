@@ -769,7 +769,7 @@ export default function SubjectListEditorScreen() {
     );
   };
 
-  const startStandardReview = async () => {
+  const startCustomReview = async (reviewMode: "standard" | "flashcard") => {
     if (selectedSubjectIds.size === 0 || !(await prepareListForStudy())) {
       return;
     }
@@ -781,6 +781,7 @@ export default function SubjectListEditorScreen() {
       pathname: "/custom-review",
       params: {
         subjectIds: Array.from(selectedSubjectIds.values()).join(","),
+        reviewMode,
       },
     });
   };
@@ -1153,7 +1154,8 @@ export default function SubjectListEditorScreen() {
               selectedKanjiCount={selectedKanjiIds.length}
               hasSelectedLists
               triggerStyle={styles.headerIconButton}
-              onStandardReview={startStandardReview}
+              onStandardReview={() => startCustomReview("standard")}
+              onFlashcardReview={() => startCustomReview("flashcard")}
               onKanjiMatch={startKanjiMatch}
               onCustomLessons={startCustomLessons}
               onRandomTest={() => openListStudyConfig("/test-config")}

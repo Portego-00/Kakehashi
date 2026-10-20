@@ -1644,6 +1644,7 @@ export default function KanjiDetails({
                 kanjiCharacters={kanji.characters}
                 kanjiReadings={kanji.readings}
                 vocabulary={kanji.amalgamationSubjects ?? []}
+                userLevel={userLevel}
                 onSubjectPress={onSubjectPress}
               />
             </View>

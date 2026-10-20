@@ -2879,6 +2879,7 @@ const SubjectContent = ({
                   kanjiCharacters={subject.data.characters ?? ""}
                   kanjiReadings={subject.data.readings ?? []}
                   vocabulary={kanjiVocabularyExamples}
+                  userLevel={userData?.level ?? subject.data.level}
                   onSubjectPress={onSubjectPress}
                 />
               </View>
@@ -3582,6 +3583,7 @@ const SubjectContent = ({
                       kanjiCharacters={subject.data.characters ?? ""}
                       kanjiReadings={subject.data.readings ?? []}
                       vocabulary={kanjiVocabularyExamples}
+                      userLevel={userData?.level ?? subject.data.level}
                       onSubjectPress={onSubjectPress}
                     />
                   </View>

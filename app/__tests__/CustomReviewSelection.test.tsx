@@ -6,10 +6,13 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
+import { Platform } from "react-native";
+import { router } from "expo-router";
 
 import CustomReviewSelectionScreen from "../(app)/custom-review-selection";
 import { EXTRA_STUDY_CONFIG_STORAGE_KEYS } from "../../src/utils/extraStudyConfigPersistence";
 import { getAllSubjects } from "../../src/utils/cache";
+import { clearExtraStudySessionState } from "../../src/utils/extraStudySessionPersistence";
 
 const mockSetShowVocabularyFrequency = jest.fn();
 type MockItemType =
@@ -71,9 +74,21 @@ jest.mock("react-native-svg", () => {
   return { SvgXml: View };
 });
 
-jest.mock("../../src/components/SubjectListStudyMenu", () => {
+jest.mock("../../src/components/GlassButton", () => {
   const { View } = jest.requireActual("react-native");
-  return View;
+  return { GlassButton: View };
+});
+
+jest.mock("@expo/ui/swift-ui", () => {
+  const { View, Text, TouchableOpacity } = jest.requireActual("react-native");
+  return {
+    Host: View,
+    RNHostView: View,
+    Menu: View,
+    Button: ({ label, onPress }: { label: string; onPress: () => void }) => (
+      <TouchableOpacity onPress={onPress}><Text>{label}</Text></TouchableOpacity>
+    ),
+  };
 });
 
 jest.mock("../../src/components/SearchFilterModal", () => {
@@ -254,6 +269,42 @@ describe("Custom Review filter selection persistence", () => {
     mockedAsyncStorage.getItem.mockResolvedValue(null);
     mockedAsyncStorage.setItem.mockResolvedValue(undefined);
     (getAllSubjects as jest.Mock).mockResolvedValue([]);
+  });
+
+  it.each([
+    ["ios", "standard", "Standard Review (1)"],
+    ["ios", "flashcard", "Flashcard Review (1)"],
+    ["android", "standard", "Standard Review"],
+    ["android", "flashcard", "Flashcard Review"],
+  ] as const)("starts a %s %s session from the study menu", async (platform, reviewMode, label) => {
+    const originalPlatform = Platform.OS;
+    Platform.OS = platform;
+    try {
+      (getAllSubjects as jest.Mock).mockResolvedValue([{
+        id: 1001, object: "kanji", data: {
+          characters: "漢", level: 1,
+          meanings: [{ meaning: "Chinese", primary: true }], readings: [],
+        },
+      }]);
+      const screen = render(<CustomReviewSelectionScreen />);
+      expect(screen.getByLabelText("Choose study mode").props.accessibilityState).toEqual({ disabled: true });
+      fireEvent.press(await screen.findByLabelText("Select 1 ready subjects"));
+      if (platform === "android") {
+        fireEvent.press(screen.getByLabelText("Choose study mode"));
+      }
+      fireEvent.press(await screen.findByText(label));
+      await waitFor(() => expect(router.push).toHaveBeenCalledWith({
+        pathname: "/custom-review",
+        params: { subjectIds: "1001", reviewMode },
+      }));
+      expect(clearExtraStudySessionState).toHaveBeenCalledWith("extra_study_session:custom_review");
+      if (platform === "android") {
+        expect(screen.queryByText("Choose Study Mode")).toBeNull();
+      }
+      screen.unmount();
+    } finally {
+      Platform.OS = originalPlatform;
+    }
   });
 
   it("hydrates a remembered all-level filter instead of capping it to the user level", async () => {

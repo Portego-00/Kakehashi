@@ -8,6 +8,7 @@ import { useSession } from "@/lib/session";
 import { useTheme, type ThemeMode } from "@/lib/theme";
 import { DEFAULT_WEB_SETTINGS, updateWebSettings, notifyWebSettingsChanged, WEB_SETTINGS_READ_ERROR, WEB_SETTINGS_SAVE_ERROR, REVIEW_CHARACTER_FONT_SCALES, type WebStudyPreferences } from "@/features/settings/settings";
 import { useWebSettingsState } from "@/features/settings/use-workspace-preferences";
+import { ReviewPromptColorSetting } from "@/features/settings/components/ReviewPromptColorSetting";
 import type { ReviewSettingsButtonProps } from "./ReviewSettingsButton";
 import styles from "./review-settings.module.css";
 
@@ -73,12 +74,12 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
           <Field label="Theme"><select value={theme} onChange={(event) => changeTheme(event.target.value as ThemeMode)}>{["system", "light", "dark", "midnight", "sepia"].map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></Field>
           {toggle("compactReviews", "Compact review layout")}
           <Field label="Default review panel"><select value={study.reviewDefaultDetailsTab} onChange={(event) => update("reviewDefaultDetailsTab", event.target.value as WebStudyPreferences["reviewDefaultDetailsTab"])}><option value="question">Follow the question</option><option value="meaning">Meaning</option><option value="reading">Reading</option><option value="stroke">Stroke</option></select></Field>
-          <p className={styles.hint}>Compact layout keeps core information below your answer. Show more expands notes, hints, and other extras. Details stay hidden until an answer is revealed. Unavailable panels open on Meaning.</p>
           <Field label="Question text size"><select value={study.reviewCharacterFontScale} onChange={(event) => update("reviewCharacterFontScale", Number(event.target.value))}>{REVIEW_CHARACTER_FONT_SCALES.map((value) => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></Field>
+          <ReviewPromptColorSetting provider={bunproSupported ? "bunpro" : "wanikani"} value={bunproSupported ? study.bunproReviewPromptTextColor : study.reviewPromptTextColor} onChange={(value) => update(bunproSupported ? "bunproReviewPromptTextColor" : "reviewPromptTextColor", value)} />
           {toggle("showReviewItemLevelAndSrsStage", "Show level and SRS stage")}
           {toggle("showVocabularyFrequency", "Show vocabulary frequency")}
           {toggle("showVocabContextSentencesInReviews", "Show context sentences")}
-          {bunproSupported ? <>{toggle("bunproHideFurigana", "Hide Bunpro furigana")}<p className={styles.hint}>Hover or focus a word to show its reading. Click or tap to keep it visible; click again to hide it.</p></> : null}
+          {bunproSupported ? toggle("bunproHideFurigana", "Hide Bunpro furigana") : null}
           {toggle("jitaiEnabled", "Jitai font randomization")}
         </fieldset>
         {ankiSupported ? <fieldset><legend>Anki mode</legend>
@@ -98,10 +99,7 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
           {study.backToBackQuestions ? toggle("backToBackImmediateRetryIncorrect", "Immediate retry on wrong") : null}
         </fieldset>
         <fieldset><legend>Answers and audio</legend>
-          {ankiSupported || !bunproSupported ? <>
-            {toggle("reviewMultipleChoiceEnabled", "Multiple Choice")}
-            <p className={styles.hint}>Choose from similar readings and related meanings instead of typing. Anki questions keep their current behavior.</p>
-          </> : null}
+          {ankiSupported || !bunproSupported ? toggle("reviewMultipleChoiceEnabled", "Multiple Choice") : null}
           {toggle("pauseOnWrong", "Pause on wrong answer")}{toggle("pauseOnClose", "Pause on close answer", study.pauseOnCorrect)}{toggle("pauseOnCorrect", "Pause on correct answer")}
           {toggle("showDetailsOnWrongAnswer", "Show details on wrong answer")}
           {toggle("showAnswerStopSubjectDetails", "Show details on answer pause")}{toggle("answerFeedbackSoundEnabled", "Answer feedback sounds")}

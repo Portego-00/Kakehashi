@@ -12,7 +12,9 @@ import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { playAnswerFeedback } from "@/features/study/feedback-audio";
 import { bunpro } from "./client";
 import type { BunproReviewQueueItem } from "./model";
-const session = vi.hoisted(() => ({ user: { data: { username: "Learner" } }, isDemo: false }));
+const asr = vi.hoisted(() => ({ active: false }));
+vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "です"); }}>Record {language}</button> : null }));
+const session = vi.hoisted(() => ({ user: { data: { username: "Learner" } }, isDemo: false, status: "authenticated" }));
 vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 vi.mock("@/lib/session", () => ({ useSession: () => session }));
 vi.mock("@/features/settings/use-workspace-preferences", async (importOriginal) => ({
@@ -195,6 +197,20 @@ it.each(["Retry save", "Continue without saving"])("handles a failed correct wra
 beforeEach(() => { vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, pauseOnCorrect: true, showAnswerStopSubjectDetails: false } }); vi.mocked(playAnswerFeedback).mockClear(); session.user.data.username = "Learner"; session.isDemo = false; vi.mocked(bunpro).mockReset().mockImplementation(async (query) => query === "action=connection" ? { connected: true } : query.startsWith("action=queue") ? { review_session_id: 1, pending_attempt: [item], pending_wrapup: [] } : {}); });
 afterEach(cleanup);
 async function start() { setup(); fireEvent.click(await screen.findByRole("button", { name: "Start reviews" })); await screen.findByLabelText("Your answer"); }
+
+it("uses only Bunpro's prompt color and restores its default without clearing the answer", async () => {
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewPromptTextColor: "#123456", bunproReviewPromptTextColor: "#abcdef" } });
+  const view = setup(<BunproReviews practiceSession={{ mode: "sentence-drill", items: [item] }} />);
+  const input = await screen.findByLabelText("Your answer");
+  fireEvent.change(input, { target: { value: "です" } });
+  const sentence = screen.getByText("学生", { exact: false }).closest('div[lang="ja"]');
+  expect(sentence).toHaveStyle({ color: "#abcdef" });
+  expect(input).not.toHaveStyle({ color: "#abcdef" });
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewPromptTextColor: "#123456" } });
+  view.rerender(<QueryClientProvider client={new QueryClient()}><BunproReviews practiceSession={{ mode: "sentence-drill", items: [item] }} /></QueryClientProvider>);
+  expect(sentence).not.toHaveAttribute("style", expect.stringContaining("color:"));
+  expect(input).toHaveValue("です");
+});
 it.each((["grammar", "vocab", "all"] as const).flatMap(mode => [{ mode, correct: true }, { mode, correct: false }]))("shows the previous Bunpro answer in standalone $mode reviews (correct: $correct)", async ({ mode, correct }) => {
   const vocab = mode === "vocab";
   const title = vocab ? "猫" : "です";
@@ -1176,4 +1192,29 @@ it("waits with Bunpro details after an Anki answer is marked wrong when enabled"
   expect(await screen.findByRole("region", { name: "Bunpro item details" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
   expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+});
+
+
+it.each(["reviews", "mixed", "lessons", "practice"])("provides editable Japanese voice answers in Bunpro %s, including Anki mode", async mode => {
+  session.user.data.username = "Portego"; asr.active = true;
+  vi.mocked(useWebSettings).mockReturnValue({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewAsrEnabled: true, ankiMode: "both" } });
+  try {
+    setup(mode === "practice" ? <BunproReviews practiceSession={{ mode: "sentence-drill", items: [item] }} /> : mode === "lessons" ? <BunproReviews lessonSession={{ review_session_id: 1, pending_attempt: [item], pending_wrapup: [], total_pending_attempt_count: 1, total_pending_wrapup_count: 0 }} /> : <BunproReviews initialMode="grammar" mixed={mode === "mixed" ? { active: true, report: vi.fn() } : undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Record ja" }));
+    expect(await screen.findByLabelText("Your answer")).toHaveValue("です");
+    expect(screen.getByRole("button", { name: "Check" })).toBeEnabled();
+    expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+  } finally { asr.active = false; }
+});
+
+
+it("records English Bunpro meanings without submitting the answer", async () => {
+  const vocab = { ...item, data: { ...item.data, attributes: { ...item.data.attributes, reviewable_type: "Vocab" }, relationships: { ...item.data.relationships, reviewable: { data: { id: "20", type: "vocab" } } } }, included: item.included!.map(resource => resource.type === "study_question" ? { ...resource, attributes: { content: "外側", answer: "outside", translation: "outside" } } : { ...resource, type: "vocab", attributes: { title: "外側", kana: "そとがわ", meaning: "outside" } }) };
+  session.user.data.username = "Portego"; asr.active = true;
+  try {
+    setup(<BunproReviews lessonSession={{ review_session_id: 1, pending_attempt: [vocab], pending_wrapup: [], total_pending_attempt_count: 1, total_pending_wrapup_count: 0 }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Record en" }));
+    expect(screen.getByLabelText("Your answer")).toHaveValue("forest");
+    expect(vi.mocked(bunpro).mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+  } finally { asr.active = false; }
 });

@@ -180,7 +180,9 @@ const fixtures = vi.hoisted(() => {
   return { choiceCatalogError: false, choiceCatalogRequest: null as Promise<typeof subject[]> | null, choiceCatalog: [] as typeof subject[], startedAssignmentsResponse: [] as typeof reviewAssignment[], componentKanji, lessonAssignment, lessonAssignmentsResponse: [lessonAssignment], reviewAssignment, reviewAssignmentsResponse: [reviewAssignment], reviewResponse, secondLessonAssignment, secondSubject, settings, studyMaterial, studyMaterialsRequest: null as Promise<typeof studyMaterial[]> | null, subject, user };
 });
 
-vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user }) }));
+const asr = vi.hoisted(() => ({ active: false }));
+vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "もり"); }}>Record {language}</button> : null }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user, status: "authenticated", isDemo: false }) }));
 vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 
 vi.mock("@/features/settings/use-workspace-preferences", async (importOriginal) => ({
@@ -1932,6 +1934,25 @@ it("retries a missed WaniKani question after a random 2–10 question gap", asyn
   expect(gap).toBeGreaterThanOrEqual(2);
   expect(gap).toBeLessThanOrEqual(10);
   expect(report.mock.calls.at(-1)?.[0]?.id).toBe(missed);
+});
+
+
+it.each(["multiple-choice", "anki"])("lets Portego record an English meaning in %s mode without automatically grading", async mode => {
+  const originalUsername = fixtures.user.data.username;
+  const originalMode = fixtures.settings.study.ankiMode;
+  const originalChoices = fixtures.settings.study.reviewMultipleChoiceEnabled;
+  try {
+    asr.active = true; fixtures.user.data.username = "Portego";
+    fixtures.settings.study.ankiMode = mode === "anki" ? "both" : "off";
+    fixtures.settings.study.reviewMultipleChoiceEnabled = mode === "multiple-choice";
+    renderSession("reviews");
+    fireEvent.click(await screen.findByRole("button", { name: "Record en" }));
+    expect(await screen.findByRole("textbox", { name: "Your answer" })).toHaveValue("forest");
+    expect(screen.getByRole("button", { name: "Check" })).toBeEnabled();
+    expect(vi.mocked(wkRequest).mock.calls.filter(([url]) => url === "reviews")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(await screen.findByText("Incorrect")).toBeVisible();
+  } finally { cleanup(); asr.active = false; fixtures.user.data.username = originalUsername; fixtures.settings.study.ankiMode = originalMode; fixtures.settings.study.reviewMultipleChoiceEnabled = originalChoices; }
 });
 
 });

@@ -762,7 +762,7 @@ export default function CustomReviewSelectionScreen() {
     [allSubjects, selectedSubjectIds],
   );
 
-  const startCustomReview = async () => {
+  const startCustomReview = async (reviewMode: "standard" | "flashcard") => {
     if (!canApplyCurrentSrsFilter || readySelectedSubjectIds.length === 0) {
       return;
     }
@@ -771,7 +771,7 @@ export default function CustomReviewSelectionScreen() {
     );
     router.push({
       pathname: "/custom-review",
-      params: { subjectIds: readySelectedSubjectIds.join(",") },
+      params: { subjectIds: readySelectedSubjectIds.join(","), reviewMode },
     });
   };
 
@@ -1341,7 +1341,8 @@ export default function CustomReviewSelectionScreen() {
             canApplyCurrentSrsFilter ? selectedKanjiIds.length : 0
           }
           hasSelectedLists={selectedListIds.length > 0}
-          onStandardReview={startCustomReview}
+          onStandardReview={() => startCustomReview("standard")}
+          onFlashcardReview={() => startCustomReview("flashcard")}
           onKanjiMatch={startKanjiMatch}
           onCustomLessons={startCustomLessons}
           onRandomTest={() => openListStudyConfig("/test-config")}
