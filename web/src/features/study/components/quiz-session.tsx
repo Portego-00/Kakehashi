@@ -19,7 +19,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AlertCircle, ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, ExternalLink, Headphones, LoaderCircle, Plus, RotateCcw, Search, SkipForward, Volume2, X } from "lucide-react";
 import { AnkiExportButton } from "../../anki-export/AnkiExportButton";
-import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
+import { ReviewItemMetadata } from "./ReviewItemMetadata";
 import { LoadingState } from "@/components/ui/States";
 import { AnkiAnswerContent, type AnkiAnswerContentProps } from "@/features/core-study/AnkiAnswerContent";
 import { VocabularyFrequencyBadge } from "@/features/core-study/VocabularyFrequencyBadge";
@@ -824,7 +824,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
         {question.kind === "audio-vocab" ? <AudioVocabPrompt key={question.id} ref={audioVocabPlayerRef} question={question} /> : question.audioUrl ? <button id="question-prompt" className={styles.audioButton} type="button" onClick={() => playAudio(question.audioUrl)} aria-label={`Replay listening clip${question.sourceTitle ? ` from ${question.sourceTitle}` : ""}`}><Volume2 size={29} /><span>{question.sourceTitle ? `Play ${question.sourceTitle} clip` : "Play pronunciation"}</span><kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd></button> : <h2 id="question-prompt" data-jitai-font={jitaiFamily && question.kind !== "meaning-to-reading" && !(currentSubject?.object === "radical" && !currentSubject.data.characters) ? true : undefined} data-question-kind={question.kind} data-character-scale={customReviewPreferences ? reviewCharacterScale : undefined} lang={question.kind === "meaning-to-reading" ? "en" : currentSubject?.object === "radical" && !currentSubject.data.characters ? undefined : "ja"} style={{ color: customReviewPreferences?.reviewPromptTextColor || undefined, fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, fontSize: reviewCharacterSize, "--review-character-size": reviewCharacterSize, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties}>{currentSubject?.object === "radical" && !currentSubject.data.characters ? <SubjectCharacter subject={currentSubject} imageTone={customReviewPreferences?.reviewPromptTextColor ? "subject" : "light"} fallbackText={question.prompt} eager /> : question.prompt}</h2>}
         {showReviewPromptExtras && currentSubject ? <div className={styles.reviewPromptExtras}>
           {showVocabularyFrequency ? <VocabularyFrequencyBadge className={styles.reviewPromptFrequency} subject={currentSubject} enabled /> : null}
-          {showReviewMetadata ? <div className={styles.reviewPromptMetadata} aria-label="Question status"><span>Level {currentSubject.data.level}</span>{currentAssignment ? <span><SrsStageIcon stage={currentAssignment.data.srs_stage} size={16} />{srsStageLabel(currentAssignment.data.srs_stage)}</span> : null}</div> : null}
+          {showReviewMetadata ? <ReviewItemMetadata level={currentSubject.data.level} srsStage={currentAssignment?.data.srs_stage} hideText={reviewPreferences?.hideReviewItemLevelAndSrsStageText} /> : null}
         </div> : null}
         {showContextHint ? <div className={styles.reviewContextHint}>
           <div>{contextSentences.map((sentence, index) => <div key={`${sentence.ja}-${index}`}><p lang="ja">• {sentence.ja}</p>{contextTranslationOpen && sentence.en.trim() ? <><p>• {sentence.en}</p><AnkiExportButton japanese={sentence.ja} english={sentence.en} /></> : null}</div>)}</div>

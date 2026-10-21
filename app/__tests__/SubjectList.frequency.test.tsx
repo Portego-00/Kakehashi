@@ -23,6 +23,9 @@ jest.mock("../../src/utils/store", () => ({
   useSettingsStore: (selector: (state: typeof mockSettings) => unknown) => selector(mockSettings),
 }));
 jest.mock("../../src/hooks/useVocabularyFrequencyRanks", () => ({ useVocabularyFrequencyRanks: jest.fn() }));
+jest.mock("../../src/hooks/use-subject-list-audio", () => ({
+  useSubjectListAudio: () => ({ play: jest.fn(), stop: jest.fn(), activeSubjectId: null, loading: false, error: null }),
+}));
 jest.mock("../../src/utils/cache", () => ({ getAllSubjects: jest.fn() }));
 jest.mock("../../src/utils/api", () => ({
   getAllAssignmentsCached: jest.fn(async () => ({
@@ -74,8 +77,8 @@ jest.mock("@expo/ui/swift-ui", () => {
 });
 jest.mock("../../src/components/GlassButton", () => {
   const { TouchableOpacity } = jest.requireActual("react-native");
-  return { GlassButton: ({ iconName, ...props }: { iconName: string }) => (
-    <TouchableOpacity {...props} accessibilityLabel={iconName} />
+  return { GlassButton: ({ iconName, accessibilityLabel, ...props }: { iconName: string; accessibilityLabel?: string }) => (
+    <TouchableOpacity {...props} accessibilityLabel={accessibilityLabel ?? iconName} />
   ) };
 });
 

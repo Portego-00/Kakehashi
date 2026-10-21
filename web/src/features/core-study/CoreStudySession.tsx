@@ -12,7 +12,7 @@ import { reorderPendingCoreQuestions } from "./reorder-pending";
 import { FormEvent, type MouseEvent, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { ReviewLoading } from "./ReviewLoading";
-import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
+import { ReviewItemMetadata } from "@/features/study/components/ReviewItemMetadata";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
 import type { WebStudyPreferences } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
@@ -1212,7 +1212,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     ...Object.entries(errors).filter(([, mistakes]) => mistakes.meaning > 0 || mistakes.reading > 0).map(([id]) => Number(id)),
     ...(feedback && feedback.status !== "blocked" ? [current.assignment.id] : []),
   ].filter((id) => !submittedIds.includes(id)));
-  const questionMetadata = showReviewMetadata ? <div className={quiz.reviewPromptMetadata} aria-label="Question status"><span>Level {current.subject.data.level}</span><span><SrsStageIcon stage={current.assignment.data.srs_stage} size={16} />{srsStageLabel(current.assignment.data.srs_stage)}</span></div> : null;
+  const questionMetadata = showReviewMetadata ? <ReviewItemMetadata level={current.subject.data.level} srsStage={current.assignment.data.srs_stage} hideText={preferences.hideReviewItemLevelAndSrsStageText} /> : null;
 
   const renderedAnswerFeedback = feedback ? <div className={quiz.answerStatus} role="status" aria-live="polite">
           <strong className={quiz.answerVerdict} data-correct={feedback.status === "correct"} data-warning={answerResult === "warning"}>{feedback.status === "correct" ? <Check size={18} aria-hidden /> : feedback.status === "incorrect" ? <X size={18} aria-hidden /> : <RotateCcw size={18} aria-hidden />}{feedback.status === "correct" ? "Correct" : feedback.status === "close" ? "Accepted with a typo" : feedback.status === "blocked" ? "Try another answer" : "Incorrect"}</strong>

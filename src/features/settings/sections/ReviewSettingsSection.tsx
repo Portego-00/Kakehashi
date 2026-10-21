@@ -16,6 +16,7 @@ import {
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 import { ReviewPresetsSetting } from "../components/review-presets-setting";
+import { ReviewPromptColorSetting } from "../components/review-prompt-color-setting";
 
 export function ReviewSettingsSection() {
   const jitaiCycleAllFonts = useSettingsStore(
@@ -815,6 +816,7 @@ export function ReviewSettingsSection() {
             description="Text size, hints and review information"
             icon="text"
           >
+            <ReviewPromptColorSetting provider="wanikani" />
             <View
               style={[styles.settingItem, { borderBottomColor: theme.border }]}
             >

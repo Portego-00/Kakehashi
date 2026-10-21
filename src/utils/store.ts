@@ -1,4 +1,5 @@
 import { DEFAULT_STUDY_SHORTCUTS, normalizeStudyShortcuts, type StudyShortcuts } from "./bunpro-study-shortcuts";
+import { normalizeReviewPromptTextColor } from "./review-prompt-color";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
@@ -560,6 +561,8 @@ type SettingsState = {
   reviewKeyboardShortcutsEnabled: boolean;
   bunproStudyShortcuts: StudyShortcuts;
   reviewCharacterFontScale: number; // Scale for the large Japanese prompt during reviews
+  reviewPromptTextColor: string;
+  bunproReviewPromptTextColor: string;
   reviewInputFontScale: number; // Scale for answer text entered during reviews
   backToBackImmediateRetryIncorrect: boolean; // In back-to-back mode, immediately re-ask incorrect questions (legacy behavior)
   allowSkippingReviews: boolean; // Allow skipping a review item by submitting an empty answer
@@ -767,6 +770,8 @@ type SettingsState = {
   setReviewKeyboardShortcutsEnabled: (enabled: boolean) => void;
   setBunproStudyShortcuts: (shortcuts: StudyShortcuts) => void;
   setReviewCharacterFontScale: (scale: number) => void;
+  setReviewPromptTextColor: (color: string) => void;
+  setBunproReviewPromptTextColor: (color: string) => void;
   setReviewInputFontScale: (scale: number) => void;
   setBackToBackImmediateRetryIncorrect: (enabled: boolean) => void;
   setAllowSkippingReviews: (enabled: boolean) => void;
@@ -954,6 +959,8 @@ export const useSettingsStore = create<SettingsState>()(
       reviewKeyboardShortcutsEnabled: true,
       bunproStudyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
       reviewCharacterFontScale: DEFAULT_REVIEW_CHARACTER_FONT_SCALE, // Default to the current prompt size
+      reviewPromptTextColor: "",
+      bunproReviewPromptTextColor: "",
       reviewInputFontScale: DEFAULT_REVIEW_INPUT_FONT_SCALE, // Default to the current answer input size
       backToBackImmediateRetryIncorrect: false, // Default to disabled - keep delayed boundary-safe requeue
       allowSkippingReviews: false, // Default to disabled to match standard WaniKani review flow
@@ -1179,6 +1186,8 @@ export const useSettingsStore = create<SettingsState>()(
       setReviewSearchButtonEnabled: (enabled) =>
         set({ reviewSearchButtonEnabled: enabled }),
       setBunproHideFurigana: (hidden) => set({ bunproHideFurigana: hidden }),
+      setReviewPromptTextColor: (color) => set({ reviewPromptTextColor: normalizeReviewPromptTextColor(color) }),
+      setBunproReviewPromptTextColor: (color) => set({ bunproReviewPromptTextColor: normalizeReviewPromptTextColor(color) }),
       setShowDetailsOnWrongAnswer: (enabled) => set({ showDetailsOnWrongAnswer: enabled }),
       setAnswerFeedbackSoundEnabled: (enabled) => set({ answerFeedbackSoundEnabled: enabled }),
       setReviewKeyboardShortcutsEnabled: (enabled) => set({ reviewKeyboardShortcutsEnabled: enabled }),
@@ -1509,6 +1518,8 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...currentState,
           ...persisted,
+          reviewPromptTextColor: normalizeReviewPromptTextColor(persisted.reviewPromptTextColor),
+          bunproReviewPromptTextColor: normalizeReviewPromptTextColor(persisted.bunproReviewPromptTextColor),
           showLessonVocabularyUnlockCounts: persisted.showLessonVocabularyUnlockCounts === true,
           ankiAskIncorrectPart: persisted.ankiAskIncorrectPart === true,
           reviewPresetsEnabled: persisted.reviewPresetsEnabled === true,

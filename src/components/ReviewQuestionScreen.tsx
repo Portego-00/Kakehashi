@@ -1088,6 +1088,7 @@ export default function ReviewQuestionScreen({
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
     reviewCharacterFontScale,
+    reviewPromptTextColor,
     reviewInputFontScale,
     srsProgressionCardDisplayMode,
     visuallySimilarKanjiSource,
@@ -6067,6 +6068,7 @@ export default function ReviewQuestionScreen({
                   style={[
                     styles.placeholderText,
                     overridePromptUsesJapaneseFont && fontStyles.japaneseText,
+                    reviewPromptTextColor ? { color: reviewPromptTextColor } : undefined,
                   ]}
                   numberOfLines={2}
                   adjustsFontSizeToFit

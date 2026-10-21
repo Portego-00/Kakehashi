@@ -112,6 +112,7 @@ const fixtures = vi.hoisted(() => {
       answerFeedbackSoundEnabled: true,
       showSrsIndicator: true,
       showReviewItemLevelAndSrsStage: false,
+      hideReviewItemLevelAndSrsStageText: false,
       showVocabularyFrequency: false,
       showLessonVocabularyUnlockCounts: false,
       showVocabContextSentencesInReviews: false,
@@ -634,6 +635,7 @@ describe("core study prompt layout", () => {
       backToBackImmediateRetryIncorrect: false,
       reviewAnimatePreviousQuestion: true,
       showReviewItemLevelAndSrsStage: false,
+      hideReviewItemLevelAndSrsStageText: false,
       showVocabularyFrequency: false,
       showLessonVocabularyUnlockCounts: false,
       showVocabContextSentencesInReviews: false,
@@ -726,6 +728,18 @@ describe("core study prompt layout", () => {
     renderSession("reviews");
     expect(await screen.findByText("Level 4")).toBeInTheDocument();
     expect(screen.getByText("Apprentice III")).toBeInTheDocument();
+  });
+
+  it("keeps the level and SRS icon while hiding English metadata text", async () => {
+    fixtures.settings.study.showReviewItemLevelAndSrsStage = true;
+    fixtures.settings.study.hideReviewItemLevelAndSrsStageText = true;
+    renderSession("reviews");
+    const metadata = await screen.findByLabelText("Question status");
+    expect(within(metadata).getByText("4", { exact: true })).toBeInTheDocument();
+    expect(within(metadata).getByText("Level")).toHaveClass("sr-only");
+    expect(within(metadata).getByText("Apprentice III")).toHaveClass("sr-only");
+    expect(metadata.querySelector("svg use")).toHaveAttribute("href", "/srs/srs-icons.svg#apprentice-3");
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBeInTheDocument();
   });
 
   it("shows up to three Japanese context hints while keeping translations gated", async () => {

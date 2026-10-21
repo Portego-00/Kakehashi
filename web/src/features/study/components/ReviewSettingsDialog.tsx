@@ -77,6 +77,7 @@ export function ReviewSettingsDialog({ order = "reviewOrder", ankiSupported = tr
           <Field label="Question text size"><select value={study.reviewCharacterFontScale} onChange={(event) => update("reviewCharacterFontScale", Number(event.target.value))}>{REVIEW_CHARACTER_FONT_SCALES.map((value) => <option key={value} value={value}>{Math.round(value * 100)}%</option>)}</select></Field>
           <ReviewPromptColorSetting provider={bunproSupported ? "bunpro" : "wanikani"} value={bunproSupported ? study.bunproReviewPromptTextColor : study.reviewPromptTextColor} onChange={(value) => update(bunproSupported ? "bunproReviewPromptTextColor" : "reviewPromptTextColor", value)} />
           {toggle("showReviewItemLevelAndSrsStage", "Show level and SRS stage")}
+          {!bunproSupported ? toggle("hideReviewItemLevelAndSrsStageText", "Hide level & SRS text", !study.showReviewItemLevelAndSrsStage) : null}
           {toggle("showVocabularyFrequency", "Show vocabulary frequency")}
           {toggle("showVocabContextSentencesInReviews", "Show context sentences")}
           {bunproSupported ? toggle("bunproHideFurigana", "Hide Bunpro furigana") : null}

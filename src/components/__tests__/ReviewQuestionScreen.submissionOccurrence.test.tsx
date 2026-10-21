@@ -452,6 +452,18 @@ function getSubmitButton(screen: ReturnType<typeof render>) {
 }
 
 describe("ReviewQuestionScreen question occurrences", () => {
+  it("updates extra-study text prompts without clearing a partially typed answer", () => {
+    const colors = Object.assign(mockSettings, { reviewPromptTextColor: "#123456" });
+    const props = { item: radicalItem, questionType: "meaning" as const, overridePromptText: "Extra study prompt", onAnswer: jest.fn(), isLessonFlow: true };
+    const view = render(<ReviewQuestionScreen {...props} correctAnswersCount={0} />);
+    fireEvent.changeText(view.getByTestId("answer-input"), "gro");
+    expect(StyleSheet.flatten(view.getByText("Extra study prompt").props.style).color).toBe("#123456");
+    colors.reviewPromptTextColor = "#abcdef";
+    view.rerender(<ReviewQuestionScreen {...props} correctAnswersCount={1} />);
+    expect(StyleSheet.flatten(view.getByText("Extra study prompt").props.style).color).toBe("#abcdef");
+    expect(view.getByTestId("answer-input").props.value).toBe("gro");
+    colors.reviewPromptTextColor = "";
+  });
   it.each([
     [false, true, "ホウ"],
     [true, true, "ホウ"],

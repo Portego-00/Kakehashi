@@ -1446,6 +1446,22 @@ describe("extra-study quiz interaction", () => {
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "5");
   });
 
+  it.each([0, 8])("hides English metadata text in extra study at SRS stage %s", (stage) => {
+    renderQuiz({
+      scope: "extra-study-icon-metadata",
+      initialSession: { ...makeSession(makeQuestion()), mode: "random-test" },
+      subjects: [makeSubject()],
+      assignments: [makeAssignment(1, stage)],
+      reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, showReviewItemLevelAndSrsStage: true, hideReviewItemLevelAndSrsStageText: true },
+      onExit: vi.fn(),
+    });
+    const metadata = screen.getByLabelText("Question status");
+    expect(within(metadata).getByText("12", { exact: true })).toBeInTheDocument();
+    expect(within(metadata).getByText("Level")).toHaveClass("sr-only");
+    expect(within(metadata).getByText(stage === 0 ? "Lesson" : "Enlightened")).toHaveClass("sr-only");
+    expect(metadata.querySelector("svg")).toBeInTheDocument();
+  });
+
   it("shows enabled review question extras in random test", async () => {
     const frequencyFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       result: { provider: "jiten", frequencyRank: 1_500, wordId: 25, readingIndex: 0, matchedText: "防ぐ", matchedReading: "ふせぐ", sourceUrl: "https://jiten.moe/search?query=%E9%98%B2%E3%81%90" },

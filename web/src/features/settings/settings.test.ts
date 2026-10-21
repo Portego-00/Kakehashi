@@ -7,6 +7,18 @@ function storage(value: unknown) {
 }
 
 describe("web settings persistence", () => {
+  it("keeps review metadata text visible by default and persists the opt-in", () => {
+    for (const value of [undefined, null, "true", 1]) {
+      expect(loadWebSettings(storage({ study: { hideReviewItemLevelAndSrsStageText: value } }), "tester").study.hideReviewItemLevelAndSrsStageText).toBe(false);
+    }
+    let saved = "";
+    const target = { getItem: () => saved || null, setItem: (_key: string, value: string) => { saved = value; } };
+    for (const enabled of [true, false]) {
+      saveWebSettings(target, "tester", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, showReviewItemLevelAndSrsStage: true, hideReviewItemLevelAndSrsStageText: enabled } });
+      expect(loadWebSettings(target, "tester").study).toMatchObject({ showReviewItemLevelAndSrsStage: true, hideReviewItemLevelAndSrsStageText: enabled });
+    }
+  });
+
   it("defaults invalid prompt colors and saves WaniKani and Bunpro colors independently", () => {
     for (const value of [undefined, null, true, 42, "red", "#fff", "#12345678", "var(--color-ink)"]) {
       expect(loadWebSettings(storage({ study: { reviewPromptTextColor: value, bunproReviewPromptTextColor: value } }), "tester").study).toMatchObject({ reviewPromptTextColor: "", bunproReviewPromptTextColor: "" });

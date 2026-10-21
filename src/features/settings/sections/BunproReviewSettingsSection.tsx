@@ -24,6 +24,7 @@ import { isPortegoUsername } from "../../../utils/portegoAccess";
 import { useAuthStore, useSettingsStore } from "../../../utils/store";
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
+import { ReviewPromptColorSetting } from "../components/review-prompt-color-setting";
 
 export function BunproReviewSettingsSection() {
   const username = useAuthStore((state) => state.userData?.username);
@@ -277,6 +278,7 @@ function BunproReviewSettingsContent() {
           </Text>
         ) : null}
       </View>
+      {hasApiKey && !loading ? <ReviewPromptColorSetting provider="bunpro" /> : null}
       {hasApiKey && !loading
         ? toggles.map(([label, description, setting, value, onChange]) => (
             <View

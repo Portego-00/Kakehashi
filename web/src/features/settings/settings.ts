@@ -58,6 +58,7 @@ export interface WebStudyPreferences {
   answerFeedbackSoundEnabled: boolean;
   showSrsIndicator: boolean;
   showReviewItemLevelAndSrsStage: boolean;
+  hideReviewItemLevelAndSrsStageText: boolean;
   showVocabularyFrequency: boolean;
   showVocabContextSentencesInReviews: boolean;
   allowSkippingReviews: boolean;
@@ -339,6 +340,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     answerFeedbackSoundEnabled: true,
     showSrsIndicator: true,
     showReviewItemLevelAndSrsStage: false,
+    hideReviewItemLevelAndSrsStageText: false,
     showVocabularyFrequency: false,
     showVocabContextSentencesInReviews: false,
     allowSkippingReviews: false,
@@ -576,6 +578,7 @@ export function readWebSettings(storage: Pick<ListStorage, "getItem">, username:
       answerFeedbackSoundEnabled: typeof parsed.study?.answerFeedbackSoundEnabled === "boolean" ? parsed.study.answerFeedbackSoundEnabled : DEFAULT_WEB_SETTINGS.study.answerFeedbackSoundEnabled,
       showSrsIndicator: typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showSrsIndicator,
       showReviewItemLevelAndSrsStage: typeof parsed.study?.showReviewItemLevelAndSrsStage === "boolean" ? parsed.study.showReviewItemLevelAndSrsStage : typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showReviewItemLevelAndSrsStage,
+      hideReviewItemLevelAndSrsStageText: typeof parsed.study?.hideReviewItemLevelAndSrsStageText === "boolean" ? parsed.study.hideReviewItemLevelAndSrsStageText : DEFAULT_WEB_SETTINGS.study.hideReviewItemLevelAndSrsStageText,
       showVocabularyFrequency: typeof parsed.study?.showVocabularyFrequency === "boolean" ? parsed.study.showVocabularyFrequency : DEFAULT_WEB_SETTINGS.study.showVocabularyFrequency,
       showVocabContextSentencesInReviews: typeof parsed.study?.showVocabContextSentencesInReviews === "boolean" ? parsed.study.showVocabContextSentencesInReviews : DEFAULT_WEB_SETTINGS.study.showVocabContextSentencesInReviews,
       allowSkippingReviews: typeof parsed.study?.allowSkippingReviews === "boolean" ? parsed.study.allowSkippingReviews : DEFAULT_WEB_SETTINGS.study.allowSkippingReviews,

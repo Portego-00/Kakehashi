@@ -8,6 +8,22 @@ vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme }) 
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { data: { username: "settings-test" } } }) }));
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); });
 
+it("saves the icon-only metadata preference and retains it when metadata is hidden", () => {
+  render(<ReviewSettingsButton />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Hide level & SRS text")).toBeDisabled();
+  fireEvent.click(screen.getByLabelText("Show level and SRS stage"));
+  fireEvent.click(screen.getByLabelText("Hide level & SRS text"));
+  fireEvent.click(screen.getByLabelText("Show level and SRS stage"));
+  expect(screen.getByLabelText("Hide level & SRS text")).toBeDisabled();
+  expect(loadWebSettings(localStorage, "settings-test").study).toMatchObject({ showReviewItemLevelAndSrsStage: false, hideReviewItemLevelAndSrsStageText: true });
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  fireEvent.click(screen.getByLabelText("Show level and SRS stage"));
+  expect(screen.getByLabelText("Hide level & SRS text")).toBeChecked();
+  expect(screen.getByLabelText("Hide level & SRS text")).toBeEnabled();
+});
+
 it.each([false, true])("saves and resets the current provider's prompt color independently (Bunpro: %s)", (bunproSupported) => {
   saveWebSettings(localStorage, "settings-test", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewPromptTextColor: "#123456", bunproReviewPromptTextColor: "#abcdef" } });
   render(<ReviewSettingsButton bunproSupported={bunproSupported} />);
