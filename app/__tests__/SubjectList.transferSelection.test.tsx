@@ -1,5 +1,3 @@
-let mockTranslations = false;
-jest.mock("../../src/features/translation-packages/display", () => ({useLearningDisplay: () => ({meaning: (subject: any) => mockTranslations && subject.id === 1 ? "Bir" : subject.data.meanings[0].meaning})}));
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
@@ -7,6 +5,23 @@ import { Alert, Platform } from "react-native";
 import SubjectListEditorScreen from "../(app)/subject-list/[id]";
 import { getAllSubjects } from "../../src/utils/cache";
 import type { Subject } from "../../src/utils/api";
+import { CommonFilterModal } from "../../src/components/CommonFilterModal";
+
+let mockTranslations = false;
+jest.mock("../../src/features/translation-packages/display", () => ({useLearningDisplay: () => ({meaning: (subject: any) => mockTranslations && subject.id === 1 ? "Bir" : subject.data.meanings[0].meaning})}));
+const mockPlayAudio = jest.fn();
+const mockStopAudio = jest.fn();
+const mockSettings = {
+  showVocabularyFrequency: false,
+  setShowVocabularyFrequency: jest.fn(),
+  vocabularyAudioVoice: "female",
+  setVocabularyAudioVoice: jest.fn(),
+};
+jest.mock("../../src/hooks/use-subject-list-audio", () => ({
+  useSubjectListAudio: () => ({
+    play: mockPlayAudio, stop: mockStopAudio, activeSubjectId: null, loading: false, error: null,
+  }),
+}));
 
 const mockRouter = { push: jest.fn(), back: jest.fn() };
 jest.mock("expo-router", () => ({
@@ -18,8 +33,7 @@ jest.mock("../../src/utils/store", () => ({
   useAuthStore: Object.assign(() => ({ apiToken: "test-token" }), {
     getState: () => ({ userData: null }),
   }),
-  useSettingsStore: (selector: (state: { showVocabularyFrequency: boolean; setShowVocabularyFrequency: () => void }) => unknown) =>
-    selector({ showVocabularyFrequency: false, setShowVocabularyFrequency: jest.fn() }),
+  useSettingsStore: (selector: (state: typeof mockSettings) => unknown) => selector(mockSettings),
 }));
 jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
 jest.mock("../../src/hooks/useVocabularyFrequencyRanks", () => ({
@@ -56,9 +70,20 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 jest.mock("@expo/ui/swift-ui", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
   const { View, TouchableOpacity, Text } = jest.requireActual("react-native");
   return {
-    Host: View, Menu: View, RNHostView: View,
+    Host: View, RNHostView: View,
+    Menu: ({ label, children }: { label: React.ReactNode; children: React.ReactNode }) => {
+      const [open, setOpen] = React.useState(false);
+      return <View>
+        <TouchableOpacity onPress={() => setOpen(true)}>{label}</TouchableOpacity>
+        {open ? React.Children.map(children, (child) => {
+          if (!React.isValidElement<{ onPress?: () => void }>(child)) return child;
+          return React.cloneElement(child, { onPress: () => { setOpen(false); child.props.onPress?.(); } });
+        }) : null}
+      </View>;
+    },
     Button: ({ label, onPress }: { label: string; onPress: () => void }) => (
       <TouchableOpacity onPress={onPress}><Text>{label}</Text></TouchableOpacity>
     ),
@@ -67,8 +92,8 @@ jest.mock("@expo/ui/swift-ui", () => {
 jest.mock("../../src/components/GlassButton", () => {
   const { TouchableOpacity } = jest.requireActual("react-native");
   return {
-    GlassButton: ({ iconName, ...props }: { iconName: string }) => (
-      <TouchableOpacity {...props} accessibilityLabel={iconName} />
+    GlassButton: ({ iconName, accessibilityLabel, ...props }: { iconName: string; accessibilityLabel?: string }) => (
+      <TouchableOpacity {...props} accessibilityLabel={accessibilityLabel ?? iconName} />
     ),
   };
 });
@@ -99,6 +124,7 @@ describe("list action selection", () => {
     mockTranslations = false;
     jest.useFakeTimers();
     jest.clearAllMocks();
+    mockSettings.vocabularyAudioVoice = "both";
     storage.clear();
     storage.set(listKey, JSON.stringify({ version: 3, lists: [
       { id: "source", name: "Numbers", subjectIds: [1, 2, 3, 4] },
@@ -127,9 +153,19 @@ describe("list action selection", () => {
     return screen;
   }
 
+  function pressListOption(screen: ReturnType<typeof render>, label: string) {
+    fireEvent.press(screen.getAllByLabelText("ellipsis-horizontal")[0]);
+    fireEvent.press(screen.getByText(label));
+  }
+
+  function pressSelectedAction(screen: ReturnType<typeof render>, label: string) {
+    fireEvent.press(screen.getByLabelText("Selected item actions"));
+    fireEvent.press(screen.getByText(label));
+  }
+
   it("selects items without changing membership or enabling Save", async () => {
     const screen = await openList();
-    expect(screen.getByLabelText("Transfer selected subjects to another list").props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByLabelText("Selected item actions").props.accessibilityState.disabled).toBe(true);
     fireEvent.press(screen.getByLabelText("Select Two for list actions"));
     expect(screen.getByText("1 selected")).toBeTruthy();
     expect(screen.getByLabelText("Select Two for list actions").props.accessibilityState.checked).toBe(true);
@@ -141,7 +177,7 @@ describe("list action selection", () => {
 
   it("hides meanings from both tabs and accessibility labels, and remembers the preference", async () => {
     const screen = await openList();
-    fireEvent.press(screen.getByText("Hide Meanings"));
+    pressListOption(screen, "Hide Meanings");
     expect(screen.queryByText("One")).toBeNull();
     expect(screen.queryByLabelText("Select One for list actions")).toBeNull();
     expect(screen.getByLabelText("Select 一 for list actions")).toBeTruthy();
@@ -154,10 +190,10 @@ describe("list action selection", () => {
     fireEvent.press(screen.getByText("Browse"));
     expect(screen.queryByText("Two")).toBeNull();
     expect(screen.getByText("二")).toBeTruthy();
-    fireEvent.press(screen.getByText("Show Meanings"));
+    pressListOption(screen, "Show Meanings");
     expect(screen.getByText("Two")).toBeTruthy();
     expect(storage.get("subject_list_hide_meanings")).toBe("false");
-    fireEvent.press(screen.getByText("Hide Meanings"));
+    pressListOption(screen, "Hide Meanings");
     screen.unmount();
 
     const reopened = render(<SubjectListEditorScreen />);
@@ -165,7 +201,7 @@ describe("list action selection", () => {
     expect(reopened.queryByText("One")).toBeNull();
     fireEvent.press(reopened.getByText("In List (4)"));
     expect(reopened.getByLabelText("Select 一 for list actions")).toBeTruthy();
-    fireEvent.press(reopened.getByText("Show Meanings"));
+    pressListOption(reopened, "Show Meanings");
     expect(reopened.getByLabelText("Select One for list actions")).toBeTruthy();
   });
 
@@ -175,7 +211,7 @@ describe("list action selection", () => {
       { ...subjects[3], object: "radical", data: { ...subjects[3].data, characters: null } },
     ]);
     const screen = await openList();
-    fireEvent.press(screen.getByText("Hide Meanings"));
+    pressListOption(screen, "Hide Meanings");
     expect(screen.queryByText("Four")).toBeNull();
     expect(screen.getByText("?")).toBeTruthy();
     expect(screen.getByLabelText("Select radical 4 for list actions")).toBeTruthy();
@@ -184,29 +220,138 @@ describe("list action selection", () => {
     expect(screen.getByText("?")).toBeTruthy();
   });
 
-  it("toggles meanings from the fallback three-dot menu", async () => {
+  it("reveals only checked meanings in hidden mode and hides them again when unchecked", async () => {
+    mockTranslations = true;
+    const screen = await openList();
+    pressListOption(screen, "Hide Meanings");
+    fireEvent.press(screen.getByLabelText("Select 一 for list actions"));
+    expect(screen.getByText("Bir")).toBeTruthy();
+    expect(screen.queryByText("Two")).toBeNull();
+    expect(screen.getByLabelText("Select Bir for list actions").props.accessibilityState.checked).toBe(true);
+    fireEvent.press(screen.getByLabelText("Select 二 for list actions"));
+    expect(screen.getByText("Two")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Select Bir for list actions"));
+    expect(screen.queryByText("Bir")).toBeNull();
+    expect(screen.getByText("Two")).toBeTruthy();
+    expect(screen.getByLabelText("Save list changes").props.accessibilityState.disabled).toBe(true);
+    expect(savedIds("source")).toEqual([1, 2, 3, 4]);
+  });
+
+  it("reveals a checked radical's fallback meaning", async () => {
+    jest.mocked(getAllSubjects).mockResolvedValue([
+      ...subjects.slice(0, 3),
+      { ...subjects[3], object: "radical", data: { ...subjects[3].data, characters: null } },
+    ]);
+    const screen = await openList();
+    pressListOption(screen, "Hide Meanings");
+    fireEvent.press(screen.getByLabelText("Select radical 4 for list actions"));
+    expect(screen.getAllByText("Four")).toHaveLength(2);
+    fireEvent.press(screen.getByLabelText("Select Four for list actions"));
+    expect(screen.queryByText("Four")).toBeNull();
+  });
+
+  it.each([
+    ["standard", "Review Selected"],
+    ["flashcard", "Flashcard Selected"],
+  ])("starts a %s review with only checked items, including checks outside the filter", async (reviewMode, label) => {
+    const screen = await openList();
+    expect(screen.getByLabelText("Selected item actions").props.accessibilityState.disabled).toBe(true);
+    fireEvent.press(screen.getByLabelText("Select Two for list actions"));
+    fireEvent.press(screen.getByLabelText("Select Four for list actions"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search subjects in this list..."), "Two");
+    pressSelectedAction(screen, label);
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({
+      pathname: "/custom-review", params: { subjectIds: "2,4", reviewMode },
+    }));
+    expect(savedIds("source")).toEqual([1, 2, 3, 4]);
+  });
+
+  it("shows speakers beside vocabulary checkboxes immediately and keeps the list voice separate from reviews", async () => {
+    const audioSubject: Subject = {
+      ...subjects[1], object: "vocabulary", data: {
+        ...subjects[1].data, pronunciation_audios: [{
+          url: "https://example.com/two.mp3", content_type: "audio/mpeg", metadata: { voice_actor_name: "Kyoko" },
+        }],
+      },
+    };
+    jest.mocked(getAllSubjects).mockResolvedValue([subjects[0], audioSubject, ...subjects.slice(2)]);
+    // A preference from the old optional-button implementation must not hide speakers.
+    storage.set("subject_list_show_audio_buttons", "false");
+    const screen = await openList();
+    expect(screen.getByLabelText("Play pronunciation for 二")).toBeTruthy();
+    pressListOption(screen, "Hide Meanings");
+    const stopPropagation = jest.fn();
+    fireEvent.press(screen.getByLabelText("Play pronunciation for 二"), { stopPropagation });
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(mockPlayAudio).toHaveBeenCalledWith(audioSubject, "female");
+    expect(screen.getByText("0 selected")).toBeTruthy();
+    expect(screen.queryByText("Two")).toBeNull();
+    expect(screen.queryByLabelText("Play pronunciation for 一")).toBeNull();
+    expect(savedIds("source")).toEqual([1, 2, 3, 4]);
+    pressListOption(screen, "List Audio Voice");
+    const voiceModal = screen.UNSAFE_getAllByType(CommonFilterModal)
+      .find((modal) => modal.props.title === "List Audio Voice");
+    expect(voiceModal?.props.visible).toBe(true);
+    act(() => voiceModal?.props.onApply({ voice: "male" }));
+    expect(storage.get("subject_list_audio_voice")).toBe("male");
+    expect(mockSettings.setVocabularyAudioVoice).not.toHaveBeenCalled();
+    expect(mockSettings.vocabularyAudioVoice).toBe("both");
+    fireEvent.press(screen.getByLabelText("Play pronunciation for 二"), { stopPropagation });
+    expect(mockPlayAudio).toHaveBeenLastCalledWith(audioSubject, "male");
+    fireEvent.press(screen.getByText("Browse"));
+    expect(screen.getByLabelText("Play pronunciation for 二")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Play pronunciation for 二"), { stopPropagation });
+    expect(mockPlayAudio).toHaveBeenLastCalledWith(audioSubject, "male");
+    expect(savedIds("source")).toEqual([1, 2, 3, 4]);
+    screen.unmount();
+    const reopened = render(<SubjectListEditorScreen />);
+    await waitFor(() => expect(reopened.getByLabelText("Play pronunciation for 二")).toBeTruthy());
+    fireEvent.press(reopened.getByLabelText("Play pronunciation for 二"), { stopPropagation });
+    expect(mockPlayAudio).toHaveBeenLastCalledWith(audioSubject, "male");
+  });
+
+  it("toggles meanings and list audio voice from the fallback three-dot menu", async () => {
     jest.replaceProperty(Platform, "OS", "android");
     const screen = await openList();
-    fireEvent.press(screen.getByLabelText("ellipsis-horizontal"));
-    const hideAction = jest.mocked(Alert.alert).mock.calls.at(-1)?.[2]
-      ?.find((action) => action.text === "Hide Meanings");
-    expect(hideAction).toBeDefined();
-    act(() => hideAction?.onPress?.());
+    fireEvent.press(screen.getAllByLabelText("ellipsis-horizontal")[0]);
+    expect(screen.getByText("Sort Items")).toBeTruthy();
+    expect(screen.getByText("Rename")).toBeTruthy();
+    expect(screen.getByText("Delete")).toBeTruthy();
+    fireEvent.press(screen.getByText("Hide Meanings"));
     expect(screen.queryByText("One")).toBeNull();
     expect(screen.getByLabelText("Select 一 for list actions")).toBeTruthy();
-    fireEvent.press(screen.getByLabelText("ellipsis-horizontal"));
-    const showAction = jest.mocked(Alert.alert).mock.calls.at(-1)?.[2]
-      ?.find((action) => action.text === "Show Meanings");
-    expect(showAction).toBeDefined();
-    act(() => showAction?.onPress?.());
+    pressListOption(screen, "Show Meanings");
     expect(screen.getByText("One")).toBeTruthy();
+    pressListOption(screen, "List Audio Voice");
+    const voiceModal = screen.UNSAFE_getAllByType(CommonFilterModal)
+      .find((modal) => modal.props.title === "List Audio Voice");
+    expect(voiceModal?.props.visible).toBe(true);
+  });
+
+  it.each(["ios", "android"] as const)("opens the four selection actions from one menu on %s", async (platform) => {
+    jest.replaceProperty(Platform, "OS", platform);
+    const screen = await openList();
+    expect(screen.getByLabelText("Selected item actions").props.accessibilityState.disabled).toBe(true);
+    expect(screen.queryByText("Remove Selected")).toBeNull();
+    fireEvent.press(screen.getByLabelText("Select Two for list actions"));
+    expect(screen.queryByText("Review Selected")).toBeNull();
+    fireEvent.press(screen.getByLabelText("Selected item actions"));
+    for (const label of ["Remove Selected", "Transfer Selected", "Review Selected", "Flashcard Selected"]) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+    fireEvent.press(screen.getByText("Review Selected"));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({
+      pathname: "/custom-review", params: { subjectIds: "2", reviewMode: "standard" },
+    }));
+    expect(screen.queryByText("Remove Selected")).toBeNull();
+    expect(savedIds("source")).toEqual([1, 2, 3, 4]);
   });
 
   it.each(["Copy", "Move"])("%s transfers only checked items and preserves the rest", async (mode) => {
     const screen = await openList();
     fireEvent.press(screen.getByLabelText("Select Two for list actions"));
     fireEvent.press(screen.getByLabelText("Select Three for list actions"));
-    fireEvent.press(screen.getByLabelText("Transfer selected subjects to another list"));
+    pressSelectedAction(screen, "Transfer Selected");
     await waitFor(() => expect(screen.getByText("2 subjects from Numbers")).toBeTruthy());
     fireEvent.press(screen.getByLabelText(`${mode} subjects`));
     await waitFor(() => expect(screen.getByLabelText("Practice, 1 subject")).toBeTruthy());
@@ -221,7 +366,7 @@ describe("list action selection", () => {
   it("keeps membership and checks when a transfer is canceled", async () => {
     const screen = await openList();
     fireEvent.press(screen.getByLabelText("Select One for list actions"));
-    fireEvent.press(screen.getByLabelText("Transfer selected subjects to another list"));
+    pressSelectedAction(screen, "Transfer Selected");
     await waitFor(() => expect(screen.getByText("1 subject from Numbers")).toBeTruthy());
     fireEvent.press(screen.getByLabelText("Cancel subject transfer"));
     expect(screen.getByText("1 selected")).toBeTruthy();
@@ -232,7 +377,7 @@ describe("list action selection", () => {
   it("removes only checked items when changes are saved", async () => {
     const screen = await openList();
     fireEvent.press(screen.getByLabelText("Select Two for list actions"));
-    fireEvent.press(screen.getByLabelText("Remove selected subjects from this list"));
+    pressSelectedAction(screen, "Remove Selected");
     expect(screen.getByText("In List (3)")).toBeTruthy();
     expect(savedIds("source")).toEqual([1, 2, 3, 4]);
     fireEvent.press(screen.getByText("Save Changes"));
@@ -242,12 +387,12 @@ describe("list action selection", () => {
 
   it("selects all, deselects all, and limits filtered selection to matching items", async () => {
     const screen = await openList();
-    fireEvent.press(screen.getByText("Select All"));
+    fireEvent.press(screen.getByLabelText("Select All"));
     expect(screen.getByText("4 selected")).toBeTruthy();
-    fireEvent.press(screen.getByText("Deselect All"));
+    fireEvent.press(screen.getByLabelText("Deselect All"));
     expect(screen.getByText("0 selected")).toBeTruthy();
     fireEvent.changeText(screen.getByPlaceholderText("Search subjects in this list..."), "Two");
-    fireEvent.press(screen.getByText("Select Filtered"));
+    fireEvent.press(screen.getByLabelText("Select Filtered"));
     expect(screen.getByText("1 selected")).toBeTruthy();
     fireEvent.changeText(screen.getByPlaceholderText("Search subjects in this list..."), "");
     expect(screen.getByLabelText("Select Two for list actions").props.accessibilityState.checked).toBe(true);
@@ -284,6 +429,6 @@ describe("list action selection", () => {
     fireEvent.press(screen.getByText("Two"));
     fireEvent.press(screen.getByText("In List (3)"));
     expect(screen.getByText("0 selected")).toBeTruthy();
-    expect(screen.getByLabelText("Transfer selected subjects to another list").props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByLabelText("Selected item actions").props.accessibilityState.disabled).toBe(true);
   });
 });

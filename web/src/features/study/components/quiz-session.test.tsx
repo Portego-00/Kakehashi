@@ -18,6 +18,13 @@ function render(ui: ReactElement) {
 
 vi.mock("@/features/core-study/review-subject-font", () => ({ reviewSubjectFont: { style: { fontFamily: "Noto Sans JP" } } }));
 
+it.each(["custom-review", "recent-lessons", "vocab-reading", "context-sentences", "hiragana-meaning", "random-test", "similar-kanji", "kana-to-kanji", "listening"] as const)("uses the WaniKani prompt color in %s extra study", (mode) => {
+  render(<QuizSession scope="test" initialSession={{ ...makeSession(makeQuestion()), mode }} reviewPreferences={{ ...DEFAULT_WEB_SETTINGS.study, reviewPromptTextColor: "#123456", bunproReviewPromptTextColor: "#abcdef" }} studyMaterials={[]} onExit={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: "防ぐ" })).toHaveStyle({ color: "#123456" });
+  expect(screen.getByRole("textbox")).not.toHaveStyle({ color: "#123456" });
+  cleanup();
+});
+
 it.each(["custom-review", "recent-lessons", "vocab-reading", "context-sentences", "hiragana-meaning", "random-test", "similar-kanji", "kana-to-kanji", "listening"] as const)("uses regular review typography for %s prompts", (mode) => {
   render(<QuizSession scope="test" initialSession={{ ...makeSession(makeQuestion()), mode }} onExit={vi.fn()} />);
   expect(screen.getByRole("heading", { name: "防ぐ" })).toHaveStyle({ fontFamily: "Noto Sans JP", fontWeight: 350 });
@@ -34,6 +41,8 @@ vi.mock("@/lib/wanikani/client", () => ({
 }));
 
 vi.mock("@/features/notebooks/use-notebooks", () => ({ useNotebooks: () => ({ state: { version: 1, pages: [], sentences: [] }, available: false, isLoading: false, error: "" }) }));
+const asr = vi.hoisted(() => ({ active: false }));
+vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "ふせぐ"); }}>Record {language}</button> : null }));
 vi.mock("@/lib/session", () => ({ useSession: () => ({ status: "authenticated", user: { data: { id: "test", username: "test" } }, isDemo: false }) }));
 
 vi.mock("@/features/speech/use-japanese-voice", () => ({
@@ -1437,6 +1446,22 @@ describe("extra-study quiz interaction", () => {
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "5");
   });
 
+  it.each([0, 8])("hides English metadata text in extra study at SRS stage %s", (stage) => {
+    renderQuiz({
+      scope: "extra-study-icon-metadata",
+      initialSession: { ...makeSession(makeQuestion()), mode: "random-test" },
+      subjects: [makeSubject()],
+      assignments: [makeAssignment(1, stage)],
+      reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, showReviewItemLevelAndSrsStage: true, hideReviewItemLevelAndSrsStageText: true },
+      onExit: vi.fn(),
+    });
+    const metadata = screen.getByLabelText("Question status");
+    expect(within(metadata).getByText("12", { exact: true })).toBeInTheDocument();
+    expect(within(metadata).getByText("Level")).toHaveClass("sr-only");
+    expect(within(metadata).getByText(stage === 0 ? "Lesson" : "Enlightened")).toHaveClass("sr-only");
+    expect(metadata.querySelector("svg")).toBeInTheDocument();
+  });
+
   it("shows enabled review question extras in random test", async () => {
     const frequencyFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       result: { provider: "jiten", frequencyRank: 1_500, wordId: 25, readingIndex: 0, matchedText: "防ぐ", matchedReading: "ふせぐ", sourceUrl: "https://jiten.moe/search?query=%E9%98%B2%E3%81%90" },
@@ -2038,4 +2063,17 @@ it.each([
   fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
   fireEvent.keyDown(document.body, { key: "d" });
   expect(await screen.findByRole("tab", { name: selected, selected: true })).toBeVisible();
+});
+
+
+it.each(["meaning", "reading", "meaning-to-reading", "kana-to-meaning", "listening-meaning", "listening-characters", "context", "audio-vocab"] as const)("supports editable voice answers in %s extra study with choice answers", kind => {
+  asr.active = true;
+  try {
+    render(<QuizSession scope="test" initialSession={makeSession(makeQuestion({ kind, choices: ["ふせぐ", "もり"] }))} reviewPreferences={{ ...DEFAULT_WEB_SETTINGS.study, reviewAsrEnabled: true }} subjects={[makeSubject()]} onExit={vi.fn()} />);
+    const english = ["meaning", "kana-to-meaning", "listening-meaning", "audio-vocab"].includes(kind);
+    fireEvent.click(screen.getByRole("button", { name: `Record ${english ? "en" : "ja"}` }));
+    expect(screen.getByRole("textbox")).toHaveValue(english ? "forest" : "ふせぐ");
+    expect(screen.getByRole("button", { name: "Check" })).toBeEnabled();
+    expect(screen.queryByRole("group", { name: "Answer choices" })).not.toBeInTheDocument();
+  } finally { cleanup(); asr.active = false; }
 });

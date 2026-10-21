@@ -210,6 +210,12 @@ interface SRSProgressionInfo {
   nextReviewInterval: string;
 }
 
+export interface AnkiReviewSettings {
+  enabled: boolean;
+  scope: "both" | "meaning" | "reading";
+  groupQuestions: boolean;
+}
+
 interface ReviewQuestionProps {
   item: ReviewItem;
   questionType: QuestionType;
@@ -240,6 +246,8 @@ interface ReviewQuestionProps {
   onSRSCardDismiss?: () => void;
   // Force disable Anki grouped questions (for random tests)
   forceDisableAnkiGrouping?: boolean;
+  // Session-specific review mode without changing the learner's global settings.
+  ankiSettingsOverride?: AnkiReviewSettings;
   // Hide accuracy for lesson flow
   isLessonFlow?: boolean;
   // When provided, overrides the central prompt display text (e.g., show meaning instead of characters)
@@ -1009,6 +1017,7 @@ export default function ReviewQuestionScreen({
   srsProgression,
   onSRSCardDismiss,
   forceDisableAnkiGrouping = false,
+  ankiSettingsOverride,
   isLessonFlow = false,
   overridePromptText,
   audioPrompt,
@@ -1079,6 +1088,7 @@ export default function ReviewQuestionScreen({
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
     reviewCharacterFontScale,
+    reviewPromptTextColor,
     reviewInputFontScale,
     srsProgressionCardDisplayMode,
     visuallySimilarKanjiSource,
@@ -1104,16 +1114,18 @@ export default function ReviewQuestionScreen({
     [reviewCorrectKeyboardShortcuts],
   );
 
+  const resolvedAnkiScope = ankiSettingsOverride?.scope ?? ankiCardModeScope;
   const ankiModeMatchesQuestionType =
-    ankiCardModeScope === "both" || ankiCardModeScope === questionType;
+    resolvedAnkiScope === "both" || resolvedAnkiScope === questionType;
 
   // Override Anki mode settings if forced to disable grouping
-  const effectiveAnkiCardMode = ankiCardMode && ankiModeMatchesQuestionType;
+  const effectiveAnkiCardMode =
+    (ankiSettingsOverride?.enabled ?? ankiCardMode) && ankiModeMatchesQuestionType;
   const effectiveAnkiGroupQuestions = forceDisableAnkiGrouping
     ? false
     : effectiveAnkiCardMode &&
-      ankiCardModeScope === "both" &&
-      ankiGroupQuestions;
+      resolvedAnkiScope === "both" &&
+      (ankiSettingsOverride?.groupQuestions ?? ankiGroupQuestions);
   const effectiveAnkiButtonlessMode =
     effectiveAnkiCardMode && ankiButtonlessMode;
   // Regular reviews may also accept kanji, but still support kana choices.
@@ -6056,6 +6068,7 @@ export default function ReviewQuestionScreen({
                   style={[
                     styles.placeholderText,
                     overridePromptUsesJapaneseFont && fontStyles.japaneseText,
+                    reviewPromptTextColor ? { color: reviewPromptTextColor } : undefined,
                   ]}
                   numberOfLines={2}
                   adjustsFontSizeToFit

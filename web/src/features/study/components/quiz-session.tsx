@@ -1,4 +1,6 @@
 "use client";
+import { studyAsrLanguage, studyAsrAnswer } from "@/features/speech/study-asr-answer";
+import { ReviewAsrAnswer } from "@/features/speech/ReviewAsrAnswer";
 import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { ReviewAnswerChoices } from "@/features/core-study/ReviewAnswerChoices";
 import { useStableReviewChoices } from "@/features/core-study/use-review-choices";
@@ -17,7 +19,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AlertCircle, ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, ExternalLink, Headphones, LoaderCircle, Plus, RotateCcw, Search, SkipForward, Volume2, X } from "lucide-react";
 import { AnkiExportButton } from "../../anki-export/AnkiExportButton";
-import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
+import { ReviewItemMetadata } from "./ReviewItemMetadata";
 import { LoadingState } from "@/components/ui/States";
 import { AnkiAnswerContent, type AnkiAnswerContentProps } from "@/features/core-study/AnkiAnswerContent";
 import { VocabularyFrequencyBadge } from "@/features/core-study/VocabularyFrequencyBadge";
@@ -381,6 +383,8 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
     return initialQuestion ? itemDetailsTabForQuestion(initialQuestion) : "meaning";
   });
   const question = session.questions[session.currentIndex];
+  const [voiceQuestionKey, setVoiceQuestionKey] = useState<string | null>(null);
+  const voiceEntry = voiceQuestionKey === question?.id;
   const answer = question ? session.answers.find((item) => item.questionId === question.id) : undefined;
   const currentAnswerStatus = answerStatus(answer);
   const closeAnswerNeedsResolution = Boolean(answer && currentAnswerStatus === "close" && pauseOnClose);
@@ -395,18 +399,18 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   // Audio vocab uses the same answer settings as custom review.
   const customReviewPreferences = reviewPreferences;
   const reviewKind = question ? reviewKindForStudyQuestion(question) : null;
-  const ankiEnabled = Boolean(customReviewPreferences && reviewKind && usesSelfAssessment(reviewKind, customReviewPreferences));
+  const ankiEnabled = Boolean(!voiceEntry && customReviewPreferences && reviewKind && usesSelfAssessment(reviewKind, customReviewPreferences));
   const choiceSubmissionRef = useRef<string | null>(null);
   const [choiceSeed] = useState(() => String(Math.random()));
   const supportsReviewChoices = Boolean(question && ["meaning", "reading", "meaning-to-reading", "kana-to-meaning"].includes(question.kind));
   const learnedSubjectIds = useMemo(() => new Set(assignments.filter((assignment) => assignment.data.srs_stage > 0).map((assignment) => assignment.data.subject_id)), [assignments]);
-  const generated = useMemo(() => customReviewPreferences?.reviewMultipleChoiceEnabled && supportsReviewChoices && !ankiEnabled && question && !question.choices && currentSubject && reviewKind ? createReviewAnswerChoices({
+  const generated = useMemo(() => !voiceEntry && customReviewPreferences?.reviewMultipleChoiceEnabled && supportsReviewChoices && !ankiEnabled && question && !question.choices && currentSubject && reviewKind ? createReviewAnswerChoices({
     subject: currentSubject, questionType: reviewKind, subjects, learnedSubjectIds,
     meaningSynonyms: [...studyMaterials, ...savedStudyMaterials].find((material) => material.data.subject_id === currentSubject.id)?.data.meaning_synonyms,
     seed: `${choiceSeed}:${question.id}`,
-  }) : [], [customReviewPreferences?.reviewMultipleChoiceEnabled, supportsReviewChoices, ankiEnabled, question, currentSubject, reviewKind, subjects, learnedSubjectIds, studyMaterials, savedStudyMaterials, choiceSeed]);
-  const generatedChoices = useStableReviewChoices(generated, question?.id ?? "", Boolean(customReviewPreferences?.reviewMultipleChoiceEnabled && supportsReviewChoices && !ankiEnabled && !question?.choices));
-  const hasGeneratedChoices = generatedChoices.length === 4;
+  }) : [], [voiceEntry, customReviewPreferences?.reviewMultipleChoiceEnabled, supportsReviewChoices, ankiEnabled, question, currentSubject, reviewKind, subjects, learnedSubjectIds, studyMaterials, savedStudyMaterials, choiceSeed]);
+  const generatedChoices = useStableReviewChoices(generated, question?.id ?? "", Boolean(!voiceEntry && customReviewPreferences?.reviewMultipleChoiceEnabled && supportsReviewChoices && !ankiEnabled && !question?.choices));
+  const hasGeneratedChoices = !voiceEntry && generatedChoices.length === 4;
   const reviewViewportRef = useMobileReviewViewport(
     (session.mode === "custom-review" || session.mode === "recent-lessons")
     && !session.complete && Boolean(question && !question.choices) && !ankiEnabled,
@@ -525,11 +529,11 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       choiceSubmissionRef.current = question.id;
       setValue(candidate);
     }
-    if (!choice && !question.choices && kanaComposition) {
+    if (!choice && (!question.choices || voiceEntry) && kanaComposition) {
       candidate = finalizeKanaInput(candidate);
       setValue(candidate);
     }
-    const reviewKind = !question.choices ? reviewKindForStudyQuestion(question) : null;
+    const reviewKind = !question.choices || voiceEntry ? reviewKindForStudyQuestion(question) : null;
     let semanticStatus: StudyAnswerStatus | undefined = choice ? choice.isCorrect ? "correct" : "incorrect" : undefined;
     if (!choice && currentSubject && reviewKind) {
       const material = acceptUserSynonymsAsAnswers ? studyMaterialBySubjectId.get(currentSubject.id) : undefined;
@@ -720,7 +724,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       const shortcutFromChoice = event.target instanceof Element && Boolean(event.target.closest('[data-answer-choice]'));
       if (event.defaultPrevented || (!shortcutFromAnsweredInput && !shortcutFromChoice && event.target instanceof Element && event.target.closest(studyShortcutInteractiveSelector))) return;
       // Choice numbers take priority over configurable study actions while answering.
-      if (!answer && question?.choices && /^[1-4]$/.test(event.key)) {
+      if (!answer && !voiceEntry && question?.choices && /^[1-4]$/.test(event.key)) {
         const choice = question.choices[Number(event.key) - 1];
         if (choice) { event.preventDefault(); commit(choice); }
         return;
@@ -817,10 +821,10 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       <div className={styles.questionCard} data-type={question.subjectType}>
         {question.imageUrl ? <div className={styles.sceneFrame}><Image className={styles.contextImage} src={question.imageUrl} alt={`Scene from ${question.sourceTitle ?? "the listening example"}`} width={560} height={315} sizes="(max-width: 42rem) 90vw, 28rem" loader={passthroughImageLoader} unoptimized /></div> : null}
         {listeningQuestion && question.sentence ? <><div className={styles.sentencePromptSlot}><p className={styles.sentencePrompt} data-visible={!listeningSentenceRevealed} aria-hidden={listeningSentenceRevealed} lang="ja">{question.sentence.masked}</p><p className={styles.sentencePrompt} data-visible={listeningSentenceRevealed} aria-hidden={!listeningSentenceRevealed} lang="ja">{listeningSentenceRevealed ? <HighlightedListeningSentence sentence={question.sentence.ja} target={question.characters ?? currentSubject?.data.characters} /> : question.sentence.ja}</p></div>{showListeningTranslation ? <div className={styles.translationReveal}><p className={styles.sentenceTranslation} data-visible={translationRevealed} aria-hidden={!translationRevealed}>{question.sentence.en}</p><button className={styles.textButton} type="button" onClick={() => setTranslationRevealed((current) => !current)}>{translationRevealed ? "Hide translation" : "Show translation"}</button></div> : null}</> : null}
-        {question.kind === "audio-vocab" ? <AudioVocabPrompt key={question.id} ref={audioVocabPlayerRef} question={question} /> : question.audioUrl ? <button id="question-prompt" className={styles.audioButton} type="button" onClick={() => playAudio(question.audioUrl)} aria-label={`Replay listening clip${question.sourceTitle ? ` from ${question.sourceTitle}` : ""}`}><Volume2 size={29} /><span>{question.sourceTitle ? `Play ${question.sourceTitle} clip` : "Play pronunciation"}</span><kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd></button> : <h2 id="question-prompt" data-jitai-font={jitaiFamily && question.kind !== "meaning-to-reading" && !(currentSubject?.object === "radical" && !currentSubject.data.characters) ? true : undefined} data-question-kind={question.kind} data-character-scale={customReviewPreferences ? reviewCharacterScale : undefined} lang={question.kind === "meaning-to-reading" ? "en" : currentSubject?.object === "radical" && !currentSubject.data.characters ? undefined : "ja"} style={{ fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, fontSize: reviewCharacterSize, "--review-character-size": reviewCharacterSize, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties}>{currentSubject?.object === "radical" && !currentSubject.data.characters ? <SubjectCharacter subject={currentSubject} fallbackText={question.prompt} eager /> : question.prompt}</h2>}
+        {question.kind === "audio-vocab" ? <AudioVocabPrompt key={question.id} ref={audioVocabPlayerRef} question={question} /> : question.audioUrl ? <button id="question-prompt" className={styles.audioButton} type="button" onClick={() => playAudio(question.audioUrl)} aria-label={`Replay listening clip${question.sourceTitle ? ` from ${question.sourceTitle}` : ""}`}><Volume2 size={29} /><span>{question.sourceTitle ? `Play ${question.sourceTitle} clip` : "Play pronunciation"}</span><kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd></button> : <h2 id="question-prompt" data-jitai-font={jitaiFamily && question.kind !== "meaning-to-reading" && !(currentSubject?.object === "radical" && !currentSubject.data.characters) ? true : undefined} data-question-kind={question.kind} data-character-scale={customReviewPreferences ? reviewCharacterScale : undefined} lang={question.kind === "meaning-to-reading" ? "en" : currentSubject?.object === "radical" && !currentSubject.data.characters ? undefined : "ja"} style={{ color: customReviewPreferences?.reviewPromptTextColor || undefined, fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, fontSize: reviewCharacterSize, "--review-character-size": reviewCharacterSize, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties}>{currentSubject?.object === "radical" && !currentSubject.data.characters ? <SubjectCharacter subject={currentSubject} imageTone={customReviewPreferences?.reviewPromptTextColor ? "subject" : "light"} fallbackText={question.prompt} eager /> : question.prompt}</h2>}
         {showReviewPromptExtras && currentSubject ? <div className={styles.reviewPromptExtras}>
           {showVocabularyFrequency ? <VocabularyFrequencyBadge className={styles.reviewPromptFrequency} subject={currentSubject} enabled /> : null}
-          {showReviewMetadata ? <div className={styles.reviewPromptMetadata} aria-label="Question status"><span>Level {currentSubject.data.level}</span>{currentAssignment ? <span><SrsStageIcon stage={currentAssignment.data.srs_stage} size={16} />{srsStageLabel(currentAssignment.data.srs_stage)}</span> : null}</div> : null}
+          {showReviewMetadata ? <ReviewItemMetadata level={currentSubject.data.level} srsStage={currentAssignment?.data.srs_stage} hideText={reviewPreferences?.hideReviewItemLevelAndSrsStageText} /> : null}
         </div> : null}
         {showContextHint ? <div className={styles.reviewContextHint}>
           <div>{contextSentences.map((sentence, index) => <div key={`${sentence.ja}-${index}`}><p lang="ja">• {sentence.ja}</p>{contextTranslationOpen && sentence.en.trim() ? <><p>• {sentence.en}</p><AnkiExportButton japanese={sentence.ja} english={sentence.en} /></> : null}</div>)}</div>
@@ -831,7 +835,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       </div>
 
       <div className={styles.answerArea}>
-        {hasGeneratedChoices ? <><div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong></div><ReviewAnswerChoices choices={generatedChoices} selectedAnswer={answer?.value} disabled={Boolean(answer) || advancingQuestion} isReading={reviewKind === "reading"} keyboardShortcuts={keyboardShortcuts} onSelect={(choice) => commit(choice.text, choice)} continueKey={studyKeys.progress} onContinue={answer && !advancingQuestion ? () => next() : undefined} /></> : question.choices ? <><div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong></div><div className={styles.choiceGrid} role="group" aria-label="Answer choices">{question.choices.map((choice, index) => {
+        {hasGeneratedChoices ? <><div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong></div><ReviewAnswerChoices choices={generatedChoices} selectedAnswer={answer?.value} disabled={Boolean(answer) || advancingQuestion} isReading={reviewKind === "reading"} keyboardShortcuts={keyboardShortcuts} onSelect={(choice) => commit(choice.text, choice)} continueKey={studyKeys.progress} onContinue={answer && !advancingQuestion ? () => next() : undefined} /></> : question.choices && !voiceEntry ? <><div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong></div><div className={styles.choiceGrid} role="group" aria-label="Answer choices">{question.choices.map((choice, index) => {
           const selected = answer?.value === choice;
           const correctChoice = answer && question.acceptedAnswers.includes(choice);
           const result = selected ? answer?.correct ? "correct" : "incorrect" : correctChoice ? "correct-answer" : undefined;
@@ -886,9 +890,11 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
           </div>
         </form>}
 
+        <ReviewAsrAnswer language={studyAsrLanguage(question)} enabled={reviewPreferences?.reviewAsrEnabled} onStart={() => setVoiceQuestionKey(question.id)} questionKey={question.id} value={value} blocked={Boolean(answer) || advancingQuestion || reviewSettingsOpen} onTranscript={(text) => { setAnswerWarning(null); setValue(studyAsrAnswer(question, text, subjects)); }} />
+
         <div className={styles.answerStopReveal} data-answer-stop data-visible={answerStopAccessible} aria-hidden={!answerStopAccessible} inert={!answerStopAccessible ? true : undefined}>
           <div className={styles.answerStopContent}>
-            {answerWarning && !answer ? <div id="study-answer-status" className={styles.answerStatus} role="status" aria-live="polite"><span className={styles.answerVerdict} data-warning="true"><RotateCcw size={18} aria-hidden /><strong>Try another answer</strong></span><span>{answerWarning}</span></div> : answer && !question.choices ? <div id="study-answer-status" className={styles.answerStatus} role="status" aria-live="polite"><span className={styles.answerVerdict} data-correct={answer.correct} data-warning={currentAnswerStatus === "close" || undefined}>{answer.correct ? <Check size={18} /> : <X size={18} />}<strong>{currentAnswerStatus === "close" ? "Accepted with a typo" : answer.correct ? "Correct" : "Incorrect"}</strong></span>{question.kind === "audio-vocab" ? <span className={styles.audioVocabAnswer}>
+            {answerWarning && !answer ? <div id="study-answer-status" className={styles.answerStatus} role="status" aria-live="polite"><span className={styles.answerVerdict} data-warning="true"><RotateCcw size={18} aria-hidden /><strong>Try another answer</strong></span><span>{answerWarning}</span></div> : answer && (!question.choices || voiceEntry) ? <div id="study-answer-status" className={styles.answerStatus} role="status" aria-live="polite"><span className={styles.answerVerdict} data-correct={answer.correct} data-warning={currentAnswerStatus === "close" || undefined}>{answer.correct ? <Check size={18} /> : <X size={18} />}<strong>{currentAnswerStatus === "close" ? "Accepted with a typo" : answer.correct ? "Correct" : "Incorrect"}</strong></span>{question.kind === "audio-vocab" ? <span className={styles.audioVocabAnswer}>
                 <strong>{question.displayAnswer}</strong>
                 <span lang="ja">{question.reading || ankiReadingAnswer || question.characters}</span>
               </span> : currentAnswerStatus === "close" ? <span>Correct, with a small typo.</span> : !answer.correct ? <span className={styles.correctAnswer}><small>Correct answer</small><strong lang={kanaComposition ? "ja" : undefined}>{question.displayAnswer}</strong></span> : null}</div> : null}
@@ -913,8 +919,8 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
           </div>
         </div>
 
-        {(question.choices || hasGeneratedChoices || ankiEnabled) && questionCanPause ? <div className={styles.choiceActions} data-choice-actions data-visible={answerPaused} aria-hidden={!answerPaused} inert={!answerPaused ? true : undefined}><button className={styles.primaryButton} onClick={() => next()} disabled={!answerPaused || waitingForNextQuestion || advancingQuestion} tabIndex={answerPaused ? 0 : -1}>{waitingForNextQuestion ? <><LoaderCircle className={styles.spinner} size={17} /> Finding next clip</> : <>Next <ArrowRight size={17} /></>}</button></div> : null}
-        {keyboardShortcuts ? ankiEnabled ? <p className={styles.keyboardHint}>{answer ? <>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to continue</> : ankiRevealed ? <>Press <kbd>{shortcutLabel(studyKeys.markIncorrect)}</kbd> for wrong · <kbd>{shortcutLabel(studyKeys.markCorrect)}</kbd> for correct</> : <>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to reveal</>}{hasQuestionAudio ? <> · <kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd> replays audio</> : null}{detailsAvailable ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details</> : null}</p> : question.choices ? <p className={styles.keyboardHint}>{answer ? <>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to continue</> : <>Press <kbd>1</kbd>–<kbd>{Math.min(question.choices.length, 4)}</kbd> to answer</>}{hasQuestionAudio ? <> · <kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd> replays audio</> : null}{detailsAvailable ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details</> : null}</p> : hasQuestionAudio ? <p className={styles.keyboardHint}><Headphones size={15} /> Press <kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd> to replay{detailsAvailable ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details</> : null}</p> : <p className={styles.keyboardHint}>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to {closeAnswerNeedsResolution ? "mark correct" : answer ? "continue" : "check"}{detailsAvailable ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details</> : null}</p> : null}
+        {((question.choices && !voiceEntry) || hasGeneratedChoices || ankiEnabled) && questionCanPause ? <div className={styles.choiceActions} data-choice-actions data-visible={answerPaused} aria-hidden={!answerPaused} inert={!answerPaused ? true : undefined}><button className={styles.primaryButton} onClick={() => next()} disabled={!answerPaused || waitingForNextQuestion || advancingQuestion} tabIndex={answerPaused ? 0 : -1}>{waitingForNextQuestion ? <><LoaderCircle className={styles.spinner} size={17} /> Finding next clip</> : <>Next <ArrowRight size={17} /></>}</button></div> : null}
+        {keyboardShortcuts ? ankiEnabled ? <p className={styles.keyboardHint}>{answer ? <>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to continue</> : ankiRevealed ? <>Press <kbd>{shortcutLabel(studyKeys.markIncorrect)}</kbd> for wrong · <kbd>{shortcutLabel(studyKeys.markCorrect)}</kbd> for correct</> : <>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to reveal</>}{hasQuestionAudio ? <> · <kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd> replays audio</> : null}{detailsAvailable ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details</> : null}</p> : question.choices && !voiceEntry ? <p className={styles.keyboardHint}>{answer ? <>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to continue</> : <>Press <kbd>1</kbd>–<kbd>{Math.min(question.choices.length, 4)}</kbd> to answer</>}{hasQuestionAudio ? <> · <kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd> replays audio</> : null}{detailsAvailable ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details</> : null}</p> : hasQuestionAudio ? <p className={styles.keyboardHint}><Headphones size={15} /> Press <kbd>{shortcutLabel(studyKeys.replayAudio)}</kbd> to replay{detailsAvailable ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details</> : null}</p> : <p className={styles.keyboardHint}>Press <kbd>{shortcutLabel(studyKeys.progress)}</kbd> to {closeAnswerNeedsResolution ? "mark correct" : answer ? "continue" : "check"}{detailsAvailable ? <> · <kbd>{shortcutLabel(studyKeys.details)}</kbd> toggles details</> : null}</p> : null}
       </div>
     </section>
   );

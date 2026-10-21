@@ -368,7 +368,11 @@ describe("review question preferences", () => {
 
     expect(await screen.findByRole("heading", { level: 2, name: "Reviews" })).toBeInTheDocument();
 
+    const hideMetadataText = screen.getByRole("checkbox", { name: "Hide level & SRS text" });
+    expect(hideMetadataText).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: /Show item level & SRS stage/i }));
+    expect(hideMetadataText).toBeEnabled();
+    fireEvent.click(hideMetadataText);
     fireEvent.click(screen.getByRole("checkbox", { name: /Show vocabulary frequency/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Vocabulary context sentence hints/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Answer feedback sounds/i }));
@@ -384,6 +388,7 @@ describe("review question preferences", () => {
     const study = JSON.parse(window.localStorage.getItem(settingsStorageKey("Tester")) ?? "{}").study;
     expect(study).toMatchObject({
       showReviewItemLevelAndSrsStage: true,
+      hideReviewItemLevelAndSrsStageText: true,
       showVocabularyFrequency: true,
       showVocabContextSentencesInReviews: true,
       answerFeedbackSoundEnabled: false,

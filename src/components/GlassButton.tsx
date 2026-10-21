@@ -6,11 +6,12 @@ import {
   StyleProp,
   StyleSheet,
   TouchableOpacity,
+  TouchableOpacityProps,
   View,
   ViewStyle,
 } from "react-native";
 
-interface GlassButtonProps {
+interface GlassButtonProps extends Pick<TouchableOpacityProps, "disabled" | "accessibilityLabel" | "accessibilityHint" | "accessibilityState"> {
   iconName?: keyof typeof Ionicons.glyphMap;
   children?: React.ReactNode;
   onPress?: () => void;
@@ -33,6 +34,10 @@ export function GlassButton({
   iconColor = "#fff",
   iconSize = 24,
   variant = "colored",
+  disabled,
+  accessibilityLabel,
+  accessibilityHint,
+  accessibilityState,
 }: GlassButtonProps) {
   const useGlassEffect = Platform.OS === "ios" && isLiquidGlassAvailable();
 
@@ -62,10 +67,15 @@ export function GlassButton({
         style={[styles.button, style]}
         onPress={onPress}
         activeOpacity={0.7}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+        accessibilityState={accessibilityState}
       >
         <GlassView
           glassEffectStyle="regular"
-          isInteractive={true}
+          isInteractive={!disabled}
           style={styles.glassView}
         >
           {content}
@@ -98,6 +108,11 @@ export function GlassButton({
       style={[styles.button, fallbackStyle, style]}
       onPress={onPress}
       activeOpacity={0.7}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={accessibilityState}
     >
       <View style={innerStyle} />
       {content}

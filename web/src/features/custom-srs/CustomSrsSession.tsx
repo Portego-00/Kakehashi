@@ -1,4 +1,5 @@
 "use client";
+import { ReviewAsrAnswer } from "@/features/speech/ReviewAsrAnswer";
 
 import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { useReviewChoices } from "@/features/core-study/use-review-choices";
@@ -488,8 +489,9 @@ function ReadyCustomSrsSession({
   const currentWord = currentQuestion?.word;
   const currentKind = currentQuestion?.kind;
   const currentSubject = useMemo(() => currentWord ? customWordToSubject(currentWord) : null, [currentWord]);
+  const [voiceQuestionKey, setVoiceQuestionKey] = useState<string | null>(null);
   const choiceQuestionKey = `${currentWord?.id}:${currentKind}:${choiceOccurrence}`;
-  const reviewChoices = useReviewChoices({ enabled: studySettings.reviewMultipleChoiceEnabled && phase === "quiz", subject: currentSubject, kind: currentKind, questionKey: choiceQuestionKey });
+  const reviewChoices = useReviewChoices({ enabled: studySettings.reviewMultipleChoiceEnabled && voiceQuestionKey !== choiceQuestionKey && phase === "quiz", subject: currentSubject, kind: currentKind, questionKey: choiceQuestionKey });
   const hideTypedAnswer = reviewChoices.available || reviewChoices.loading;
   const currentAssignment = currentWord ? state.assignments[currentWord.id] : undefined;
   const canShowDetails = Boolean(feedback && feedback.status !== "blocked");
@@ -840,6 +842,7 @@ function ReadyCustomSrsSession({
           </button>
         </div>
       </form>}
+        <ReviewAsrAnswer language={isReadingQuestion ? "ja" : "en"} enabled={studySettings.reviewAsrEnabled} onStart={() => setVoiceQuestionKey(choiceQuestionKey)} questionKey={choiceQuestionKey} value={answer} blocked={Boolean(feedback) || committing} onTranscript={setAnswer} />
       {studySettings.reviewMultipleChoiceEnabled && !hideTypedAnswer && !feedback ? <p className={studyStyles.keyboardHint}>Not enough distinct choices for this question. Type your answer.</p> : null}
 
       <div className={coreStyles.studyTools} aria-label="Answer controls">

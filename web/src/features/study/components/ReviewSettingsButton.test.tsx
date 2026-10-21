@@ -8,6 +8,42 @@ vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme }) 
 vi.mock("@/lib/session", () => ({ useSession: () => ({ user: { data: { username: "settings-test" } } }) }));
 afterEach(() => { cleanup(); localStorage.clear(); vi.clearAllMocks(); });
 
+it("saves the icon-only metadata preference and retains it when metadata is hidden", () => {
+  render(<ReviewSettingsButton />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText("Hide level & SRS text")).toBeDisabled();
+  fireEvent.click(screen.getByLabelText("Show level and SRS stage"));
+  fireEvent.click(screen.getByLabelText("Hide level & SRS text"));
+  fireEvent.click(screen.getByLabelText("Show level and SRS stage"));
+  expect(screen.getByLabelText("Hide level & SRS text")).toBeDisabled();
+  expect(loadWebSettings(localStorage, "settings-test").study).toMatchObject({ showReviewItemLevelAndSrsStage: false, hideReviewItemLevelAndSrsStageText: true });
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  fireEvent.click(screen.getByLabelText("Show level and SRS stage"));
+  expect(screen.getByLabelText("Hide level & SRS text")).toBeChecked();
+  expect(screen.getByLabelText("Hide level & SRS text")).toBeEnabled();
+});
+
+it.each([false, true])("saves and resets the current provider's prompt color independently (Bunpro: %s)", (bunproSupported) => {
+  saveWebSettings(localStorage, "settings-test", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewPromptTextColor: "#123456", bunproReviewPromptTextColor: "#abcdef" } });
+  render(<ReviewSettingsButton bunproSupported={bunproSupported} />);
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  const label = `${bunproSupported ? "Bunpro" : "WaniKani"} prompt text color`;
+  const key = bunproSupported ? "bunproReviewPromptTextColor" : "reviewPromptTextColor";
+  const otherKey = bunproSupported ? "reviewPromptTextColor" : "bunproReviewPromptTextColor";
+  const otherColor = bunproSupported ? "#123456" : "#abcdef";
+  fireEvent.change(screen.getByLabelText(label), { target: { value: "#112233" } });
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  fireEvent.click(screen.getByRole("button", { name: "Review settings" }));
+  expect(screen.getByLabelText(label)).toHaveValue("#112233");
+  expect(loadWebSettings(localStorage, "settings-test").study[otherKey]).toBe(otherColor);
+  fireEvent.change(screen.getByLabelText(`${label} mode`), { target: { value: "default" } });
+  expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+  expect(loadWebSettings(localStorage, "settings-test").study).toMatchObject({ [key]: "", [otherKey]: otherColor });
+  fireEvent.change(screen.getByLabelText(`${label} mode`), { target: { value: "custom" } });
+  expect(screen.getByLabelText(label)).toBeInTheDocument();
+});
+
 it("saves multiple choice during a review without changing Anki preferences", () => {
   saveWebSettings(localStorage, "settings-test", { ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, ankiMode: "reading" } });
   render(<ReviewSettingsButton />);
