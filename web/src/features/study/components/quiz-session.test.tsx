@@ -42,7 +42,7 @@ vi.mock("@/lib/wanikani/client", () => ({
 
 vi.mock("@/features/notebooks/use-notebooks", () => ({ useNotebooks: () => ({ state: { version: 1, pages: [], sentences: [] }, available: false, isLoading: false, error: "" }) }));
 const asr = vi.hoisted(() => ({ active: false }));
-vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "ふせぐ"); }}>Record {language}</button> : null }));
+vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript, onAnswer }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void; onAnswer: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "ふせぐ"); onAnswer(language === "en" ? "forest" : "ふせぐ"); }}>Record {language}</button> : null }));
 vi.mock("@/lib/session", () => ({ useSession: () => ({ status: "authenticated", user: { data: { id: "test", username: "test" } }, isDemo: false }) }));
 
 vi.mock("@/features/speech/use-japanese-voice", () => ({
@@ -2066,14 +2066,14 @@ it.each([
 });
 
 
-it.each(["meaning", "reading", "meaning-to-reading", "kana-to-meaning", "listening-meaning", "listening-characters", "context", "audio-vocab"] as const)("supports editable voice answers in %s extra study with choice answers", kind => {
+it.each(["meaning", "reading", "meaning-to-reading", "kana-to-meaning", "listening-meaning", "listening-characters", "context", "audio-vocab"] as const)("automatically grades voice answers in %s extra study with choice answers", kind => {
   asr.active = true;
   try {
-    render(<QuizSession scope="test" initialSession={makeSession(makeQuestion({ kind, choices: ["ふせぐ", "もり"] }))} reviewPreferences={{ ...DEFAULT_WEB_SETTINGS.study, reviewAsrEnabled: true }} subjects={[makeSubject()]} onExit={vi.fn()} />);
+    render(<QuizSession scope="test" initialSession={makeSession(makeQuestion({ kind, choices: ["ふせぐ", "もり"] }))} reviewPreferences={{ ...DEFAULT_WEB_SETTINGS.study, reviewAsrEnabled: true, pauseOnCorrect: true }} subjects={[makeSubject()]} onExit={vi.fn()} />);
     const english = ["meaning", "kana-to-meaning", "listening-meaning", "audio-vocab"].includes(kind);
     fireEvent.click(screen.getByRole("button", { name: `Record ${english ? "en" : "ja"}` }));
     expect(screen.getByRole("textbox")).toHaveValue(english ? "forest" : "ふせぐ");
-    expect(screen.getByRole("button", { name: "Check" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Next$/ })).toBeEnabled();
     expect(screen.queryByRole("group", { name: "Answer choices" })).not.toBeInTheDocument();
   } finally { cleanup(); asr.active = false; }
 });

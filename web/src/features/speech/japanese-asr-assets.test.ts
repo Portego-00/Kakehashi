@@ -7,7 +7,8 @@ const cache = { match: vi.fn(async (url: string) => saved.get(url)?.clone()), pu
 beforeEach(() => {
   saved.clear(); vi.clearAllMocks();
   vi.stubGlobal("caches", { open: vi.fn(async () => cache), delete: vi.fn(async () => { saved.clear(); return true; }) });
-  vi.stubGlobal("isSecureContext", true); vi.stubGlobal("Worker", class {}); vi.stubGlobal("MediaRecorder", class {}); vi.stubGlobal("AudioContext", class {});
+  vi.stubGlobal("isSecureContext", true); vi.stubGlobal("Worker", class {}); vi.stubGlobal("AudioWorkletNode", class {});
+  vi.stubGlobal("MediaRecorder", class {}); vi.stubGlobal("AudioContext", class {});
   vi.stubGlobal("Blob", NodeBlob);
   Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn() } });
   vi.stubGlobal("fetch", vi.fn(async () => new Response("error", { status: 503 })));

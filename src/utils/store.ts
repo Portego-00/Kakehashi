@@ -555,6 +555,7 @@ type SettingsState = {
   activeLearningPageId: string | null; // null (or a deleted page) shows the unfiltered Home
   reviewWrapUpTargetSubjects: number; // Subjects left after tapping Wrap Up (5-20, step 5)
   reviewSearchButtonEnabled: boolean; // Show quick search button below Wrap Up during reviews
+  reviewLeftHandedMode: boolean; // Mirror review controls for left-handed use
   bunproHideFurigana: boolean;
   showDetailsOnWrongAnswer: boolean;
   answerFeedbackSoundEnabled: boolean;
@@ -764,6 +765,7 @@ type SettingsState = {
   setActiveLearningPageId: (id: string | null) => void;
   setReviewWrapUpTargetSubjects: (target: number) => void;
   setReviewSearchButtonEnabled: (enabled: boolean) => void;
+  setReviewLeftHandedMode: (enabled: boolean) => void;
   setBunproHideFurigana: (hidden: boolean) => void;
   setShowDetailsOnWrongAnswer: (enabled: boolean) => void;
   setAnswerFeedbackSoundEnabled: (enabled: boolean) => void;
@@ -953,6 +955,7 @@ export const useSettingsStore = create<SettingsState>()(
       activeLearningPageId: null,
       reviewWrapUpTargetSubjects: 10, // Default to wrap up after 10 subjects
       reviewSearchButtonEnabled: false, // Default to disabled - keep review header focused unless enabled
+      reviewLeftHandedMode: false,
       bunproHideFurigana: false,
       showDetailsOnWrongAnswer: false,
       answerFeedbackSoundEnabled: false,
@@ -1185,6 +1188,7 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       setReviewSearchButtonEnabled: (enabled) =>
         set({ reviewSearchButtonEnabled: enabled }),
+      setReviewLeftHandedMode: (enabled) => set({ reviewLeftHandedMode: enabled }),
       setBunproHideFurigana: (hidden) => set({ bunproHideFurigana: hidden }),
       setReviewPromptTextColor: (color) => set({ reviewPromptTextColor: normalizeReviewPromptTextColor(color) }),
       setBunproReviewPromptTextColor: (color) => set({ bunproReviewPromptTextColor: normalizeReviewPromptTextColor(color) }),
@@ -1518,6 +1522,7 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...currentState,
           ...persisted,
+          reviewLeftHandedMode: persisted.reviewLeftHandedMode === true,
           reviewPromptTextColor: normalizeReviewPromptTextColor(persisted.reviewPromptTextColor),
           bunproReviewPromptTextColor: normalizeReviewPromptTextColor(persisted.bunproReviewPromptTextColor),
           showLessonVocabularyUnlockCounts: persisted.showLessonVocabularyUnlockCounts === true,

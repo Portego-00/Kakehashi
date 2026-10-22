@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["heic-decode", "libheif-js"],
   outputFileTracingIncludes: {
+    "/api/review-speech/[asset]": ["./node_modules/sherpa-onnx/sherpa-onnx-wasm-nodejs.*", "./node_modules/sherpa-onnx/sherpa-onnx-asr.js", "./node_modules/sherpa-onnx/sherpa-onnx-vad.js", "./node_modules/path-browserify/index.js"],
     "/api/media-converter/[asset]": [
       "./node_modules/@ffmpeg/core/dist/esm/*",
       "./node_modules/@ffmpeg/ffmpeg/dist/esm/*.js",

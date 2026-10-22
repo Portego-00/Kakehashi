@@ -1,4 +1,5 @@
 "use client";
+import { beginReviewPlayback, watchReviewAudio } from "@/features/speech/review-playback";
 import { studyAsrLanguage, studyAsrAnswer } from "@/features/speech/study-asr-answer";
 import { ReviewAsrAnswer } from "@/features/speech/ReviewAsrAnswer";
 import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
@@ -35,7 +36,7 @@ import type { SubjectDetailInitialTab } from "@/features/subjects/components/Sub
 import { fetchSubjectEnrichments } from "@/features/subjects/enrichments";
 import { wkCollection, wkRequest } from "@/lib/wanikani/client";
 import type { Assignment, StudyMaterial, Subject } from "@/types/wanikani";
-import { advanceStudySession, answerStudyQuestion, getSessionSummary, getStudyItemProgress, } from "../engine";
+import { advanceStudySession, answerStudyQuestion, getSessionSummary, getStudyItemProgress, checkAnswer as checkStudyAnswer, } from "../engine";
 import { playAnswerFeedback } from "../feedback-audio";
 import { finalizeKanaInput } from "@/lib/kana";
 import { composeKanaInput, questionUsesKanaComposition } from "../kana-composition";
@@ -58,6 +59,7 @@ function StudySubjectDetailsLoading() {
 function playAudio(url?: string) {
   if (!url || typeof Audio === "undefined") return;
   const audio = new Audio(url);
+  watchReviewAudio(audio);
   void audio.play();
 }
 
@@ -75,6 +77,7 @@ async function playAudioSequence(
   for (const url of urls) {
     if (signal.aborted) return;
     const audio = new Audio(url);
+    watchReviewAudio(audio);
     await new Promise<void>((resolve) => {
       const finish = () => {
         audio.removeEventListener("ended", finish);
@@ -95,15 +98,16 @@ async function playAudioSequence(
   }
 }
 
+let finishSpeechPlayback: (() => void) | undefined;
 function speakJapanese(value?: string, onStopped?: () => void) {
   if (!value || typeof window === "undefined" || !window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== "function") return;
   window.speechSynthesis.cancel();
+  finishSpeechPlayback?.();
   const utterance = new SpeechSynthesisUtterance(value);
   utterance.lang = "ja-JP";
-  if (onStopped) {
-    utterance.onend = onStopped;
-    utterance.onerror = onStopped;
-  }
+  const finish = beginReviewPlayback();
+  finishSpeechPlayback = finish;
+  utterance.onend = utterance.onerror = () => { finish(); onStopped?.(); };
   window.speechSynthesis.speak(utterance);
   return utterance;
 }
@@ -207,6 +211,7 @@ function SessionResults({ scope, session, subjects, showListeningTranslation, on
     if (!sentencePlaybackRef.current) return;
     sentencePlaybackRef.current = null;
     window.speechSynthesis?.cancel();
+    finishSpeechPlayback?.();
   }, []);
   const playResultSentence = (text?: string) => {
     const playback = {};
@@ -890,7 +895,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
           </div>
         </form>}
 
-        <ReviewAsrAnswer language={studyAsrLanguage(question)} enabled={reviewPreferences?.reviewAsrEnabled} onStart={() => setVoiceQuestionKey(question.id)} questionKey={question.id} value={value} blocked={Boolean(answer) || advancingQuestion || reviewSettingsOpen} onTranscript={(text) => { setAnswerWarning(null); setValue(studyAsrAnswer(question, text, subjects)); }} />
+        <ReviewAsrAnswer language={studyAsrLanguage(question)} enabled={reviewPreferences?.reviewAsrEnabled} onStart={() => setVoiceQuestionKey(question.id)} questionKey={question.id} value={value} blocked={Boolean(answer) || advancingQuestion || reviewSettingsOpen} resolveTranscript={text => studyAsrAnswer(question, text, subjects)} onTranscript={(text) => { setAnswerWarning(null); setValue(text); }} onAnswer={text => commit(text)} isAcceptedAnswer={text => checkStudyAnswer(question, text)} />
 
         <div className={styles.answerStopReveal} data-answer-stop data-visible={answerStopAccessible} aria-hidden={!answerStopAccessible} inert={!answerStopAccessible ? true : undefined}>
           <div className={styles.answerStopContent}>

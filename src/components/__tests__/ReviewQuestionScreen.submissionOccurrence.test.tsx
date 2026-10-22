@@ -96,6 +96,7 @@ const mockSettings = {
   showJLPTLevel: false,
   reviewAnimatePreviousQuestion: false,
   reviewSearchButtonEnabled: false,
+  reviewLeftHandedMode: false,
   reviewCharacterFontScale: 1,
   reviewInputFontScale: 1,
   srsProgressionCardDisplayMode: "never",
@@ -375,6 +376,7 @@ jest.mock("../TextToKanaInput", () => {
       return (
         <TextInput
           testID="answer-input"
+          style={props.style}
           value={value}
           onChangeText={(text) => {
             latestValue.current = text;
@@ -452,6 +454,86 @@ function getSubmitButton(screen: ReturnType<typeof render>) {
 }
 
 describe("ReviewQuestionScreen question occurrences", () => {
+  it.each([false, true])("positions submit and voice controls for left-handed mode %s", async (leftHanded) => {
+    mockSettings.reviewLeftHandedMode = leftHanded;
+    mockSettings.voiceReviewAnswersEnabled = true;
+    const screen = renderAudioQuestion();
+    expect(StyleSheet.flatten(getSubmitButton(screen).props.style)).toMatchObject(
+      leftHanded ? { left: 8, right: "auto" } : { right: 8 },
+    );
+    expect(StyleSheet.flatten(screen.getByLabelText("Start voice answers").props.style)).toMatchObject(
+      leftHanded ? { left: "auto", right: 8 } : { left: 8 },
+    );
+
+    await startVoiceCapture(screen);
+    expect(StyleSheet.flatten(screen.getByLabelText("Retry voice answer").props.style)).toMatchObject(
+      leftHanded ? { left: "auto", right: 52 } : { left: 52 },
+    );
+    expect(StyleSheet.flatten(screen.getByTestId("answer-input").props.style)).toMatchObject(
+      leftHanded ? { paddingLeft: 56, paddingRight: 100 } : { paddingLeft: 100, paddingRight: 56 },
+    );
+  });
+
+  it.each([false, true])("keeps submit usable without voice in left-handed mode %s", async (leftHanded) => {
+    mockSettings.reviewLeftHandedMode = leftHanded;
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    expect(screen.queryByLabelText("Start voice answers")).toBeNull();
+    expect(StyleSheet.flatten(getSubmitButton(screen).props.style)).toMatchObject(
+      leftHanded ? { left: 8, right: "auto" } : { right: 8 },
+    );
+    fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
+    fireEvent.press(getSubmitButton(screen));
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", true, false, false));
+  });
+
+  it.each([false, true].flatMap((leftHanded) =>
+    [false, true].flatMap((details) =>
+      [false, true].map((close) => ({ leftHanded, details, close })),
+    ),
+  ))(
+    "mirrors correction controls without changing grading ($leftHanded/$details/$close)",
+    async ({ leftHanded, details, close }) => {
+      mockSettings.reviewLeftHandedMode = leftHanded;
+      mockSettings.showAnswerStopSubjectDetails = details;
+      mockSettings.disableAutoProgressOnWrong = true;
+      mockSettings.disableAutoProgressOnCloseAnswer = true;
+      const onAnswer = jest.fn();
+      const screen = renderQuestion({ onAnswer });
+      fireEvent(screen.getByTestId("answer-input"), "submitEditing", { nativeEvent: { text: close ? "grounf" : "wrong" } });
+      const correct = await screen.findByText("Mark Correct");
+      const incorrect = screen.getByText(details ? "Mark Wrong" : "Mark Incorrect");
+      let row = correct.parent!;
+      while (!row.findAll((node: typeof incorrect) => node === incorrect).length) row = row.parent!;
+      expect(StyleSheet.flatten(row.props.style).flexDirection).toBe(leftHanded && !details ? "row-reverse" : "row");
+      if (details) {
+        expect(within(row).getAllByText(/^Mark /)[0].props.children).toBe(leftHanded ? "Mark Correct" : "Mark Wrong");
+      }
+      fireEvent.press(correct);
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", true, false, false));
+    },
+  );
+
+  it.each([false, true].flatMap((leftHanded) => [false, true].map((skip) => ({ leftHanded, skip }))))(
+    "mirrors Anki buttons without changing grading ($leftHanded/$skip)",
+    async ({ leftHanded, skip }) => {
+      mockSettings.reviewLeftHandedMode = leftHanded;
+      mockSettings.ankiCardMode = true;
+      mockSettings.allowSkippingReviews = skip;
+      const onAnswer = jest.fn();
+      const screen = renderQuestion({ onAnswer, onSkip: jest.fn() });
+      fireEvent.press(screen.getByText("Tap anywhere to see the answer"));
+      const correct = screen.getByLabelText("Correct");
+      const wrong = screen.getByLabelText("Wrong");
+      let row = correct.parent!;
+      while (!row.findAll((node: typeof wrong) => node === wrong).length) row = row.parent!;
+      expect(StyleSheet.flatten(row.props.style).flexDirection).toBe(leftHanded ? "row-reverse" : "row");
+      expect(Boolean(screen.queryByLabelText("Skip"))).toBe(skip);
+      fireEvent.press(correct);
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", true, false, false));
+    },
+  );
+
   it("updates extra-study text prompts without clearing a partially typed answer", () => {
     const colors = Object.assign(mockSettings, { reviewPromptTextColor: "#123456" });
     const props = { item: radicalItem, questionType: "meaning" as const, overridePromptText: "Extra study prompt", onAnswer: jest.fn(), isLessonFlow: true };
@@ -1971,9 +2053,10 @@ describe("ReviewQuestionScreen question occurrences", () => {
       expect(claims).toBe(0);
     });
 
-    it.each(["wrong", "correct", "details", "skip"] as const)(
-      "lets a gesture on the revealed answer reach buttonless %s controls",
-      async (action) => {
+    it.each([false, true].flatMap((leftHanded) => (["wrong", "correct", "details", "skip"] as const).map((action) => ({ leftHanded, action }))))(
+      "lets a gesture on the revealed answer reach buttonless $action controls (left-handed: $leftHanded)",
+      async ({ leftHanded, action }) => {
+        mockSettings.reviewLeftHandedMode = leftHanded;
         mockSettings.ankiCardMode = true;
         mockSettings.ankiButtonlessMode = true;
         const onAnswer = jest.fn();
@@ -1985,7 +2068,8 @@ describe("ReviewQuestionScreen question occurrences", () => {
           nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 800 } },
         });
 
-        const start = { nativeEvent: { pageX: action === "wrong" ? 0 : 300, pageY: 300, target: 1 }, target: 1 };
+        const tapLeft = (action === "wrong") !== leftHanded;
+        const start = { nativeEvent: { pageX: tapLeft ? 0 : 300, pageY: 300, target: 1 }, target: 1 };
         const end = { ...start, nativeEvent: { ...start.nativeEvent, pageY: action === "details" ? 230 : action === "skip" ? 370 : 300 } };
         // Model native responder negotiation from the touched answer outward.
         // Firing the pane directly misses a TouchableOpacity stealing the touch.
@@ -1995,6 +2079,9 @@ describe("ReviewQuestionScreen question occurrences", () => {
           responder = responder.parent;
         }
         expect(responder.props.accessibilityLabel).toBe("Buttonless anki controls");
+        expect(responder.props.accessibilityHint).toContain(
+          leftHanded ? "tap left for correct, tap right for wrong" : "tap left for wrong, tap right for correct",
+        );
         fireEvent(responder, "responderGrant", start);
         fireEvent(responder, "responderMove", end);
         fireEvent(responder, "responderRelease", end);

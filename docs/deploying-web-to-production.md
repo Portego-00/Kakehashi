@@ -4,7 +4,25 @@ Production site: https://kakehashiapp.com
 
 Vercel project: **kakehashi-web**, under **portego-00s-projects**.
 
-## Current release: October 20, 2026
+## Current release: October 21, 2026 — review-screen speech download
+
+Production is **`dpl_56arhXzJqpYiTjZ1uc7GZGUosDd8`**, at https://kakehashi-2quttjpnv-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. When the on-device ASR model is missing, the shared review control now offers **Download and enable · 241 MB** directly in the review screen. It shows progress, supports cancellation and retry, preserves the current answer, and saves the voice-answer preference when complete. The control then becomes **Start voice answers**; downloading alone does not start the microphone. The existing Portego-only, non-demo gate and on-device recognition remain in place.
+
+The complete **1,240-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-21/Kakehashi/review-asr-inline-download-prod/upload`. It preserves the verified previous production source and changes only the shared voice control, its unit tests, and its browser test. Build, typecheck, and targeted lint passed. **62 speech tests**, **11 local browser checks**, **11 hosted checks**, and **10 live desktop/mobile checks** passed. The real-model browser scenario now downloads from the review screen, checks draft preservation and saved enablement, then verifies automatic Japanese and English voice submission. All uploaded source hashes were verified before promotion; temporary staging credentials were removed afterward.
+
+The immediate rollback is **`dpl_762x3KnqTQQPiCn5sLi3KstQLZpN`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-21/Kakehashi/review-handsfree-asr-prod/upload`. No environment changes, database migrations, native release, Git commit, or Git push were performed.
+
+## Previous release: October 21, 2026 — hands-free speech recognition
+
+Production is **`dpl_762x3KnqTQQPiCn5sLi3KstQLZpN`**, at https://kakehashi-44g7gormu-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. The optional **Settings → Reviews → Speech recognition** trial remains a normal collapsed section, visible only to authenticated Portego accounts and hidden for demo accounts. One **241 MB SenseVoiceSmall** model download now handles Japanese readings and English meanings entirely on-device, with Silero speech detection.
+
+Start voice answers once to continue across review questions. Finished speech submits automatically; stable accepted provisional answers can submit earlier. The control follows regular and mixed reviews, lessons, Bunpro reviews/lessons/practice, custom SRS, and extra study. Listening pauses for feedback, app playback, hidden tabs, dialogs, and manual typing. Ungraded “try another answer” results resume listening automatically. Existing answer-stop preferences still apply: disable **Pause on correct answer** for continuous progression. Japanese transcripts resolve to kana independently of the current card's accepted answer; ambiguous readings can require a retry or typing. Recognition remains imperfect, including an observed short synthetic かわ → かは error.
+
+The complete **1,240-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-21/Kakehashi/review-handsfree-asr-prod/upload`. It preserves the verified previous production source and changes only 30 web paths. Production builds and typechecks passed. The initial full unit run passed **3,238 tests** with one existing skip; after the final retry and streaming-route fixes, **287 focused tests** passed. Lint passed with three existing warnings; final changed-file lint was clean. **15 hosted checks** passed, including a fresh model download and real Japanese/English inference with one activation, silence rejection, automatic progression, and an intentionally incorrect meaning to verify grading does not copy the expected answer. **14 live desktop/mobile checks** passed; live runtime and detector hashes matched the pinned assets. All uploaded source hashes were verified before promotion. An earlier unpromoted staged build is recorded beside the final release. Temporary staging credentials were removed after verification.
+
+The immediate rollback is **`dpl_FozBTABZSA6rdGsYqLXX8E1xrN3a`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-20/Kakehashi/review-metadata-text-prod/upload`. No environment changes, database migrations, native release, Git commit, or Git push were performed.
+
+## Previous release: October 20, 2026 — metadata text
 
 Production is **`dpl_FozBTABZSA6rdGsYqLXX8E1xrN3a`**, at https://kakehashi-osoahso8i-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. It adds **Hide level & SRS text** under **Settings → Reviews → Prompt** and the in-session review settings. When enabled, regular reviews and extra study show the level number and SRS icon beneath the item, keeping the English labels available to screen readers. The setting saves automatically and preserves the current answer.
 

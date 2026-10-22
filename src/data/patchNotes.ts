@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.5.7",
+    date: "2026-10-22",
+    changes: [
+      {
+        type: "improvement",
+        title: "Crossword Grid Input",
+        description:
+          "Tap a square and type directly in the crossword. Crossing kana count automatically, and unfinished letters stay when switching clues.",
+      },
+    ],
+  },
+  {
     version: "1.5.6",
     date: "2026-10-19",
     changes: [

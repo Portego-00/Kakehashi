@@ -96,6 +96,36 @@ afterEach(() => {
   useSettingsStore.setState(useSettingsStore.getInitialState(), true);
 });
 
+it("keeps left-handed mode off by default and last in the review advanced settings", async () => {
+  expect(useSettingsStore.getInitialState().reviewLeftHandedMode).toBe(false);
+  const screen = render(<ReviewSettingsSection />);
+  await act(async () => {});
+  expect(screen.queryByLabelText("Left-Handed Mode")).toBeNull();
+  fireEvent.press(screen.getByLabelText("Advanced settings"));
+  const toggle = screen.getByLabelText("Left-Handed Mode");
+  expect(toggle.props.value).toBe(false);
+  expect(screen.getAllByRole("switch").at(-1)).toBe(toggle);
+
+  for (const enabled of [true, false]) {
+    fireEvent(screen.getByLabelText("Left-Handed Mode"), "valueChange", enabled);
+    const saved = permanentStorage.getString("wanikani-settings")!;
+    expect(JSON.parse(saved).state.reviewLeftHandedMode).toBe(enabled);
+    act(() => useSettingsStore.setState({ reviewLeftHandedMode: !enabled }));
+    permanentStorage.set("wanikani-settings", saved);
+    await act(async () => useSettingsStore.persist.rehydrate());
+    expect(screen.getByLabelText("Left-Handed Mode").props.value).toBe(enabled);
+  }
+});
+
+it.each([20, useSettingsStore.persist.getOptions().version])(
+  "preserves the default layout for existing settings at version %s",
+  async (version) => {
+    permanentStorage.set("wanikani-settings", JSON.stringify({ state: { ankiCardMode: true }, version }));
+    await useSettingsStore.persist.rehydrate();
+    expect(useSettingsStore.getState()).toMatchObject({ reviewLeftHandedMode: false, ankiCardMode: true });
+  },
+);
+
 it("keeps full font cycling off and hidden until advanced settings are expanded", async () => {
   expect(useSettingsStore.getInitialState().jitaiCycleAllFonts).toBe(false);
   const screen = render(<ReviewSettingsSection />);

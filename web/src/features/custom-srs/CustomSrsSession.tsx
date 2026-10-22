@@ -842,7 +842,7 @@ function ReadyCustomSrsSession({
           </button>
         </div>
       </form>}
-        <ReviewAsrAnswer language={isReadingQuestion ? "ja" : "en"} enabled={studySettings.reviewAsrEnabled} onStart={() => setVoiceQuestionKey(choiceQuestionKey)} questionKey={choiceQuestionKey} value={answer} blocked={Boolean(feedback) || committing} onTranscript={setAnswer} />
+        <ReviewAsrAnswer language={isReadingQuestion ? "ja" : "en"} enabled={studySettings.reviewAsrEnabled} onStart={() => setVoiceQuestionKey(choiceQuestionKey)} questionKey={choiceQuestionKey} value={answer} blocked={Boolean(feedback) || committing} onTranscript={setAnswer} onAnswer={submitValue} isAcceptedAnswer={text => Boolean(currentSubject && currentKind && checkAnswer(currentSubject, currentKind, text).status === "correct")} />
       {studySettings.reviewMultipleChoiceEnabled && !hideTypedAnswer && !feedback ? <p className={studyStyles.keyboardHint}>Not enough distinct choices for this question. Type your answer.</p> : null}
 
       <div className={coreStyles.studyTools} aria-label="Answer controls">

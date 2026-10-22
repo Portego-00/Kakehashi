@@ -10,7 +10,7 @@ import type { CustomSrsAssignment, CustomSrsState, CustomVocabularyPack, CustomV
 import { createCustomQuestionQueue, CustomSrsSession } from "./CustomSrsSession";
 
 const asr = vi.hoisted(() => ({ active: false }));
-vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "もり"); }}>Record {language}</button> : null }));
+vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript, onAnswer }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void; onAnswer: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "もり"); onAnswer(language === "en" ? "forest" : "もり"); }}>Record {language}</button> : null }));
 const hook = vi.hoisted(() => ({
   state: null as CustomSrsState | null,
   error: "",
@@ -865,7 +865,7 @@ describe("custom vocabulary lesson and review sessions", () => {
     expect(await screen.findByRole("textbox", { name: /Vocabulary (Meaning|Reading)/ })).toBeInTheDocument();
     expect(hook.refresh).toHaveBeenCalledOnce();
   });
-  it.each(["meaning", "reading"])("offers editable %s voice answers in custom SRS with Multiple Choice enabled", async kind => {
+  it.each(["meaning", "reading"])("automatically grades %s voice answers in custom SRS with Multiple Choice enabled", async kind => {
     localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewAsrEnabled: true, reviewMultipleChoiceEnabled: true, reviewQuestionOrderEnabled: true, reviewQuestionOrder: kind === "meaning" ? "meaning-first" : "reading-first" } }));
     const pack: CustomVocabularyPack = { id: "voice-test", title: "Words", description: "Words", script: "kanji", words: [{ ...cat, characters: "猫", reading: "ねこ" }] };
     hook.state = stateFor(pack, { [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
@@ -874,7 +874,7 @@ describe("custom vocabulary lesson and review sessions", () => {
       renderSession("reviews", [pack]);
       fireEvent.click(await screen.findByRole("button", { name: `Record ${kind === "meaning" ? "en" : "ja"}` }));
       expect(screen.getByRole("textbox")).toHaveValue(kind === "meaning" ? "forest" : "もり");
-      expect(screen.getByRole("button", { name: "Check" })).toBeEnabled();
+      expect(await screen.findByText("Incorrect")).toBeVisible();
       expect(hook.submitReview).not.toHaveBeenCalled();
     } finally { asr.active = false; }
   });

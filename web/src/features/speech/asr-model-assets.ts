@@ -5,7 +5,7 @@ type ModelAsset = { readonly path: string; readonly bytes: number };
 export function supportsLocalAsr() {
   return typeof window !== "undefined" && window.isSecureContext
     && typeof caches !== "undefined" && typeof Worker !== "undefined"
-    && typeof WebAssembly !== "undefined" && typeof MediaRecorder !== "undefined"
+    && typeof WebAssembly !== "undefined" && typeof AudioWorkletNode !== "undefined"
     && typeof AudioContext !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
 }
 
@@ -81,7 +81,7 @@ export function createAsrModel(config: { root: string; cache: string; assets: re
           signal.throwIfAborted();
           pulse();
           const ranged = part.asset.bytes > partBytes;
-          const response = await fetch(url, { cache: "no-store", credentials: "omit", signal: controller.signal,
+          const response = await fetch(url, { cache: "no-store", credentials: config.root.startsWith("/") ? "same-origin" : "omit", signal: controller.signal,
             headers: ranged ? { Range: `bytes=${part.start}-${part.end}` } : undefined,
           });
           if (!response.ok || !response.body) throw new Error(`Speech recognition download failed (HTTP ${response.status}).`);

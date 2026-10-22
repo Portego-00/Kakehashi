@@ -1087,6 +1087,7 @@ export default function ReviewQuestionScreen({
     showJLPTLevel,
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
+    reviewLeftHandedMode,
     reviewCharacterFontScale,
     reviewPromptTextColor,
     reviewInputFontScale,
@@ -4043,6 +4044,10 @@ export default function ReviewQuestionScreen({
       );
     }
 
+    if (reviewLeftHandedMode) {
+      buttons.reverse();
+    }
+
     if (canReplayPausedAudio) {
       buttons.push(
         renderPausedDetailsActionButton({
@@ -4886,7 +4891,8 @@ export default function ReviewQuestionScreen({
     // necessarily relative to the review pane.
     const { left, width: hitAreaWidth } = buttonlessGestureBoundsRef.current;
     const isLeftHalfTap = event.nativeEvent.pageX < left + hitAreaWidth / 2;
-    if (isLeftHalfTap) handleAnkiWrongButton();
+    const isWrongTap = reviewLeftHandedMode ? !isLeftHalfTap : isLeftHalfTap;
+    if (isWrongTap) handleAnkiWrongButton();
     else handleAnkiAnswerButton(true);
   };
 
@@ -6018,7 +6024,9 @@ export default function ReviewQuestionScreen({
           }
           accessibilityHint={
             effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed && !ankiWrongOptionsVisible
-              ? "Tap a kanji card for its details. Elsewhere, tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
+              ? reviewLeftHandedMode
+                ? "Tap a kanji card for its details. Elsewhere, tap left for correct, tap right for wrong, swipe up for details, swipe down to skip"
+                : "Tap a kanji card for its details. Elsewhere, tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
               : undefined
           }
           layout={
@@ -6646,7 +6654,11 @@ export default function ReviewQuestionScreen({
               )}
               {isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode && !ankiWrongOptionsVisible && (
                 <Animated.View
-                  style={[styles.ankiButtonSection, ankiButtonSectionStyle]}
+                  style={[
+                    styles.ankiButtonSection,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                    ankiButtonSectionStyle,
+                  ]}
                 >
                   <TouchableOpacity
                     style={[
@@ -6847,7 +6859,12 @@ export default function ReviewQuestionScreen({
                   {renderAudioAnswerReading()}
                 </View>
 
-                <View style={styles.pausedPrimaryActions}>
+                <View
+                  style={[
+                    styles.pausedPrimaryActions,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                  ]}
+                >
                   <TouchableOpacity
                     style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
                     onPress={handleProgressAsWrong}
@@ -6968,7 +6985,12 @@ export default function ReviewQuestionScreen({
                   {renderAudioAnswerReading()}
                 </View>
 
-                <View style={styles.pausedPrimaryActions}>
+                <View
+                  style={[
+                    styles.pausedPrimaryActions,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                  ]}
+                >
                   <TouchableOpacity
                     style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
                     onPress={handleProgressAsWrong}
@@ -7190,6 +7212,10 @@ export default function ReviewQuestionScreen({
                         (isVoiceRecognizing
                           ? styles.answerInputVoiceModeDual
                           : styles.answerInputVoiceMode),
+                      isVoiceReviewEnabled &&
+                        isVoiceRecognizing &&
+                        reviewLeftHandedMode &&
+                        styles.answerInputVoiceModeDualMirrored,
                       {
                         backgroundColor: theme.isDark ? "#000000" : "white",
                         color: theme.isDark ? "#ffffff" : "#000000",
@@ -7234,6 +7260,10 @@ export default function ReviewQuestionScreen({
                             (isVoiceRecognizing
                               ? styles.answerInputVoiceModeDual
                               : styles.answerInputVoiceMode),
+                          isVoiceReviewEnabled &&
+                            isVoiceRecognizing &&
+                            reviewLeftHandedMode &&
+                            styles.answerInputVoiceModeDualMirrored,
                           {
                             backgroundColor: theme.isDark ? "#000000" : "white",
                             fontSize: reviewAnswerInputFontSize,
@@ -7254,6 +7284,7 @@ export default function ReviewQuestionScreen({
                       <TouchableOpacity
                         style={[
                           styles.voiceButtonInside,
+                          reviewLeftHandedMode && styles.voiceButtonInsideMirrored,
                           voiceSessionEnabled ? styles.voiceButtonActive : null,
                         ]}
                         onPress={handleVoiceAnswerButton}
@@ -7270,7 +7301,10 @@ export default function ReviewQuestionScreen({
 
                       {isVoiceRecognizing && (
                         <TouchableOpacity
-                          style={styles.voiceRetryButtonInside}
+                          style={[
+                            styles.voiceRetryButtonInside,
+                            reviewLeftHandedMode && styles.voiceRetryButtonInsideMirrored,
+                          ]}
                           onPress={handleRetryVoiceRecognition}
                           accessibilityRole="button"
                           accessibilityLabel="Retry voice answer"
@@ -7289,6 +7323,7 @@ export default function ReviewQuestionScreen({
                   <TouchableOpacity
                     style={[
                       styles.submitButtonInside,
+                      reviewLeftHandedMode && styles.submitButtonInsideMirrored,
                       hasCorrectAccent
                         ? styles.correctButton
                         : hasCloseAccent
@@ -7655,6 +7690,21 @@ const styles = StyleSheet.create({
   voiceButtonActive: {
     backgroundColor: "#d32f2f",
   },
+  submitButtonInsideMirrored: {
+    left: 8,
+    right: "auto",
+  },
+  voiceButtonInsideMirrored: {
+    left: "auto",
+    right: 8,
+  },
+  voiceRetryButtonInsideMirrored: {
+    left: "auto",
+    right: 52,
+  },
+  mirroredReviewActions: {
+    flexDirection: "row-reverse",
+  },
   voiceRetryButtonInside: {
     position: "absolute",
     left: 52,
@@ -7971,6 +8021,10 @@ const styles = StyleSheet.create({
   answerInputVoiceModeDual: {
     paddingLeft: 100,
     paddingRight: 56,
+  },
+  answerInputVoiceModeDualMirrored: {
+    paddingLeft: 56,
+    paddingRight: 100,
   },
   correctButton: {
     backgroundColor: "#4caf50",

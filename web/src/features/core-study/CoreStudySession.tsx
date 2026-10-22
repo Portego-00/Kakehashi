@@ -1,4 +1,5 @@
 "use client";
+import { watchReviewAudio } from "@/features/speech/review-playback";
 
 import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { studyShortcutAction, shortcutLabel, DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
@@ -682,6 +683,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     const audios = preferredAudiosFor(subject, preferences.vocabularyAudioVoice);
     for (let index = 0; index < audios.length; index += 1) {
       const player = new Audio(audios[index].url);
+      watchReviewAudio(player);
       if (index === audios.length - 1) {
         await player.play().catch(() => undefined);
         continue;
@@ -1327,7 +1329,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
         {speechError ? <p className={styles.error} role="alert">{speechError}</p> : null}
         {!hideTypedAnswer ? renderedAnswerFeedback : null}
         <div className={quiz.reviewAnswerControls}>
-          {localAsrAllowed ? <ReviewAsrAnswer language={current.kind === "reading" ? "ja" : "en"} enabled={preferences.reviewAsrEnabled} onStart={() => { recognitionRef.current?.stop(); setVoiceQuestionKey(choiceQuestionKey); }} questionKey={choiceQuestionKey} value={answer} blocked={Boolean(feedback) || advancingQuestion || mixed?.active === false || listDialogOpen || reviewSettingsOpen} onTranscript={(text) => { setAnswer(text); setSpeechError(""); }} /> : null}
+          {localAsrAllowed ? <ReviewAsrAnswer language={current.kind === "reading" ? "ja" : "en"} enabled={preferences.reviewAsrEnabled} onStart={() => { recognitionRef.current?.stop(); setVoiceQuestionKey(choiceQuestionKey); }} questionKey={choiceQuestionKey} value={answer} blocked={Boolean(feedback) || advancingQuestion || replayingAudio || mixed?.active === false || listDialogOpen || reviewSettingsOpen} onTranscript={(text) => { setAnswer(text); setSpeechError(""); }} onAnswer={submitValue} isAcceptedAnswer={text => checkAnswer(current.subject, current.kind, text, preferences.acceptUserSynonymsAsAnswers ? material : undefined, current.kind === "reading" ? { singleKanjiReadings, acceptAnyKanjiOnyomiReading: preferences.acceptAnyKanjiOnyomiReading } : undefined).status === "correct"} /> : null}
           {preferences.voiceAnswers && !localAsrAllowed && !selfAssessment && !multipleChoiceEnabled ? <Button className={quiz.textButton} type="button" tone="ghost" disabled={!voiceAvailable || listening || Boolean(feedback)} aria-label={!voiceAvailable ? "Voice answer unavailable" : listening ? "Listening for voice answer" : "Voice answer"} onClick={startVoiceAnswer}><Mic size={17} aria-hidden /><span>{listening ? "Listening…" : "Voice"}</span></Button> : null}
           {feedback && feedback.status !== "blocked" ? <div className={quiz.closeAnswerActions} aria-label="Answer result controls">
             <Button aria-label="Mark Incorrect" className={quiz.correctionButton} type="button" tone="ghost" disabled={advancingQuestion || addSynonymMutation.isPending} onMouseDown={preservePhoneInputFocus} onClick={() => !unresolvedCloseAnswer && !lastCorrect ? advance() : markAnswer(false)}><X size={17} aria-hidden />Mark Incorrect{preferences.keyboardShortcuts ? <kbd aria-hidden>{!unresolvedCloseAnswer && !lastCorrect ? shortcutLabel(studyKeys.progress) : shortcutLabel(studyKeys.markIncorrect)}</kbd> : null}</Button>

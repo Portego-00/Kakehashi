@@ -34,3 +34,10 @@ it("only offers the chooser for grouped meaning and reading cards", () => {
   act(() => useSettingsStore.setState({ ankiGroupQuestions: true, ankiCardModeScope: "reading" }));
   expect(screen.queryByLabelText("Ask which part was wrong")).toBeNull();
 });
+
+it("updates the buttonless instructions with the left-handed preference", () => {
+  const screen = render(<AnkiSettingsScreen />);
+  expect(screen.getByText(/After reveal: tap left for incorrect, tap right for correct/)).toBeTruthy();
+  act(() => useSettingsStore.getState().setReviewLeftHandedMode(true));
+  expect(screen.getByText(/After reveal: tap left for correct, tap right for incorrect/)).toBeTruthy();
+});

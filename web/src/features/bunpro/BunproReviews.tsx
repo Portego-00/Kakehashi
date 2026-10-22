@@ -257,9 +257,9 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
     if (preferences.answerFeedbackSoundEnabled) playAnswerFeedback(correct);
     if (correct || !preferences.showDetailsOnWrongAnswer) void advance(undefined, graded);
   }
-  function check() {
-    if (!current || !content || outcome || saving || composing.current || !input.trim()) return;
-    const submitted = questionKind === "reading" ? finalizeKanaInput(input) : input;
+  function check(candidate = input) {
+    if (!current || !content || outcome || saving || composing.current || !candidate.trim()) return;
+    const submitted = questionKind === "reading" ? finalizeKanaInput(candidate) : candidate;
     setInput(submitted);
     const correct = questionKind === "meaning" ? displayAnswers.some((value) => normalizeMeaning(value) === normalizeMeaning(submitted)) : collectAcceptedAnswers(question).includes(normalizeAnswer(submitted));
     const alternate = buildAnswerFeedbackMap(question.alternate_answers).get(normalizeAnswer(submitted));
@@ -522,7 +522,7 @@ export function BunproReviews({ initialMode, lessonSession, onContinueLessons, m
         </form>}
         {hint ? <div id={`${helperId}-feedback`} role="status" className={!outcome ? styles.closeFeedback : quiz.answerStatus}>{!outcome ? <strong><TriangleAlert size={19} aria-hidden /> Close — try another answer</strong> : null}<p>{hint}</p></div> : null}
         <div className={`${styles.answerControls} ${quiz.reviewTools} ${quiz.reviewAnswerControls}`} aria-label="Answer controls">
-          {localAsrAllowed ? <ReviewAsrAnswer language={questionKind === "meaning" ? "en" : "ja"} enabled={preferences.reviewAsrEnabled} questionKey={currentKey} value={input} blocked={Boolean(outcome) || saving || mixed?.active === false || reviewSettingsOpen} onStart={() => { recognitionRef.current?.stop(); setVoiceQuestionKey(currentKey); }} onTranscript={setInput} /> : null}
+          {localAsrAllowed ? <ReviewAsrAnswer language={questionKind === "meaning" ? "en" : "ja"} enabled={preferences.reviewAsrEnabled} questionKey={currentKey} value={input} blocked={Boolean(outcome) || saving || audio.playing || mixed?.active === false || reviewSettingsOpen} onStart={() => { recognitionRef.current?.stop(); setVoiceQuestionKey(currentKey); }} onTranscript={setInput} onAnswer={check} isAcceptedAnswer={text => questionKind === "meaning" ? displayAnswers.some(value => normalizeMeaning(value) === normalizeMeaning(text)) : collectAcceptedAnswers(question).includes(normalizeAnswer(text))} /> : null}
           {preferences.voiceAnswers && !localAsrAllowed && !outcome ? <Button type="button" tone="ghost" aria-label="Answer with voice" disabled={listening || saving} onClick={startVoiceAnswer}><Mic size={18} aria-hidden />{listening ? "Listening…" : "Speak"}</Button> : null}
           {content.kind === "grammar" ? <Button tone="ghost" aria-label={`Hint level ${hintLevel} of 4`} onClick={() => setHintLevel((level) => (level + 1) % 5)}><Lightbulb size={17} aria-hidden />Hint <span className={styles.hintDots} aria-hidden>{Array.from({ length: 4 }, (_, i) => <span key={i} data-active={i < hintLevel} />)}</span></Button> : null}
           {outcome ? <>
