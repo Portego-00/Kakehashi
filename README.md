@@ -103,6 +103,14 @@ filter as Custom Review, including kana vocabulary. **Select Filtered** adds all
 confirmed matches, including those beyond the displayed results. Cached ranks
 work offline; remaining words can be checked with Jiten and retried if interrupted.
 
+## Custom Review dates
+
+In **Custom Review → Filters → Date**, choose **Lesson completed** or **Unlocked**,
+then pick a **Start** and **End** date. Both options default to the last 7 days.
+Dates include both selected days in your local time. Select individual subjects or **Select Filtered**, then use the study
+button to review them or **Add to Lists** to save them to Subject Lists. Recent
+Lessons keeps its existing shortcut behavior.
+
 ## Review character size
 
 Use **Settings → Review Settings → Review Character Size** on mobile, or

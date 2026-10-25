@@ -140,6 +140,7 @@ export interface WebSettings {
   subjectDetails: {
     showContextSentences: boolean;
     showImmersionExamples: boolean;
+    showYouGlishContext?: boolean;
     showPitchAccent: boolean;
     showKanjiReadingExamples: boolean;
     showStrokeOrder: boolean;
@@ -329,6 +330,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   subjectDetails: {
     showContextSentences: true,
     showImmersionExamples: true,
+    showYouGlishContext: false,
     showPitchAccent: false,
     showKanjiReadingExamples: true,
     showStrokeOrder: true,
@@ -563,6 +565,7 @@ export function readWebSettings(storage: Pick<ListStorage, "getItem">, username:
     subjectDetails: {
       showContextSentences: typeof parsed.subjectDetails?.showContextSentences === "boolean" ? parsed.subjectDetails.showContextSentences : DEFAULT_WEB_SETTINGS.subjectDetails.showContextSentences,
       showImmersionExamples: typeof parsed.subjectDetails?.showImmersionExamples === "boolean" ? parsed.subjectDetails.showImmersionExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showImmersionExamples,
+      showYouGlishContext: parsed.subjectDetails?.showYouGlishContext === true,
       showPitchAccent: typeof parsed.subjectDetails?.showPitchAccent === "boolean" ? parsed.subjectDetails.showPitchAccent : DEFAULT_WEB_SETTINGS.subjectDetails.showPitchAccent,
       showKanjiReadingExamples: typeof parsed.subjectDetails?.showKanjiReadingExamples === "boolean" ? parsed.subjectDetails.showKanjiReadingExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showKanjiReadingExamples,
       showStrokeOrder: typeof parsed.subjectDetails?.showStrokeOrder === "boolean" ? parsed.subjectDetails.showStrokeOrder : DEFAULT_WEB_SETTINGS.subjectDetails.showStrokeOrder,

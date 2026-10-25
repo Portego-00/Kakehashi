@@ -1,4 +1,5 @@
 import { toHiragana } from "wanakana";
+import { sanitizeStudyDateFilter } from "../../../../src/utils/studyDateFilter";
 import { createAudioVocabCard } from "../../../../src/utils/audioVocabStudy";
 import type { PronunciationAudioVoicePreference } from "../../../../src/utils/pronunciationAudio";
 import { ALL_ANIME_SOURCE } from "@/features/anime/types";
@@ -557,6 +558,7 @@ export function sanitizeStudyFilters(value: Partial<StudyFilters> | null | undef
   const animeSources = Array.isArray(source.animeSources) ? source.animeSources.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 100) : [];
   return {
     count: Number.isFinite(source.count) ? Math.min(100, Math.max(5, Math.round(source.count! / 5) * 5)) : 20,
+    studyDate: sanitizeStudyDateFilter(source.studyDate),
     useCustomLevelRange: source.useCustomLevelRange === true,
     subjectTypes: Array.isArray(source.subjectTypes) ? source.subjectTypes.filter((type): type is SubjectType => validTypes.has(type)) : [...DEFAULT_STUDY_FILTERS.subjectTypes],
     srsGroups: Array.isArray(source.srsGroups) ? source.srsGroups.filter((group): group is SrsGroup => validGroups.has(group)) : [...DEFAULT_STUDY_FILTERS.srsGroups],

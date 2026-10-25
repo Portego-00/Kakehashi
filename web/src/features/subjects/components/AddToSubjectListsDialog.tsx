@@ -13,7 +13,8 @@ export type SubjectListsState = Pick<
 
 export interface AddToSubjectListsDialogProps {
   open: boolean;
-  subjectId: number;
+  subjectId?: number;
+  subjectIds?: number[];
   subjectLabel: string;
   subjectType: string;
   subjectLists: SubjectListsState;
@@ -23,6 +24,7 @@ export interface AddToSubjectListsDialogProps {
 export function AddToSubjectListsDialog({
   open,
   subjectId,
+  subjectIds,
   subjectLabel,
   subjectType,
   subjectLists,
@@ -54,6 +56,7 @@ export function AddToSubjectListsDialog({
     {open ? <AddToSubjectListsDialogContent
       titleId={titleId}
       subjectId={subjectId}
+      subjectIds={subjectIds}
       subjectLabel={subjectLabel}
       subjectType={subjectType}
       subjectLists={subjectLists}
@@ -65,6 +68,7 @@ export function AddToSubjectListsDialog({
 function AddToSubjectListsDialogContent({
   titleId,
   subjectId,
+  subjectIds,
   subjectLabel,
   subjectType,
   subjectLists,
@@ -76,6 +80,8 @@ function AddToSubjectListsDialogContent({
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
+  const targetIds = useMemo(() => [...new Set((subjectIds ?? [subjectId]).filter((id): id is number => typeof id === "number" && Number.isInteger(id) && id > 0))], [subjectId, subjectIds]);
+  const appendOnly = subjectIds !== undefined;
 
   const lists = useMemo(() => {
     const receivedIds = new Set(subjectLists.lists.map((list) => list.id));
@@ -83,7 +89,7 @@ function AddToSubjectListsDialogContent({
   }, [pendingLists, subjectLists.lists]);
 
   const isSelected = (listId: string, subjectIds: number[]) =>
-    membershipOverrides.get(listId) ?? subjectIds.includes(subjectId);
+    membershipOverrides.get(listId) ?? (!appendOnly && subjectId !== undefined && subjectIds.includes(subjectId));
 
   const toggleList = (listId: string, currentlySelected: boolean) => {
     setMembershipOverrides((current) => {
@@ -118,8 +124,12 @@ function AddToSubjectListsDialogContent({
 
   const save = () => {
     if (saving) return;
-    if (!Number.isInteger(subjectId) || subjectId <= 0) {
+    if (!targetIds.length) {
       setActionError("No subject was selected.");
+      return;
+    }
+    if (appendOnly && ![...membershipOverrides.values()].some(Boolean)) {
+      setActionError("Select at least one list.");
       return;
     }
 
@@ -129,15 +139,16 @@ function AddToSubjectListsDialogContent({
       const timestamp = new Date().toISOString();
       let changed = false;
       const nextLists = subjectLists.repository.load().map((list) => {
-        const included = list.subjectIds.includes(subjectId);
+        const included = !appendOnly && subjectId !== undefined && list.subjectIds.includes(subjectId);
         const selected = membershipOverrides.get(list.id) ?? included;
-        if (included === selected) return list;
+        const nextIds = selected
+          ? [...new Set([...list.subjectIds, ...targetIds])]
+          : appendOnly ? list.subjectIds : list.subjectIds.filter((id) => !targetIds.includes(id));
+        if (nextIds.length === list.subjectIds.length && nextIds.every((id, index) => id === list.subjectIds[index])) return list;
         changed = true;
         return {
           ...list,
-          subjectIds: selected
-            ? [...list.subjectIds, subjectId]
-            : list.subjectIds.filter((id) => id !== subjectId),
+          subjectIds: nextIds,
           updatedAt: timestamp,
         };
       });

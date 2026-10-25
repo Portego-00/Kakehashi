@@ -103,6 +103,7 @@ import {
   withAlpha,
 } from "../utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../utils/store";
+import { MediaContextSource } from "./MediaContextSource";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { MnemonicTag } from "./MnemonicTag";
@@ -363,6 +364,8 @@ const SubjectContent = ({
   setSpeakingSentenceId,
   subjectTypeColor,
   showAllSections = false,
+  active = true,
+  onYouGlishSelect,
 }: {
   subject: any;
   tabIndex: number;
@@ -385,6 +388,8 @@ const SubjectContent = ({
   setSpeakingSentenceId: Dispatch<SetStateAction<string | null>>;
   subjectTypeColor: string;
   showAllSections?: boolean;
+  active?: boolean;
+  onYouGlishSelect?: () => void;
 }) => {
   const display = useLearningDisplay();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -471,6 +476,13 @@ const SubjectContent = ({
   const [mediaSentences, setMediaSentences] = useState<ImmersionKitSentence[]>(
     []
   );
+  const mediaPlaybackRequestRef = useRef(0);
+  const stopContextAudio = () => {
+    ++mediaPlaybackRequestRef.current;
+    onYouGlishSelect?.();
+    setPlayingMediaSentence(null);
+    setLoadingMediaSentence(null);
+  };
   const [loadingMediaSentences, setLoadingMediaSentences] = useState(false);
   const [playingMediaSentence, setPlayingMediaSentence] = useState<
     number | null
@@ -1883,6 +1895,7 @@ const SubjectContent = ({
     index: number,
     sentenceId: string
   ) => {
+    const requestId = ++mediaPlaybackRequestRef.current;
     try {
       const speedMultiplier = getSentenceSpeed(sentenceId);
 
@@ -1933,14 +1946,20 @@ const SubjectContent = ({
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: sentence.audio },
           {
-            shouldPlay: true,
+            shouldPlay: false,
             rate: speedMultiplier,
             shouldCorrectPitch: true,
           }
         );
 
+        if (requestId !== mediaPlaybackRequestRef.current) {
+          await newSound.unloadAsync();
+          return;
+        }
+
         setSound(newSound);
         setLoadingMediaSentence(null);
+        await newSound.playAsync();
 
         newSound.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded && status.didJustFinish) {
@@ -2466,9 +2485,9 @@ const SubjectContent = ({
 
     // Helper to render media context sentences
     const renderMediaContextSentences = () => {
-      if (!showMediaContextSentences) return null;
       return (
-        <View style={styles.infoSection}>
+        <MediaContextSource query={subject.data.characters ?? ""} active={active && isVocabularyContextTab} onYouGlishSelect={stopContextAudio}>
+        {showMediaContextSentences ? <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>Media Context Sentences</Text>
           {loadingMediaSentences && validMediaSentences.length === 0 && (
             <Text style={styles.noteText}>Loading examples...</Text>
@@ -2614,7 +2633,8 @@ const SubjectContent = ({
               )}
             </View>
           )}
-        </View>
+        </View> : null}
+        </MediaContextSource>
       );
     };
 
@@ -3928,6 +3948,7 @@ const SubjectContent = ({
                   {renderCustomContextSentences()}
 
                   {/* Media Context Sentences */}
+                  <MediaContextSource query={subject.data.characters ?? ""} active={active && isVocabularyContextTab} onYouGlishSelect={stopContextAudio}>
                   {showMediaContextSentences && (
                     <>
                       <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
@@ -4115,6 +4136,7 @@ const SubjectContent = ({
                         )}
                     </>
                   )}
+                  </MediaContextSource>
                 </View>
               )}
             </View>
@@ -4343,6 +4365,7 @@ const SubjectContent = ({
                   {renderCustomContextSentences()}
 
                   {/* Media Context Sentences */}
+                  <MediaContextSource query={subject.data.characters ?? ""} active={active && isVocabularyContextTab} onYouGlishSelect={stopContextAudio}>
                   {showMediaContextSentences && (
                     <>
                       <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
@@ -4530,6 +4553,7 @@ const SubjectContent = ({
                         )}
                     </>
                   )}
+                  </MediaContextSource>
                 </View>
               )}
             </View>
@@ -4768,6 +4792,20 @@ export default function LessonDetailScreen({
   const [speakingSentenceId, setSpeakingSentenceId] = useState<string | null>(
     null
   );
+  const stopLessonContextAudio = () => {
+    ++audioPlaybackRequestIdRef.current;
+    const current = soundRef.current;
+    soundRef.current = null;
+    if (current) {
+      current.setOnPlaybackStatusUpdate(null);
+      void current.unloadAsync().catch(() => {});
+    }
+    void azureSpeechService.stop();
+    setSound(null);
+    setPlayingAudioId(null);
+    setLoadingAudioId(null);
+    setSpeakingSentenceId(null);
+  };
 
   useEffect(() => {
     soundRef.current = sound;
@@ -5539,6 +5577,8 @@ export default function LessonDetailScreen({
                   // Single page scrollable view - all content in one scroll
                   <SubjectContent
                     subject={pageSubject}
+                    active={isCurrentPage}
+                    onYouGlishSelect={stopLessonContextAudio}
                     tabIndex={0}
                     relatedSubjects={relatedSubjects}
                     onSubjectPress={onSubjectPress}
@@ -5566,6 +5606,8 @@ export default function LessonDetailScreen({
                     renderScene={({ route }) => (
                       <SubjectContent
                         subject={pageSubject}
+                        active={isCurrentPage && index === pageRoutes.findIndex((item) => item.key === route.key)}
+                        onYouGlishSelect={stopLessonContextAudio}
                         tabIndex={pageRoutes.findIndex(
                           (r) => r.key === route.key
                         )}

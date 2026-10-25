@@ -7,6 +7,16 @@ import {
   SearchFilterModal,
 } from "../SearchFilterModal";
 
+jest.mock("react-native-reanimated", () => ({
+  __esModule: true,
+  default: { View: jest.requireActual("react-native").View },
+  Easing: { bezier: () => 0 },
+  ReduceMotion: { System: "system" },
+  useSharedValue: (value: number) => ({ value }),
+  useAnimatedStyle: (updater: () => object) => updater(),
+  withTiming: (value: number) => value,
+}));
+
 jest.mock("@expo/vector-icons", () => {
   const React = jest.requireActual("react");
   const { Text } = jest.requireActual("react-native");
@@ -77,6 +87,45 @@ describe("SearchFilterModal vocabulary types", () => {
     expect(screen.getByLabelText("Vocab type: Proper noun")).toBeTruthy();
     expect(currentFilters.vocabularyTypes).toEqual(["proper noun"]);
     expect(props.onApply).not.toHaveBeenCalled();
+  });
+});
+
+describe("Custom Review date controls", () => {
+  it("picks both range endpoints in the calendar and keeps them ordered", () => {
+    const onApply = jest.fn();
+    const screen = render(<SearchFilterModal visible showDateFilters currentFilters={{ ...createDefaultSearchFilters(), studyDate: { field: "unlocked_at", period: "custom", from: "2020-10-01", to: "2020-10-03" } }} onClose={jest.fn()} onApply={onApply} />);
+    const dayLabel = (day: number) => new Date(2020, 9, day).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+    expect(screen.queryByLabelText(dayLabel(2))).toBeNull();
+    fireEvent.press(screen.getByLabelText("Start date"));
+    fireEvent.press(screen.getByLabelText(dayLabel(2)));
+    expect(screen.queryByLabelText(dayLabel(1))).toBeNull();
+    fireEvent.press(screen.getByLabelText("End date"));
+    fireEvent.press(screen.getByLabelText(dayLabel(1)));
+    fireEvent.press(screen.getByRole("button", { name: "Apply Filters" }));
+    expect(onApply.mock.calls[0][0].studyDate).toEqual({ field: "unlocked_at", period: "custom", from: "2020-10-01", to: "2020-10-01" });
+  });
+  it("keeps a calendar range pending until Apply and clears it with Any date", () => {
+    const currentFilters = createDefaultSearchFilters();
+    const onApply = jest.fn();
+    const screen = render(<SearchFilterModal visible showDateFilters currentFilters={currentFilters} onClose={jest.fn()} onApply={onApply} />);
+    fireEvent.press(screen.getByLabelText("Lesson completed"));
+    expect(screen.getByLabelText("Start date")).toBeTruthy();
+    expect(screen.getByLabelText("End date")).toBeTruthy();
+    expect(screen.queryByLabelText("Choose month and year")).toBeNull();
+    fireEvent.press(screen.getByLabelText("Start date"));
+    expect(screen.getByLabelText("Choose month and year")).toBeTruthy();
+    expect(currentFilters.studyDate).toBeUndefined();
+    expect(onApply).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByRole("button", { name: "Apply Filters" }));
+    expect(onApply.mock.calls[0][0].studyDate).toMatchObject({ field: "started_at", period: "custom" });
+    fireEvent.press(screen.getByLabelText("Any date"));
+    fireEvent.press(screen.getByRole("button", { name: "Apply Filters" }));
+    expect(onApply.mock.calls[1][0].studyDate).toBeNull();
+  });
+
+  it("does not show date controls on other filter screens", () => {
+    const screen = render(<SearchFilterModal visible currentFilters={createDefaultSearchFilters()} onClose={jest.fn()} onApply={jest.fn()} />);
+    expect(screen.queryByText("Lesson completed")).toBeNull();
   });
 });
 

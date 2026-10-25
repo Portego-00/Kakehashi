@@ -8,7 +8,7 @@ const mockSettings = { immersionKitAnimes: ["Test anime"], myAnimeListUsername: 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("../../../services/immersionKitService", () => ({ searchImmersionKit: jest.fn() }));
 jest.mock("../../../hooks/useBunproAudio", () => ({ useBunproAudio: () => ({ play: mockPlay, loadingKey: null, playingKey: null }) }));
-jest.mock("../../../utils/store", () => ({ useSettingsStore: () => mockSettings, useAuthStore: (selector: (state: unknown) => unknown) => selector({ userData: { level: 21 } }) }));
+jest.mock("../../../utils/store", () => ({ useSettingsStore: () => mockSettings, useAuthStore: (selector?: (state: unknown) => unknown) => { const state = { userData: { level: 21 } }; return selector ? selector(state) : state; } }));
 jest.mock("../../../utils/theme", () => ({ useTheme: () => ({ theme: { textColor: "black", textSecondary: "gray", border: "gray" } }) }));
 
 beforeEach(() => jest.clearAllMocks());

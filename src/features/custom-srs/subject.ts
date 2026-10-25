@@ -88,5 +88,6 @@ export function customVocabularyWordToDetails(
     audioFiles: getNativeCustomVocabularyAudio(word.id),
     srsStage: assignment?.stage,
     nextReviewAt: assignment?.availableAt ?? undefined,
+    burnedAt: assignment?.burnedAt,
   };
 }

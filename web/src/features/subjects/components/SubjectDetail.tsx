@@ -32,6 +32,7 @@ import { SubjectHistory } from "./SubjectHistory";
 import { SubjectCharacter } from "./SubjectCharacter";
 import { EmbeddedSubjectHeader } from "./EmbeddedSubjectHeader";
 import { StrokeOrder } from "./StrokeOrder";
+import { MediaContextSource, useYouGlishAccess } from "./MediaContextSource";
 import styles from "../subjects.module.css";
 
 function ConstellationIcon() {
@@ -590,6 +591,7 @@ export function SubjectDetailPanels({
   showVocabularyFrequency = false,
   autoplayPronunciation = false,
 }: SubjectDetailPanelsProps) {
+  const youGlishEnabled = useYouGlishAccess(settings.showYouGlishContext);
   const detailsRef = useRef<HTMLDivElement>(null);
   const [moreExpanded, setMoreExpanded] = useState(false);
   const [moreVisited, setMoreVisited] = useState(false);
@@ -616,6 +618,7 @@ export function SubjectDetailPanels({
     isVocabulary && (
       (settings.showContextSentences && record.data.context_sentences?.length)
       || (settings.showImmersionExamples && record.data.characters)
+      || (youGlishEnabled && record.data.characters)
       || (settings.showPatternsOfUse && usagePatterns.length)
     ),
   );
@@ -714,7 +717,9 @@ export function SubjectDetailPanels({
         {hasContextContent ? <section id={panelId("context")} role="tabpanel" aria-labelledby={tabId("context")} aria-hidden={resolvedActiveTab !== "context"} inert={resolvedActiveTab !== "context" ? true : undefined} data-tab-position={tabPosition("context")} className={styles.detailPanelStack} style={tabPagerStyle("context")}>
           {settings.showPatternsOfUse && usagePatterns.length ? <UsagePatterns patterns={usagePatterns} /> : null}
           {settings.showContextSentences && record.data.context_sentences?.length ? <ContextSentences sentences={record.data.context_sentences} /> : null}
-          {settings.showImmersionExamples && isVocabulary ? <AnimeContext examples={immersionExamples} query={characters} loading={immersionLoading} failed={immersionFailed} /> : null}
+          {isVocabulary ? <MediaContextSource query={characters} enabled={settings.showYouGlishContext} active={resolvedActiveTab === "context"}>
+            {settings.showImmersionExamples ? <AnimeContext examples={immersionExamples} query={characters} loading={immersionLoading} failed={immersionFailed} /> : null}
+          </MediaContextSource> : null}
         </section> : null}
       </DetailPager>
       {compact ? <div className={styles.reviewMore}>

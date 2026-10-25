@@ -27,6 +27,7 @@ import type { AnimeListProvider } from "@/features/anime/types";
 import { CustomSrsSettingsSection } from "@/features/custom-srs/CustomSrsSettings";
 import { waniKaniUserId } from "@/lib/wanikani/user-identity";
 import { canAccessCustomSrs } from "@/features/custom-srs/access";
+import { isPortegoUsername } from "../../../../../src/utils/portegoAccess";
 import { canAccessLevelGoals } from "../../../../../src/features/level-goals/model";
 import { DashboardWidgetPreview } from "@/features/dashboard/DashboardWidgetPreview";
 import { JAPANESE_VOICE_DOWNLOAD_LABEL, JAPANESE_VOICE_NAME } from "@/features/speech/japanese-voice-assets";
@@ -455,6 +456,7 @@ function LoadedSettingsWorkspace({ username, settings }: { username: string; set
         <ToggleRow setting="patterns" label="Show vocabulary patterns of use" description="Add selectable collocation patterns and examples to vocabulary context." checked={settings.subjectDetails.showPatternsOfUse} onChange={(value) => updateSubjectDetails("showPatternsOfUse", value)} />
         <ToggleRow setting="wk-context" label="Show WaniKani context sentences" description="Include the official example sentences supplied with vocabulary subjects." checked={settings.subjectDetails.showContextSentences} onChange={(value) => updateSubjectDetails("showContextSentences", value)} />
         <ToggleRow setting="media-context" label="Show anime context examples" description="Look up an ImmersionKit scene using your saved anime source preferences." checked={settings.subjectDetails.showImmersionExamples} onChange={(value) => updateSubjectDetails("showImmersionExamples", value)} />
+        {!isDemo && isPortegoUsername(username) ? <ToggleRow setting="media-context" label="YouGlish Context" description="Add a YouGlish source in vocabulary Context tabs to find Japanese video examples of the current word. Loads YouGlish and YouTube when selected." checked={settings.subjectDetails.showYouGlishContext === true} onChange={(value) => updateSubjectDetails("showYouGlishContext", value)} /> : null}
       </Card>
     </section>
 

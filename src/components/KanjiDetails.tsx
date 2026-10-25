@@ -127,6 +127,7 @@ interface KanjiDetailsProps {
     readingIncorrect?: number;
     percentageCorrect?: number;
     nextReviewAt?: string;
+    burnedAt?: string | null;
     onEditNote?: (type: "meaning" | "reading") => void;
     meaningCurrentStreak?: number;
     meaningMaxStreak?: number;
@@ -1731,11 +1732,15 @@ export default function KanjiDetails({
                           { color: theme.textSecondary },
                         ]}
                       >
-                        Next review:{" "}
+                        {kanji.srsStage === 9 ? "Burned on: " : "Next review: "}
                         <Text
                           style={{ fontWeight: "600", color: theme.textColor }}
                         >
-                          {formatNextReviewTime(kanji.nextReviewAt)}
+                          {kanji.srsStage === 9
+                            ? kanji.burnedAt
+                              ? new Date(kanji.burnedAt).toLocaleDateString()
+                              : "Date unavailable"
+                            : formatNextReviewTime(kanji.nextReviewAt)}
                         </Text>
                       </Text>
                     </View>

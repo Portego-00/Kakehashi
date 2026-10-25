@@ -21,6 +21,8 @@ import { JLPT_LEVELS, type JLPTLevel } from "../utils/jlptClassification";
 import { useSubjectColors } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
 import { VocabularyTypeFilter } from "./vocabulary-type-filter";
+import { StudyDateFilterControls } from "./StudyDateFilterControls";
+import type { StudyDateFilter } from "../utils/studyDateFilter";
 
 // Duplicate the type here to avoid circular dependency if it's not exported centrally
 // In a real scenario, this should be imported from a shared types file
@@ -46,6 +48,7 @@ export interface SearchFilters {
   jlptLevels: Set<JLPTLevel>;
   maxFrequencyRank: number | null;
   vocabularyTypes: string[];
+  studyDate?: StudyDateFilter | null;
 }
 
 export const createDefaultSearchFilters = (): SearchFilters => ({
@@ -68,6 +71,7 @@ interface SearchFilterModalProps {
   showFrequencyFilters?: boolean;
   frequencyFiltersEnabled?: boolean;
   onEnableFrequencyFilters?: () => void;
+  showDateFilters?: boolean;
 }
 
 export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
@@ -80,6 +84,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   showFrequencyFilters = false,
   frequencyFiltersEnabled = true,
   onEnableFrequencyFilters,
+  showDateFilters = false,
 }) => {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
@@ -882,6 +887,11 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
               })}
             </View>
           </View>
+
+          {showDateFilters ? <View style={styles.filterSection}>
+            <Text style={[styles.filterSectionTitle, { color: theme.textSecondary }]}>Date</Text>
+            <StudyDateFilterControls value={filtersToDisplay.studyDate} onChange={(studyDate) => setPendingFilters((current) => current ? { ...current, studyDate } : null)} />
+          </View> : null}
           </ScrollView>
 
           <View style={styles.modalFooter}>

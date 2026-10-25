@@ -95,6 +95,7 @@ interface RadicalDetailsProps {
     meaningIncorrect?: number;
     percentageCorrect?: number;
     nextReviewAt?: string;
+    burnedAt?: string | null;
     onEditNote?: () => void;
   };
   progressionStatus: "loading" | "success" | "offline";
@@ -930,11 +931,15 @@ export default function RadicalDetails({
                           { color: theme.textSecondary },
                         ]}
                       >
-                        Next review:{" "}
+                        {radical.srsStage === 9 ? "Burned on: " : "Next review: "}
                         <Text
                           style={{ fontWeight: "600", color: theme.textColor }}
                         >
-                          {formatNextReviewTime(radical.nextReviewAt)}
+                          {radical.srsStage === 9
+                            ? radical.burnedAt
+                              ? new Date(radical.burnedAt).toLocaleDateString()
+                              : "Date unavailable"
+                            : formatNextReviewTime(radical.nextReviewAt)}
                         </Text>
                       </Text>
                     </View>

@@ -30,6 +30,9 @@ export function VocabularyContextSection() {
     setShowJLPTLevel,
     showContextSentenceSpeedControl,
     showMediaContextSentences,
+    showYouGlishContext,
+    setShowYouGlishContext,
+    isPortegoUser,
     showPatternsOfUse,
     showPitchAccent,
     showSimilarVocabulary,
@@ -143,6 +146,15 @@ export function VocabularyContextSection() {
               thumbColor="#f4f3f4"
             />
           </View>
+
+          {isPortegoUser ? <View style={[styles.settingItem, { borderBottomColor: "transparent" }]}>
+            <SettingsRowIcon setting="media-context" color={theme.primary} />
+            <View style={styles.settingTextContainer}>
+              <SettingsLabel style={[styles.settingText, { color: theme.textColor }]}>YouGlish Context</SettingsLabel>
+              <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>Add a YouGlish source in vocabulary Context tabs to find Japanese video examples of the current word. Loads YouGlish and YouTube when selected.</Text>
+            </View>
+            <Switch accessibilityLabel="YouGlish Context" value={showYouGlishContext} onValueChange={setShowYouGlishContext} trackColor={{ false: "#767577", true: theme.primary }} thumbColor="#f4f3f4" />
+          </View> : null}
 
           <AdvancedSetting>
             <View

@@ -1,12 +1,11 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { ThemeContext, type ThemeMode } from "./theme-context";
 
-export type ThemeMode = "system" | "light" | "dark" | "midnight" | "sepia";
-type ThemeContextValue = { theme: ThemeMode; resolvedTheme: Exclude<ThemeMode, "system">; setTheme: (theme: ThemeMode) => void };
+export type { ThemeMode } from "./theme-context";
 
 const STORAGE_KEY = "kakehashi-web-theme";
-const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 

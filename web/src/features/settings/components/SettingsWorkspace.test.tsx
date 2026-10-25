@@ -63,6 +63,22 @@ beforeEach(() => {
   routerMock.replace.mockReset();
 });
 
+it("offers default-off YouGlish Context only to Portego and persists the choice", async () => {
+  localStorage.clear();
+  expect(DEFAULT_WEB_SETTINGS.subjectDetails.showYouGlishContext).toBe(false);
+  const view = render(<SettingsWorkspace />);
+  expect(screen.queryByRole("checkbox", { name: /YouGlish Context/ })).toBeNull();
+  sessionMock.user.data.username = "Portego";
+  view.rerender(<SettingsWorkspace />);
+  const toggle = await screen.findByRole("checkbox", { name: /YouGlish Context/ });
+  expect(toggle).not.toBeChecked();
+  fireEvent.click(toggle);
+  await waitFor(() => expect(JSON.parse(localStorage.getItem(settingsStorageKey("Portego"))!).subjectDetails.showYouGlishContext).toBe(true));
+  view.unmount();
+  render(<SettingsWorkspace />);
+  expect(await screen.findByRole("checkbox", { name: /YouGlish Context/ })).toBeChecked();
+});
+
 it("includes JPDB tools in the demo without showing a personal credential field", async () => {
   window.localStorage.clear();
   sessionMock.isDemo = true;

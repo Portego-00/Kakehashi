@@ -862,6 +862,7 @@ export default function SubjectDetailsScreen() {
       meaningIncorrect,
       percentageCorrect: reviewStatistics?.data?.percentage_correct || 100,
       nextReviewAt,
+      burnedAt: assignmentData?.data?.burned_at,
       onEditNote: () => handleEditNote("meaning"),
     };
   };
@@ -941,6 +942,7 @@ export default function SubjectDetailsScreen() {
       readingMaxStreak,
       percentageCorrect: reviewStatistics?.data?.percentage_correct || 100,
       nextReviewAt,
+      burnedAt: assignmentData?.data?.burned_at,
       onEditNote: handleEditNote,
     };
   };
@@ -1010,6 +1012,7 @@ export default function SubjectDetailsScreen() {
       readingMaxStreak,
       percentageCorrect: reviewStatistics?.data?.percentage_correct || 100,
       nextReviewAt,
+      burnedAt: assignmentData?.data?.burned_at,
       onEditNote: handleEditNote,
     };
   };

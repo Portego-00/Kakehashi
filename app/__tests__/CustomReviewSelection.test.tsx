@@ -13,6 +13,9 @@ import CustomReviewSelectionScreen from "../(app)/custom-review-selection";
 import { EXTRA_STUDY_CONFIG_STORAGE_KEYS } from "../../src/utils/extraStudyConfigPersistence";
 import { getAllSubjects } from "../../src/utils/cache";
 import { clearExtraStudySessionState } from "../../src/utils/extraStudySessionPersistence";
+import { getAllAssignmentsCached } from "../../src/utils/api";
+import { addSubjectsToLists, getSubjectLists } from "../../src/utils/subjectLists";
+import type { StudyDateFilter } from "../../src/utils/studyDateFilter";
 
 const mockSetShowVocabularyFrequency = jest.fn();
 type MockItemType =
@@ -29,6 +32,7 @@ type MockSearchFilters = {
   jlptLevels: Set<MockJlptLevel>;
   maxFrequencyRank: number | null;
   vocabularyTypes: string[];
+  studyDate?: StudyDateFilter | null;
 };
 type MockSearchFilterModalProps = {
   visible: boolean;
@@ -193,6 +197,7 @@ jest.mock("../../src/utils/subjectColors", () => ({
 }));
 
 jest.mock("../../src/utils/subjectLists", () => ({
+  addSubjectsToLists: jest.fn().mockResolvedValue(undefined),
   getSubjectIdSetForListIds: jest.fn().mockResolvedValue(new Set()),
   getSubjectLists: jest.fn().mockResolvedValue([]),
   syncSubjectListsNow: jest.fn().mockResolvedValue(undefined),
@@ -269,6 +274,8 @@ describe("Custom Review filter selection persistence", () => {
     mockedAsyncStorage.getItem.mockResolvedValue(null);
     mockedAsyncStorage.setItem.mockResolvedValue(undefined);
     (getAllSubjects as jest.Mock).mockResolvedValue([]);
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [] });
+    (getSubjectLists as jest.Mock).mockResolvedValue([]);
   });
 
   it.each([
@@ -361,6 +368,7 @@ describe("Custom Review filter selection persistence", () => {
       jlptLevels: new Set(["N2"]),
       maxFrequencyRank: 2500,
       vocabularyTypes: ["proper noun"],
+      studyDate: null,
     };
     fireEvent.press(await openFilters(screen, "Filters, 1 active"));
 
@@ -380,7 +388,33 @@ describe("Custom Review filter selection persistence", () => {
       jlptLevels: ["N2"],
       maxFrequencyRank: 2500,
       vocabularyTypes: ["proper noun"],
+      studyDate: null,
     });
+  });
+
+  it.each(["started_at", "unlocked_at"] as const)("selects, reviews and saves only %s date matches", async (field) => {
+    const dated = { field, period: "custom" as const, from: "2026-10-01", to: "2026-10-02" };
+    (getAllSubjects as jest.Mock).mockResolvedValue([1, 2, 3].map((id) => ({ id, object: "kanji", data: { characters: `字${id}`, level: 1, meanings: [{ meaning: `Word ${id}`, primary: true }], readings: [] } })));
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [
+      { data: { subject_id: 1, srs_stage: 1, started_at: "2026-10-01T12:00:00Z", unlocked_at: "2026-09-01T12:00:00Z" } },
+      { data: { subject_id: 2, srs_stage: 0, started_at: null, unlocked_at: "2026-10-02T12:00:00Z" } },
+      { data: { subject_id: 3, srs_stage: 1, started_at: "2026-09-01T12:00:00Z", unlocked_at: "2026-09-01T12:00:00Z" } },
+    ] });
+    (getSubjectLists as jest.Mock).mockResolvedValue([{ id: "target", name: "Practice later", subjectIds: [3], createdAt: "", updatedAt: "" }]);
+    const screen = render(<CustomReviewSelectionScreen />);
+    await openFilters(screen, "Filters, 1 active");
+    mockNextAppliedFilters = { ...latestSearchFilterModalProps()!.currentFilters, studyDate: dated };
+    fireEvent.press(screen.getByLabelText("Apply filters from test modal"));
+    fireEvent.press(await screen.findByLabelText("Select 1 ready subjects"));
+    const selectedId = field === "started_at" ? 1 : 2;
+    fireEvent.press(screen.getByLabelText("Add selected subjects to lists"));
+    fireEvent.press(await screen.findByText("Practice later"));
+    fireEvent.press(screen.getByText("Add"));
+    await waitFor(() => expect(addSubjectsToLists).toHaveBeenCalledWith(["target"], [selectedId]));
+    await waitFor(() => expect(screen.queryByLabelText("Close add to lists modal")).toBeNull());
+    fireEvent.press(screen.getByText("Standard Review (1)"));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith({ pathname: "/custom-review", params: { subjectIds: String(selectedId), reviewMode: "standard" } }));
+    expect(latestSavedCustomReviewConfig().studyDate).toEqual(dated);
   });
 
   it("applies a vocabulary type before the result limit and updates bulk selection", async () => {

@@ -1,4 +1,5 @@
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
+import type { StudyDateFilter } from "../../../../src/utils/studyDateFilter";
 
 export type StudyModeId =
   | "recent-lessons"
@@ -50,6 +51,7 @@ export type WordSearchDirection = "kanji-to-kana" | "kana-to-kanji";
 export type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
 export interface StudyFilters {
+  studyDate?: StudyDateFilter | null;
   count: number;
   useCustomLevelRange: boolean;
   subjectTypes: SubjectType[];

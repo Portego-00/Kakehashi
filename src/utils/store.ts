@@ -625,6 +625,7 @@ type SettingsState = {
   showSimilarVocabulary: boolean;
   showSingleKanjiVocabularySimilarKanji: boolean;
   showMediaContextSentences: boolean;
+  showYouGlishContext: boolean;
   hideContextSentenceTranslations: boolean;
   hideContextSentenceTranslationsCompletely: boolean;
   showContextSentenceSpeedControl: boolean;
@@ -839,6 +840,7 @@ type SettingsState = {
   setShowSimilarVocabulary: (show: boolean) => void;
   setShowSingleKanjiVocabularySimilarKanji: (show: boolean) => void;
   setShowMediaContextSentences: (show: boolean) => void;
+  setShowYouGlishContext: (show: boolean) => void;
   setHideContextSentenceTranslations: (hide: boolean) => void;
   setHideContextSentenceTranslationsCompletely: (hide: boolean) => void;
   setShowContextSentenceSpeedControl: (show: boolean) => void;
@@ -1027,6 +1029,7 @@ export const useSettingsStore = create<SettingsState>()(
       showSimilarVocabulary: false, // Default to disabled (optional similar reading/meaning lookup)
       showSingleKanjiVocabularySimilarKanji: false, // Default to disabled (optional similar kanji for one-kanji vocabulary)
       showMediaContextSentences: true, // Default to enabled (show media context sentences)
+      showYouGlishContext: false,
       hideContextSentenceTranslations: false, // Default to disabled (show translations immediately)
       hideContextSentenceTranslationsCompletely: false, // Default to keeping translations available
       showContextSentenceSpeedControl: false, // Default to disabled (hide per-sentence speed controls)
@@ -1310,6 +1313,7 @@ export const useSettingsStore = create<SettingsState>()(
         set({ showSingleKanjiVocabularySimilarKanji: show }),
       setShowMediaContextSentences: (show) =>
         set({ showMediaContextSentences: show }),
+      setShowYouGlishContext: (show) => set({ showYouGlishContext: show }),
       setHideContextSentenceTranslations: (hide) =>
         set({ hideContextSentenceTranslations: hide }),
       setHideContextSentenceTranslationsCompletely: (hide) =>
@@ -1523,6 +1527,7 @@ export const useSettingsStore = create<SettingsState>()(
           ...currentState,
           ...persisted,
           reviewLeftHandedMode: persisted.reviewLeftHandedMode === true,
+          showYouGlishContext: persisted.showYouGlishContext === true,
           reviewPromptTextColor: normalizeReviewPromptTextColor(persisted.reviewPromptTextColor),
           bunproReviewPromptTextColor: normalizeReviewPromptTextColor(persisted.bunproReviewPromptTextColor),
           showLessonVocabularyUnlockCounts: persisted.showLessonVocabularyUnlockCounts === true,

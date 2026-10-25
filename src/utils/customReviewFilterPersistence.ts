@@ -1,6 +1,7 @@
 import type { WaniKaniItemType } from "../types/wanikani";
 import { JLPT_LEVELS, type JLPTLevel } from "./jlptClassification";
 import { normalizeVocabularyTypes } from "./vocabularyTypeFilter";
+import { sanitizeStudyDateFilter, type StudyDateFilter } from "./studyDateFilter";
 
 const CUSTOM_REVIEW_FILTER_CONFIG_VERSION = 1 as const;
 const CUSTOM_REVIEW_ITEM_TYPES: readonly WaniKaniItemType[] = [
@@ -19,6 +20,7 @@ export interface CustomReviewFilterState {
   jlptLevels: Set<JLPTLevel>;
   maxFrequencyRank: number | null;
   vocabularyTypes: string[];
+  studyDate?: StudyDateFilter | null;
 }
 
 export interface PersistedCustomReviewFilters {
@@ -30,6 +32,7 @@ export interface PersistedCustomReviewFilters {
   jlptLevels: JLPTLevel[];
   maxFrequencyRank: number | null;
   vocabularyTypes: string[];
+  studyDate?: StudyDateFilter | null;
 }
 
 function sanitizeLevel(value: unknown, fallback: number): number {
@@ -82,6 +85,7 @@ export function serializeCustomReviewFilters(
     jlptLevels: JLPT_LEVELS.filter((level) => filters.jlptLevels.has(level)),
     maxFrequencyRank: filters.maxFrequencyRank,
     vocabularyTypes: normalizeVocabularyTypes(filters.vocabularyTypes),
+    studyDate: sanitizeStudyDateFilter(filters.studyDate),
   };
 }
 
@@ -120,6 +124,7 @@ export function restoreCustomReviewFilters(
       fallback.jlptLevels,
     ),
     maxFrequencyRank,
+    studyDate: sanitizeStudyDateFilter(stored.studyDate),
     vocabularyTypes: Array.isArray(stored.vocabularyTypes)
       ? normalizeVocabularyTypes(
           stored.vocabularyTypes.filter((value) => typeof value === "string"),
