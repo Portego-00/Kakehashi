@@ -2948,6 +2948,7 @@ export default function SongLyricsScreen() {
           {supportsNativeHeaderStudyMenu ? (
             <SwiftUI.Host matchContents style={styles.headerActionHost}>
               <SwiftUI.Menu
+                modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
                 label={
                   <SwiftUI.RNHostView matchContents>
                     <GlassButton

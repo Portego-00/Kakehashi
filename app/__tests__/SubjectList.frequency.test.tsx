@@ -75,6 +75,9 @@ jest.mock("@expo/ui/swift-ui", () => {
     ),
   };
 });
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  buttonStyle: (style: string) => ({ $type: "buttonStyle", style }),
+}));
 jest.mock("../../src/components/GlassButton", () => {
   const { TouchableOpacity } = jest.requireActual("react-native");
   return { GlassButton: ({ iconName, accessibilityLabel, ...props }: { iconName: string; accessibilityLabel?: string }) => (

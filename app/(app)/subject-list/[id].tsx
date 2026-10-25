@@ -84,6 +84,8 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 const DEFAULT_ACTIVE_SRS_STAGES = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 const HIDE_MEANINGS_STORAGE_KEY = "subject_list_hide_meanings";
 const AUDIO_VOICE_STORAGE_KEY = "subject_list_audio_voice";
@@ -1036,7 +1038,7 @@ export default function SubjectListEditorScreen() {
     if (Platform.OS === "ios" && SwiftUI) {
       return (
         <SwiftUI.Host matchContents style={styles.headerIconButton}>
-          <SwiftUI.Menu label={
+          <SwiftUI.Menu modifiers={[SwiftUIModifiers.buttonStyle("plain")]} label={
             <SwiftUI.RNHostView matchContents>
               <View accessibilityLabel="Selected item actions" accessibilityRole="button">
                 {trigger}
@@ -1320,6 +1322,7 @@ export default function SubjectListEditorScreen() {
             {Platform.OS === "ios" && SwiftUI ? (
               <SwiftUI.Host matchContents style={styles.headerIconButton}>
                 <SwiftUI.Menu
+                  modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
                   label={
                     <SwiftUI.RNHostView matchContents>
                       <GlassButton

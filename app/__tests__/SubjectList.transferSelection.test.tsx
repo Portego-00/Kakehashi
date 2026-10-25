@@ -74,9 +74,9 @@ jest.mock("@expo/ui/swift-ui", () => {
   const { View, TouchableOpacity, Text } = jest.requireActual("react-native");
   return {
     Host: View, RNHostView: View,
-    Menu: ({ label, children }: { label: React.ReactNode; children: React.ReactNode }) => {
+    Menu: ({ label, children, modifiers }: { label: React.ReactNode; children: React.ReactNode; modifiers?: unknown[] }) => {
       const [open, setOpen] = React.useState(false);
-      return <View>
+      return <View testID="native-list-menu" modifiers={modifiers}>
         <TouchableOpacity onPress={() => setOpen(true)}>{label}</TouchableOpacity>
         {open ? React.Children.map(children, (child) => {
           if (!React.isValidElement<{ onPress?: () => void }>(child)) return child;
@@ -89,6 +89,9 @@ jest.mock("@expo/ui/swift-ui", () => {
     ),
   };
 });
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  buttonStyle: (style: string) => ({ $type: "buttonStyle", style }),
+}));
 jest.mock("../../src/components/GlassButton", () => {
   const { TouchableOpacity } = jest.requireActual("react-native");
   return {
@@ -334,6 +337,15 @@ describe("list action selection", () => {
     expect(screen.getByLabelText("Selected item actions").props.accessibilityState.disabled).toBe(true);
     expect(screen.queryByText("Remove Selected")).toBeNull();
     fireEvent.press(screen.getByLabelText("Select Two for list actions"));
+    if (platform === "ios") {
+      const menus = screen.getAllByTestId("native-list-menu");
+      expect(menus).toHaveLength(2);
+      for (const menu of menus) {
+        expect(menu.props.modifiers).toEqual(
+          expect.arrayContaining([{ $type: "buttonStyle", style: "plain" }]),
+        );
+      }
+    }
     expect(screen.queryByText("Review Selected")).toBeNull();
     fireEvent.press(screen.getByLabelText("Selected item actions"));
     for (const label of ["Remove Selected", "Transfer Selected", "Review Selected", "Flashcard Selected"]) {

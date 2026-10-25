@@ -54,6 +54,8 @@ import { supportsNativeTabs } from "@/src/utils/nativeTabs";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 
 const CAROUSEL_TAP_COOLDOWN_MS = 120;
 type OtherNewsSortMode = "date" | "knownKanji";
@@ -405,7 +407,7 @@ export default function NewsScreen() {
 
   const renderSortControl = () => Platform.OS === "ios" && SwiftUI ? (
     <SwiftUI.Host matchContents style={styles.sortMenuHost}>
-      <SwiftUI.Menu label={
+      <SwiftUI.Menu modifiers={[SwiftUIModifiers.buttonStyle("plain")]} label={
         <SwiftUI.RNHostView matchContents>
           <GlassButton iconName="swap-vertical" iconSize={18} iconColor={theme.textColor}
             style={styles.sortMenuButton} variant={theme.isDark ? "colored" : "light"} />
@@ -451,6 +453,7 @@ export default function NewsScreen() {
         {Platform.OS === "ios" && SwiftUI ? (
           <SwiftUI.Host matchContents style={styles.sortMenuHost}>
             <SwiftUI.Menu
+              modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
               label={
                 <SwiftUI.RNHostView matchContents>
                   <GlassButton
