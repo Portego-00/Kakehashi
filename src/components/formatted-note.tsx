@@ -22,6 +22,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useNoteSubjectTypes } from "../hooks/use-note-subject-types";
+import { joinNoteImages, splitNoteImages } from "../../shared/note-images";
+import { NoteImageComposer, NoteImages } from "./note-images";
 import type { Subject } from "../utils/api";
 import {
   getNoteLinkSearchText,
@@ -62,6 +64,7 @@ type FormattedNoteTextProps = {
   style?: StyleProp<TextStyle>;
   selectable?: boolean;
   onSubjectLinkPress?: (subjectId: number, linkText: string) => void;
+  onRemoveImage?: (index: number) => Promise<void>;
 };
 
 const FORMAT_TEXT_STYLES: Record<NoteFormat, TextStyle> = {
@@ -75,10 +78,12 @@ export const FormattedNoteText = React.memo(function FormattedNoteText({
   style,
   selectable = true,
   onSubjectLinkPress,
+  onRemoveImage,
 }: FormattedNoteTextProps) {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
-  const segments = useMemo(() => parseFormattedNote(text), [text]);
+  const note = useMemo(() => splitNoteImages(text), [text]);
+  const segments = useMemo(() => parseFormattedNote(note.text), [note.text]);
   const [previewLink, setPreviewLink] = useState<NoteSubjectLink | null>(null);
   const linkedSubjectIds = useMemo(
     () =>
@@ -166,9 +171,10 @@ export const FormattedNoteText = React.memo(function FormattedNoteText({
 
   return (
     <>
-      <Text selectable={selectable} style={style}>
+      {note.text ? <Text selectable={selectable} style={style}>
         {renderedSegments}
-      </Text>
+      </Text> : null}
+      {note.images.length ? <NoteImages images={note.images} onRemove={onRemoveImage} /> : null}
 
       {previewLink && !onSubjectLinkPress ? (
         <NoteSubjectPreview
@@ -195,6 +201,7 @@ type FormattedNoteEditorProps = Omit<
   onChangeText: (text: string) => void;
   onBlur?: () => void;
   onFocus?: () => void;
+  onImageComposerOpenChange?: (open: boolean) => void;
   style?: StyleProp<TextStyle>;
   containerStyle?: StyleProp<ViewStyle>;
 };
@@ -246,23 +253,66 @@ export const FormattedNoteEditor = React.forwardRef<
   FormattedNoteEditorHandle,
   FormattedNoteEditorProps
 >(function FormattedNoteEditor(props, forwardedRef) {
+  const { onImageComposerOpenChange, ...textProps } = props;
+  const note = useMemo(() => splitNoteImages(props.value), [props.value]);
+  const imagesRef = useRef(note.images);
+  imagesRef.current = note.images;
+  const textEditorRef = useRef<FormattedNoteEditorHandle>(null);
+  const pendingImageChangeRef = useRef<Promise<void> | null>(null);
+  const [addingImage, setAddingImage] = useState(false);
+  const setImageComposerOpen = useCallback((open: boolean) => {
+    setAddingImage(open);
+    onImageComposerOpenChange?.(open);
+  }, [onImageComposerOpenChange]);
   const advancedEditorEnabled = useSettingsStore(
     (state) => state.advancedNoteEditorEnabled,
   );
   // Callers remount for each editing session. Typing literal markup into a
   // plain note must not switch editors or move the cursor mid-edit.
   const [startedWithFormatting] = useState(() =>
-    parseFormattedNote(props.value).some(
+    parseFormattedNote(note.text).some(
       (segment) =>
         segment.formats.length > 0 || segment.subjectId !== undefined,
     ),
   );
 
-  return advancedEditorEnabled || startedWithFormatting ? (
-    <RichNoteEditor {...props} ref={forwardedRef} />
-  ) : (
-    <PlainNoteEditor {...props} ref={forwardedRef} />
-  );
+  useImperativeHandle(forwardedRef, () => ({
+    closeLinkPicker: () => {
+      if (addingImage) { setImageComposerOpen(false); return true; }
+      return textEditorRef.current?.closeLinkPicker() ?? false;
+    },
+    flush: async () => {
+      if (addingImage) throw new Error("Add the image to your note or cancel the image first.");
+      if (pendingImageChangeRef.current) await pendingImageChangeRef.current;
+      return joinNoteImages((await textEditorRef.current?.flush()) ?? note.text, imagesRef.current);
+    },
+  }), [addingImage, note.text, setImageComposerOpen]);
+  const changeImages = (images: string[]) => {
+    const change = (async () => {
+      const text = (await textEditorRef.current?.flush()) ?? note.text;
+      imagesRef.current = images;
+      props.onChangeText(joinNoteImages(text, images));
+    })();
+    pendingImageChangeRef.current = change;
+    const clearPending = () => { if (pendingImageChangeRef.current === change) pendingImageChangeRef.current = null; };
+    void change.then(clearPending, clearPending);
+    return change;
+  };
+  const editorProps = {
+    ...textProps,
+    value: note.text,
+    containerStyle: noteEditorFillsContainer(props.containerStyle) ? { flex: 1, minHeight: 80 } : undefined,
+    onChangeText: (text: string) => props.onChangeText(joinNoteImages(text, imagesRef.current)),
+  };
+  return <View style={[{ minHeight: 0 }, props.containerStyle]}>
+    {advancedEditorEnabled || startedWithFormatting
+      ? <RichNoteEditor {...editorProps} ref={textEditorRef} />
+      : <PlainNoteEditor {...editorProps} ref={textEditorRef} />}
+    <NoteImageComposer open={addingImage} onOpenChange={setImageComposerOpen} disabled={props.editable === false}
+      onAdd={(url) => changeImages([...imagesRef.current, url])} />
+    {note.images.length && !addingImage ? <NoteImages images={note.images} disabled={props.editable === false}
+      onChange={changeImages} /> : null}
+  </View>;
 });
 
 function preferredNoteEditorHeight(style?: StyleProp<TextStyle>) {
@@ -610,7 +660,7 @@ const RichNoteEditor = React.forwardRef<
           type: "set-link",
           subjectId: subject.id,
           fallbackLabel,
-          appendCharacters: includeLinkCharacters ? subject.data.characters : undefined,
+          appendCharacters: includeLinkCharacters ? subject.data.characters ?? undefined : undefined,
           selection: linkPickerContext.selection,
         });
         setLinkPickerContext(null);
@@ -622,7 +672,7 @@ const RichNoteEditor = React.forwardRef<
         linkPickerContext.selection,
         subject.id,
         fallbackLabel,
-        includeLinkCharacters ? subject.data.characters : undefined,
+        includeLinkCharacters ? subject.data.characters ?? undefined : undefined,
       );
 
       commitValue(result.text);

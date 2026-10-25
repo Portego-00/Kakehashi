@@ -542,6 +542,7 @@ const SubjectContent = ({
   >("meaning");
   const [editingNoteText, setEditingNoteText] = useState("");
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [noteImageComposerOpen, setNoteImageComposerOpen] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const [androidNoteModalLayoutHeight, setAndroidNoteModalLayoutHeight] =
     useState(0);
@@ -1317,6 +1318,7 @@ const SubjectContent = ({
   };
 
   const handleEditNote = (type: "meaning" | "reading") => {
+    setNoteImageComposerOpen(false);
     setNoteEditorSession((session) => session + 1);
     setEditingNoteType(type);
     const initialNoteText = type === "meaning" ? meaningNote : readingNote;
@@ -4646,6 +4648,8 @@ const SubjectContent = ({
               style={styles.noteInput}
               value={editingNoteText}
               onChangeText={setEditingNoteText}
+              onImageComposerOpenChange={setNoteImageComposerOpen}
+              editable={!isSavingNote}
               onFocus={syncAndroidKeyboardMetrics}
               accessibilityLabel={`${
                 editingNoteType === "meaning" ? "Meaning" : "Reading"
@@ -4666,9 +4670,13 @@ const SubjectContent = ({
                   styles.noteModalButton,
                   styles.noteModalSaveButton,
                   { backgroundColor: subjectTypeColor },
+                  { opacity: noteImageComposerOpen ? 0.45 : 1 },
                 ]}
                 onPress={handleSaveNote}
-                disabled={isSavingNote}
+                accessibilityRole="button"
+                accessibilityLabel="Save note"
+                disabled={isSavingNote || noteImageComposerOpen}
+                accessibilityState={{ disabled: isSavingNote || noteImageComposerOpen }}
               >
                 {isSavingNote ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -4676,7 +4684,7 @@ const SubjectContent = ({
                   <Text
                     style={[styles.noteModalButtonText, { color: "#ffffff" }]}
                   >
-                    Save
+                    Save note
                   </Text>
                 )}
               </TouchableOpacity>

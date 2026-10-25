@@ -4,7 +4,31 @@ Production site: https://kakehashiapp.com
 
 Vercel project: **kakehashi-web**, under **portego-00s-projects**.
 
-## Current release: October 21, 2026 — review-screen speech download
+## Current release: October 25, 2026 — note images and gesture zoom
+
+Production is **`dpl_rGf5igzXUtPKRoU82c7j52A1LSHs`**, at https://kakehashi-rml38dx22-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. Meaning and reading notes accept public image URLs, show uncropped previews, and open a viewer with pinch zoom, panning, and removal. Desktop also supports trackpad pinches, double-click zoom, and keyboard controls. The image action is **Add to note**, followed by **Save note**; saving remains disabled until the image form is finished.
+
+The complete **1,248-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-25/Kakehashi/note-images-prod/upload`. It starts from the verified centered-artwork release and changes only nine note-image implementation, test, and upload-configuration paths. The production build and typecheck passed. Lint passed with three existing warnings, and the full suite passed **3,253 tests**, with one existing skip. **Two local**, **two staged**, and **two live desktop/mobile browser checks** passed, covering URL previews, saved text preservation, tall-image containment, pinch in/out, and removal. Chromium checks inject touch input; the WebKit phone checks exercise its touch-event path because its automation API lacks multi-touch injection. All uploaded source hashes were verified. Manifests, validation logs, and browser screenshots are beside the snapshot; the temporary staging cookie was removed.
+
+The immediate rollback is **`dpl_2Mbi6ZfDzuEPpxAYbFjzkR2shqmJ`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-25/Kakehashi/radical-centering-prod/upload`.
+
+## Previous release: October 25, 2026 — centered radical artwork
+
+Production is **`dpl_2Mbi6ZfDzuEPpxAYbFjzkR2shqmJ`**, at https://kakehashi-n9aedgmlw-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. The current-level widget now gives its character wrapper a full-size grid and centers its contents on both axes. Previously, the outer wrapper was centered while the percentage-sized radical image inside it stayed left-aligned, producing a measured 5.32 CSS-pixel offset. The SVG tint refresh from the previous release is preserved.
+
+The complete **1,242-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-25/Kakehashi/radical-centering-prod/upload`. It preserves the verified previous production source and changes only the dashboard stylesheet and radical artwork browser test. The production build, typecheck, targeted lint, and **24 focused unit tests** passed. **Eight local**, **eight staged**, and **eight live desktop/mobile checks** passed for Yurt and Creeper, checking horizontal and vertical alignment within 0.75 CSS pixels as well as visible artwork across light/dark/light theme changes. Live checks use the real public WaniKani SVGs with mocked account and assignment data. All uploaded source hashes were verified. Corrected screenshots are in `/Users/pedroortego/.codex/visualizations/2026/10/25/01a17298-e4fe-7f40-a99d-c5a7f0e40eba/radical-centered-production-proof`; logs and manifests are beside the snapshot. Temporary private staging files were removed.
+
+The immediate rollback is **`dpl_5GUaq89ygu3ULGvTYtAPHCFyJGkG`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-25/Kakehashi/radical-artwork-prod/upload`. No environment changes, database migrations, native release, Git commit, or Git push were performed.
+
+## Previous release: October 25, 2026 — radical SVG tint refresh
+
+Production is **`dpl_5GUaq89ygu3ULGvTYtAPHCFyJGkG`**, at https://kakehashi-d8p0de4mq-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. The shared radical renderer now recreates its SVG tint filter and image when the theme changes, preventing WebKit from retaining an old inherited color and making the artwork nearly invisible. The existing SVG → PNG → text fallback order is preserved.
+
+The complete **1,242-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-25/Kakehashi/radical-artwork-prod/upload`. It preserves the verified previous production source and changes only the radical renderer, shared theme context, theme provider, and radical artwork browser regression test. Typecheck and lint passed, with three existing lint warnings. The full suite passed **3,243 tests**, with one existing skip. **Eight staged** and **eight live desktop/mobile checks** passed for Yurt (level 9) and Creeper (level 13), covering unstarted, active, and passed items across light/dark/light theme changes. Live checks loaded the actual public WaniKani SVGs with mocked account and assignment data. All uploaded source hashes were verified before promotion. Logs, manifests, and screenshots are beside the snapshot; presentation copies are in `/Users/pedroortego/.codex/visualizations/2026/10/25/01a17298-e4fe-7f40-a99d-c5a7f0e40eba/radical-production-proof`. Temporary private staging files were removed.
+
+The immediate rollback is **`dpl_56arhXzJqpYiTjZ1uc7GZGUosDd8`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-21/Kakehashi/review-asr-inline-download-prod/upload`. No environment changes, database migrations, native release, Git commit, or Git push were performed.
+
+## Previous release: October 21, 2026 — review-screen speech download
 
 Production is **`dpl_56arhXzJqpYiTjZ1uc7GZGUosDd8`**, at https://kakehashi-2quttjpnv-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. When the on-device ASR model is missing, the shared review control now offers **Download and enable · 241 MB** directly in the review screen. It shows progress, supports cancellation and retry, preserves the current answer, and saves the voice-answer preference when complete. The control then becomes **Start voice answers**; downloading alone does not start the microphone. The existing Portego-only, non-demo gate and on-device recognition remain in place.
 

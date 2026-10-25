@@ -129,6 +129,7 @@ interface KanjiDetailsProps {
     nextReviewAt?: string;
     burnedAt?: string | null;
     onEditNote?: (type: "meaning" | "reading") => void;
+    onRemoveNoteImage?: (type: "meaning" | "reading", index: number) => Promise<void>;
     meaningCurrentStreak?: number;
     meaningMaxStreak?: number;
     readingCurrentStreak?: number;
@@ -1301,6 +1302,7 @@ export default function KanjiDetails({
                     {kanji.meaningNote ? (
                       <FormattedNoteText
                         text={kanji.meaningNote}
+                        onRemoveImage={kanji.onRemoveNoteImage ? (index) => kanji.onRemoveNoteImage!("meaning", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (
@@ -1342,6 +1344,7 @@ export default function KanjiDetails({
                     {kanji.readingNote ? (
                       <FormattedNoteText
                         text={kanji.readingNote}
+                        onRemoveImage={kanji.onRemoveNoteImage ? (index) => kanji.onRemoveNoteImage!("reading", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (

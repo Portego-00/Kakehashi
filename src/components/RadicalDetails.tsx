@@ -97,6 +97,7 @@ interface RadicalDetailsProps {
     nextReviewAt?: string;
     burnedAt?: string | null;
     onEditNote?: () => void;
+    onRemoveNoteImage?: (index: number) => Promise<void>;
   };
   progressionStatus: "loading" | "success" | "offline";
   onKanjiPress?: (kanjiId: number) => void;
@@ -710,6 +711,7 @@ export default function RadicalDetails({
                 </View>
                 <FormattedNoteText
                   text={radical.meaningNote}
+                  onRemoveImage={radical.onRemoveNoteImage}
                   style={[styles.noteContent, { color: theme.textColor }]}
                 />
               </View>

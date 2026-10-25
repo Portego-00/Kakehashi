@@ -64,6 +64,17 @@ for (const radical of artwork) {
           const box = await image.boundingBox();
           expect(box?.width).toBeGreaterThanOrEqual(20);
           expect(box?.height).toBeGreaterThanOrEqual(20);
+          const alignment = await image.evaluate((element, dashboard) => {
+            const tile = dashboard ? element.parentElement!.parentElement! : element.parentElement!;
+            const imageBox = element.getBoundingClientRect();
+            const tileBox = tile.getBoundingClientRect();
+            return {
+              horizontal: Math.abs(imageBox.x + imageBox.width / 2 - tileBox.x - tileBox.width / 2),
+              vertical: Math.abs(imageBox.y + imageBox.height / 2 - tileBox.y - tileBox.height / 2),
+            };
+          }, path === "/dashboard");
+          expect(alignment.horizontal, `${radical.name} should be horizontally centered in its tile`).toBeLessThanOrEqual(0.75);
+          expect(alignment.vertical, `${radical.name} should be vertically centered in its tile`).toBeLessThanOrEqual(0.75);
           const expectedColor = await image.evaluate((element) => {
             const canvas = document.createElement("canvas");
             canvas.width = canvas.height = 1;

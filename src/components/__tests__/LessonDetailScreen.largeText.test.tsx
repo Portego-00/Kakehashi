@@ -457,7 +457,7 @@ describe("LessonDetailScreen kana vocabulary notes", () => {
     fireEvent.press(screen.getByLabelText(note ? "Edit meaning note" : "Add meaning note"), { stopPropagation: jest.fn() });
     expect(screen.getByLabelText("Meaning note text").props.value).toBe(note);
     fireEvent.changeText(screen.getByLabelText("Meaning note text"), savedNote);
-    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { fireEvent.press(screen.getByText("Save note")); });
     await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
     if (note) {
       expect(updateStudyMaterial).toHaveBeenCalledWith("test-token", material.id, { meaning_note: savedNote });
@@ -822,7 +822,7 @@ describe("LessonDetailScreen synonym safety", () => {
       });
     } else {
       fireEvent.changeText(screen.getByLabelText("Meaning note text"), "New note");
-      await act(async () => { fireEvent.press(screen.getByText("Save")); });
+      await act(async () => { fireEvent.press(screen.getByText("Save note")); });
       expect(createStudyMaterial).toHaveBeenCalled();
     }
     await act(async () => { resolveInitial({ data: [remoteMaterial] }); });
@@ -853,7 +853,7 @@ describe("LessonDetailScreen synonym safety", () => {
     });
     fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
     fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
-    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { fireEvent.press(screen.getByText("Save note")); });
     await act(async () => { finishSynonymSave(); await saveSynonyms; });
     fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
     expect(screen.getByLabelText("Meaning note text").props.value).toBe("My newer saved note");
@@ -880,7 +880,7 @@ describe("LessonDetailScreen synonym safety", () => {
     await act(async () => {});
     fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
     fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
-    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { fireEvent.press(screen.getByText("Save note")); });
     await act(async () => { await mockLessonSynonymsProps.onSave(["bridge synonym"], []); });
     expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
     await act(async () => { finishNoteSave(); });

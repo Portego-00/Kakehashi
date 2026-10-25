@@ -1246,6 +1246,7 @@ export default function ReviewQuestionScreen({
   const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
     useState(false);
+  const [noteImageComposerOpen, setNoteImageComposerOpen] = useState(false);
   const [localStudyMaterials, setLocalStudyMaterials] = useState<
     ReviewStudyMaterials | undefined
   >(studyMaterials);
@@ -3639,6 +3640,7 @@ export default function ReviewQuestionScreen({
 
   const handleReviewDetailNotePress = useCallback(
     (noteType: StudyMaterialNoteType) => {
+      setNoteImageComposerOpen(false);
       setStudyMaterialNoteEditorSession((session) => session + 1);
       releasePausedShortcutFocus();
       setEditingStudyMaterialNoteType(noteType);
@@ -4202,6 +4204,8 @@ export default function ReviewQuestionScreen({
             autoFocus
             value={editingStudyMaterialNoteText}
             onChangeText={setEditingStudyMaterialNoteText}
+            onImageComposerOpenChange={setNoteImageComposerOpen}
+            editable={!isSavingStudyMaterialNote}
             onFocus={syncAndroidKeyboardMetrics}
             accessibilityLabel={`${
               editingStudyMaterialNoteType === "meaning"
@@ -4238,9 +4242,13 @@ export default function ReviewQuestionScreen({
                 styles.studyMaterialNoteModalButton,
                 styles.studyMaterialNoteSaveButton,
                 { backgroundColor: getItemColor(item.subject.object) },
+                { opacity: noteImageComposerOpen ? 0.45 : 1 },
               ]}
               onPress={handleSaveStudyMaterialNote}
-              disabled={isSavingStudyMaterialNote}
+              accessibilityRole="button"
+              accessibilityLabel="Save note"
+              disabled={isSavingStudyMaterialNote || noteImageComposerOpen}
+              accessibilityState={{ disabled: isSavingStudyMaterialNote || noteImageComposerOpen }}
             >
               <Text
                 style={[
@@ -4248,7 +4256,7 @@ export default function ReviewQuestionScreen({
                   { color: "#ffffff" },
                 ]}
               >
-                {isSavingStudyMaterialNote ? "Saving..." : "Save"}
+                {isSavingStudyMaterialNote ? "Saving..." : "Save note"}
               </Text>
             </TouchableOpacity>
           </View>

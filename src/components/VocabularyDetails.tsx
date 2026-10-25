@@ -153,6 +153,7 @@ interface VocabularyDetailsProps {
     nextReviewAt?: string;
     burnedAt?: string | null;
     onEditNote?: (type: "meaning" | "reading") => void;
+    onRemoveNoteImage?: (type: "meaning" | "reading", index: number) => Promise<void>;
   };
   progressionStatus: "loading" | "success" | "offline";
   onSubjectPress?: (subjectId: number) => void;
@@ -2801,6 +2802,7 @@ export default function VocabularyDetails({
                     {vocabulary.meaningNote ? (
                       <FormattedNoteText
                         text={vocabulary.meaningNote}
+                        onRemoveImage={vocabulary.onRemoveNoteImage ? (index) => vocabulary.onRemoveNoteImage!("meaning", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (
@@ -2842,6 +2844,7 @@ export default function VocabularyDetails({
                     {vocabulary.readingNote ? (
                       <FormattedNoteText
                         text={vocabulary.readingNote}
+                        onRemoveImage={vocabulary.onRemoveNoteImage ? (index) => vocabulary.onRemoveNoteImage!("reading", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (

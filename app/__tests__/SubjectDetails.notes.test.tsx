@@ -3,6 +3,7 @@ import React from "react";
 import { Alert, Modal } from "react-native";
 
 import SubjectDetailsScreen from "../(app)/subject/[id]";
+import { updateStudyMaterial } from "../../src/utils/api";
 
 let mockFlushedNoteText: string | undefined;
 let mockInitialNoteText = "";
@@ -60,6 +61,7 @@ jest.mock("../../src/utils/api", () => ({
     data: [{ id: 1, data: { subject_id: 1, meaning_note: mockInitialNoteText } }],
   })),
   getReviewStatistics: jest.fn(async () => ({ data: [] })),
+  updateStudyMaterial: jest.fn(async (_token: string, id: number, updates: object) => ({ id, data: { subject_id: 1, ...updates } })),
 }));
 
 jest.mock("../../src/utils/niaiSimilarKanji", () => ({
@@ -74,11 +76,14 @@ jest.mock("../../src/components/RadicalDetails", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import("react-native")>("react-native");
-  return function MockRadicalDetails({ radical }: { radical: { onEditNote: () => void } }) {
+  return function MockRadicalDetails({ radical }: { radical: { onEditNote: () => void; onRemoveNoteImage?: (index: number) => Promise<void> } }) {
     return (
+      <>
       <TouchableOpacity onPress={radical.onEditNote}>
         <Text>Edit meaning note</Text>
       </TouchableOpacity>
+      <TouchableOpacity onPress={() => radical.onRemoveNoteImage?.(0)}><Text>Remove image</Text></TouchableOpacity>
+      </>
     );
   };
 });
@@ -89,7 +94,7 @@ jest.mock("../../src/components/formatted-note", () => {
     jest.requireActual<typeof import("react-native")>("react-native");
   const Editor = React.forwardRef<
     { closeLinkPicker: () => boolean; flush: () => Promise<string> },
-    React.ComponentProps<typeof TextInput>
+    React.ComponentProps<typeof TextInput> & { onImageComposerOpenChange?: (open: boolean) => void }
   >((props, ref) => {
     const [pickerOpen, setPickerOpen] = React.useState(false);
     React.useImperativeHandle(ref, () => ({
@@ -107,6 +112,8 @@ jest.mock("../../src/components/formatted-note", () => {
           <Text>Insert subject link</Text>
         </TouchableOpacity>
         {pickerOpen && <Text>Subject link picker</Text>}
+        <TouchableOpacity onPress={() => props.onImageComposerOpenChange?.(true)}><Text>Add image</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => props.onImageComposerOpenChange?.(false)}><Text>Cancel image</Text></TouchableOpacity>
       </>
     );
   });
@@ -117,11 +124,31 @@ jest.mock("../../src/components/formatted-note", () => {
 beforeEach(() => {
   mockAlert.mockClear();
   mockEditorFlush.mockClear();
+  jest.mocked(updateStudyMaterial).mockClear();
   mockFlushedNoteText = undefined;
   mockInitialNoteText = "";
 });
 
 afterAll(() => mockAlert.mockRestore());
+
+it("disables Save note until the image form is finished", async () => {
+  const screen = await renderSubjectNote();
+  expect(screen.getByRole("button", { name: "Save note" }).props.accessibilityState.disabled).toBe(false);
+  fireEvent.press(screen.getByText("Add image"));
+  expect(screen.getByRole("button", { name: "Save note" }).props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(screen.getByText("Cancel image"));
+  expect(screen.getByRole("button", { name: "Save note" }).props.accessibilityState.disabled).toBe(false);
+});
+
+it("saves image removal from the details viewer while keeping the formatted note", async () => {
+  mockInitialNoteText = '<b>Bridge</b>\n<img src="https://example.com/a.png">\n<img src="https://example.com/b.png">';
+  const screen = render(<SubjectDetailsScreen />);
+  await waitFor(() => expect(screen.getByText("Edit meaning note")).toBeTruthy());
+  fireEvent.press(screen.getByText("Remove image"));
+  await waitFor(() => expect(updateStudyMaterial).toHaveBeenCalledWith("test-token", 1, { meaning_note: '<b>Bridge</b>\n<img src="https://example.com/b.png">' }));
+  fireEvent.press(screen.getByText("Edit meaning note"));
+  expect(screen.getByLabelText("Meaning note text").props.value).toBe('<b>Bridge</b>\n<img src="https://example.com/b.png">');
+});
 
 it.each(["Cancel", "close button", "request close"])(
   "dismisses the subject picker before the subject note editor through %s",
@@ -193,6 +220,8 @@ it.each([
   ["", "Last native keystroke"],
   ["bridge", "<b>bridge</b>"],
   ['<a href="wk://subject/440">bridge</a>', '<a href="wk://subject/441">bridge</a>'],
+  ["bridge", 'bridge\n<img src="https://example.com/a.png">'],
+  ['bridge\n<img src="https://example.com/a.png">', "bridge"],
 ])("checks the freshly flushed subject draft %j before closing", async (original, flushed) => {
   mockInitialNoteText = original;
   const screen = await renderSubjectNote();
