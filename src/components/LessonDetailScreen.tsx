@@ -196,7 +196,9 @@ interface SimilarKanjiSubject {
 }
 
 function normalizeSimilarVocabularyValue(value: string | null | undefined): string {
-  return (value ?? "").trim().toLocaleLowerCase("en-US");
+  // English meanings and kana need locale-independent casing. Locale conversion
+  // stalls Android Hermes when repeated across the full subject catalog.
+  return (value ?? "").trim().toLowerCase();
 }
 
 function collectMatchingValues(values: string[], targetSet: Set<string>): string[] {

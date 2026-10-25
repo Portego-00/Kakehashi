@@ -12,6 +12,7 @@ import LessonDetailScreen from "../LessonDetailScreen";
 import { searchImmersionKit } from "../../services/immersionKitService";
 import { getWaniKaniVocabularyPatterns } from "../../utils/wanikaniVocabularyPatterns";
 import { createStudyMaterial, getStudyMaterials, updateStudyMaterial } from "../../utils/api";
+import * as subjectCache from "../../utils/cache";
 
 let mockFlushedNoteText: string | undefined;
 let mockLessonSynonymsProps: { currentSynonyms: string[]; onSave: (edited: string[], original: string[]) => Promise<void> };
@@ -32,6 +33,7 @@ let mockRenderMeaningTab = false;
 const mockContextSettings = {
   showJLPTLevel: false,
   showVocabularyFrequency: false,
+  showSimilarVocabulary: false,
   showPatternsOfUse: false,
   showMediaContextSentences: false,
   hideContextSentenceTranslations: false,
@@ -371,6 +373,77 @@ describe("LessonDetailScreen Japanese-only examples", () => {
     expect(screen.queryByText(pattern.en)).toBeNull();
     expect(screen.queryByText(media.translation)).toBeNull();
     expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+  });
+});
+
+describe("LessonDetailScreen similar vocabulary matching", () => {
+  it("matches English casing and whitespace and kana readings within their sections", async () => {
+    mockSinglePageLessonView = true;
+    mockContextSettings.showSimilarVocabulary = true;
+    const subject = {
+      id: 2652,
+      object: "vocabulary",
+      data: {
+        characters: "先日",
+        level: 4,
+        meanings: [{ meaning: "The Other Day", primary: true }],
+        readings: [{ reading: "せんじつ", primary: true }],
+      },
+    };
+    const candidate = (id: number, characters: string, meaning: string, reading: string, object = "vocabulary") => ({
+      id,
+      object,
+      data: {
+        characters,
+        level: 4,
+        meanings: [{ meaning, primary: true }],
+        readings: [{ reading, primary: true }],
+      },
+    });
+    const cachedSubjects = jest.spyOn(subjectCache, "getAllSubjects").mockResolvedValue([
+      subject,
+      candidate(3001, "昨日", "  the OTHER day  ", "きのう"),
+      candidate(3002, "センジツ", "Recent fixture", " せんじつ ", "kana_vocabulary"),
+      candidate(3003, "別日", "Another Day", "せんじゅつ"),
+      candidate(3004, "先", "The Other Day", "せんじつ", "kanji"),
+    ]);
+    const screen = render(
+      <LessonDetailScreen
+        item={{ id: subject.id, subject }}
+        batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0}
+        onNext={jest.fn()}
+        onPrev={jest.fn()}
+        canGoBack={false}
+        canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+        onExit={jest.fn()}
+      />,
+    );
+    try {
+      const meaningTitle = await screen.findByText("Similar Vocabulary by Meaning");
+      const readingTitle = await screen.findByText("Similar Vocabulary by Reading");
+      const [meanings, readings] = [meaningTitle, readingTitle].map((title) => {
+        let section = title.parent;
+        while (section && section.type !== View) section = section.parent;
+        expect(section).not.toBeNull();
+        return within(section!);
+      });
+      expect(meanings.getByText("昨日")).toBeTruthy();
+      expect(meanings.queryByText("センジツ")).toBeNull();
+      expect(readings.getByText("センジツ")).toBeTruthy();
+      expect(readings.queryByText("昨日")).toBeNull();
+      for (const section of [meanings, readings]) {
+        expect(section.queryByText("先日")).toBeNull();
+        expect(section.queryByText("別日")).toBeNull();
+        expect(section.queryByText("先")).toBeNull();
+      }
+    } finally {
+      screen.unmount();
+      cachedSubjects.mockRestore();
+      mockSinglePageLessonView = false;
+      mockContextSettings.showSimilarVocabulary = false;
+    }
   });
 });
 
