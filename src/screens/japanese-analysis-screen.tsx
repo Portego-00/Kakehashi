@@ -59,6 +59,8 @@ import Animated, {
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 
 type StudyMode = "none" | "wk" | "full";
 type ReaderMode = "url" | "text";
@@ -1603,6 +1605,7 @@ export default function JapaneseAnalysisScreen({
           {Platform.OS === "ios" && SwiftUI ? (
             <SwiftUI.Host matchContents style={styles.headerActionHost}>
               <SwiftUI.Menu
+                modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
                 label={
                   <SwiftUI.RNHostView matchContents>
                     <GlassButton

@@ -94,6 +94,9 @@ jest.mock("@expo/ui/swift-ui", () => {
     ),
   };
 });
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  buttonStyle: (style: string) => ({ $type: "buttonStyle", style }),
+}));
 
 jest.mock("../../src/components/SearchFilterModal", () => {
   const React = jest.requireActual("react");

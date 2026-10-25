@@ -16,6 +16,8 @@ import { GlassButton } from "./GlassButton";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 
 type StudyMenuAction = {
   id: string;
@@ -165,6 +167,8 @@ export default function SubjectListStudyMenu({
         style={[styles.trigger, triggerStyle]}
       >
         <SwiftUI.Menu
+          // The custom label supplies its own appearance and size.
+          modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
           label={
             <SwiftUI.RNHostView matchContents>
               <View
