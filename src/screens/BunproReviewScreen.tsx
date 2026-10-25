@@ -1182,6 +1182,7 @@ export default function BunproReviewScreen({
   const searchEnabled = useSettingsStore((state) => state.reviewSearchButtonEnabled);
   const inputScale = useSettingsStore((state) => state.reviewInputFontScale) ?? 1;
   const characterScale = useSettingsStore((state) => state.reviewCharacterFontScale) ?? 1;
+  const promptTextColor = useSettingsStore((state) => state.bunproReviewPromptTextColor) || theme.textColor;
   const hideFurigana = useSettingsStore(state => state.bunproHideFurigana) ?? false;
   const showDetailsOnWrong = useSettingsStore(state => state.showDetailsOnWrongAnswer);
   const showLevel = useSettingsStore(state => state.showReviewItemLevelAndSrsStage);
@@ -2158,7 +2159,7 @@ export default function BunproReviewScreen({
           <View style={styles.rubyLine}>
             {questionParts.map((runs, index) => <React.Fragment key={index}>
               {index > 0 ? <Text style={[styles.answerInline, { fontFamily: jitaiFamily, fontSize: 34 * characterScale, lineHeight: 46 * characterScale, borderBottomColor: statusColor, color: statusColor }]}>{translatedPrompt}</Text> : null}
-              <RubyText runs={runs} hideFurigana={hideFurigana} questionKey={`${occurrenceId}:${index}`} baseTextStyle={[styles.japaneseSentenceBase, { color: theme.textColor, fontSize: 34 * characterScale, lineHeight: 46 * characterScale, fontFamily: jitaiFamily }]} readingTextStyle={[styles.japaneseSentenceReading, { color: mutedColor }]} />
+              <RubyText runs={runs} hideFurigana={hideFurigana} questionKey={`${occurrenceId}:${index}`} baseTextStyle={[styles.japaneseSentenceBase, { color: promptTextColor, fontSize: 34 * characterScale, lineHeight: 46 * characterScale, fontFamily: jitaiFamily }]} readingTextStyle={[styles.japaneseSentenceReading, { color: mutedColor }]} />
             </React.Fragment>)}
           </View>
 

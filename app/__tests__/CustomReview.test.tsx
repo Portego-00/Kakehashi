@@ -1,8 +1,9 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
+import { Alert } from 'react-native';
 import type ReviewQuestionScreen from '../../src/components/ReviewQuestionScreen';
 import type ReviewResultsScreen from '../../src/components/ReviewResultsScreen';
-import { loadExtraStudySessionState } from '../../src/utils/extraStudySessionPersistence';
+import { loadExtraStudySessionState, saveExtraStudySessionState } from '../../src/utils/extraStudySessionPersistence';
 import CustomReviewScreen from '../(app)/custom-review';
 import {
   getAllAssignmentsCached,
@@ -134,6 +135,109 @@ describe('CustomReview Screen', () => {
     (getSubjects as jest.Mock).mockResolvedValue({
       data: [],
     });
+  });
+
+  it.each([
+    ['standard', false], ['standard', true],
+    ['flashcard', false], ['flashcard', true],
+  ] as const)('uses the selected %s mode with grouping preference %s', async (reviewMode, groupQuestions) => {
+    const settings = {
+      ankiCardMode: reviewMode === 'standard',
+      ankiCardModeScope: 'reading',
+      ankiGroupQuestions: groupQuestions,
+      customReviewOrder: 'lowestLevelFirst',
+      backToBackQuestions: true,
+      reviewQuestionOrderEnabled: true,
+      meaningFirst: true,
+    };
+    (useSettingsStore as unknown as jest.Mock).mockReturnValue(settings);
+    mockUseLocalSearchParams.mockReturnValue({ subjectIds: '1001', reviewMode });
+    (getAllSubjects as jest.Mock).mockResolvedValue([{
+      id: 1001, object: 'kanji', data: { level: 1, characters: '漢',
+        meanings: [{ meaning: 'Chinese', primary: true }],
+        readings: [{ reading: 'かん', primary: true }],
+      },
+    }]);
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [] });
+    const screen = render(<CustomReviewScreen />);
+    await screen.findByTestId('custom-review-question');
+    expect(mockReviewProps.ankiSettingsOverride).toEqual({
+      enabled: reviewMode === 'flashcard', scope: 'both', groupQuestions,
+    });
+
+    const grouped = reviewMode === 'flashcard' && groupQuestions;
+    act(() => {
+      const question = mockReviewProps;
+      question.onAnswer(question.item, 'meaning', true, false, grouped);
+      if (grouped) question.onAnswer(question.item, 'reading', true, false, true);
+    });
+    if (!grouped) {
+      expect(mockReviewProps.questionType).toBe('reading');
+      act(() => mockReviewProps.onAnswer(mockReviewProps.item, 'reading', true, false, false));
+    }
+    await screen.findByText('Custom review results');
+    expect(mockResultsProps.progress.answeredCount).toBe(grouped ? 1 : 2);
+    expect(settings.ankiCardMode).toBe(reviewMode === 'standard');
+    expect(settings.ankiCardModeScope).toBe('reading');
+    fireEvent.press(screen.getByLabelText('Redo'));
+    expect(mockReviewProps.ankiSettingsOverride).toEqual({
+      enabled: reviewMode === 'flashcard', scope: 'both', groupQuestions,
+    });
+  });
+
+  it.each([
+    ['standard', false], ['flashcard', false], ['flashcard', true],
+  ] as const)('resumes and redoes a saved %s session (grouped preference: %s)', async (reviewMode, groupQuestions) => {
+    (useSettingsStore as unknown as jest.Mock).mockReturnValue({
+      ankiCardMode: false, ankiCardModeScope: 'reading', ankiGroupQuestions: groupQuestions,
+      customReviewOrder: 'lowestLevelFirst',
+    });
+    mockUseLocalSearchParams.mockReturnValue({ subjectIds: '1001', reviewMode });
+    (getAllSubjects as jest.Mock).mockResolvedValue([{
+      id: 1001, object: 'kanji', data: { level: 1, characters: '漢',
+        meanings: [{ meaning: 'Chinese', primary: true }],
+        readings: [{ reading: 'かん', primary: true }],
+      },
+    }]);
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [] });
+    const screen = render(<CustomReviewScreen />);
+    await screen.findByTestId('custom-review-question');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    try {
+      act(() => mockReviewProps.onExit?.());
+      const continueLater = alert.mock.calls.at(-1)?.[2]?.find((button) => button.text === 'Continue Later');
+      expect(continueLater).toBeDefined();
+      await act(async () => { await continueLater?.onPress?.(); });
+      const savedSession = jest.mocked(saveExtraStudySessionState).mock.calls.at(-1)?.[1];
+      const expectedSettings = { enabled: reviewMode === 'flashcard', scope: 'both', groupQuestions };
+      expect(savedSession).toMatchObject({
+        ankiSettings: expectedSettings,
+        sessionUsesAnkiGrouping: reviewMode === 'flashcard' && groupQuestions,
+      });
+      screen.unmount();
+      (loadExtraStudySessionState as jest.Mock).mockResolvedValue(savedSession);
+      (useSettingsStore as unknown as jest.Mock).mockReturnValue({
+        ankiCardMode: reviewMode === 'standard', ankiCardModeScope: 'meaning',
+        ankiGroupQuestions: !groupQuestions, customReviewOrder: 'lowestLevelFirst',
+      });
+      mockUseLocalSearchParams.mockReturnValue({ resume: 'true' });
+      const resumed = render(<CustomReviewScreen />);
+      await resumed.findByTestId('custom-review-question');
+      expect(mockReviewProps.ankiSettingsOverride).toEqual(expectedSettings);
+      const grouped = reviewMode === 'flashcard' && groupQuestions;
+      for (let index = 0; index < 2 && resumed.queryByTestId('custom-review-question'); index += 1) {
+        act(() => {
+          const question = mockReviewProps;
+          question.onAnswer(question.item, question.questionType, true, false, grouped);
+          if (grouped) question.onAnswer(question.item, 'reading', true, false, true);
+        });
+      }
+      await resumed.findByText('Custom review results');
+      fireEvent.press(resumed.getByLabelText('Redo'));
+      expect(mockReviewProps.ankiSettingsOverride).toEqual(expectedSettings);
+    } finally {
+      alert.mockRestore();
+    }
   });
 
   it.each([false, true])('restarts the whole session with fresh answers and progress (grouped: %s)', async (grouped) => {

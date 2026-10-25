@@ -16,8 +16,15 @@ import {
 import { useSettingsControllerContext } from "../SettingsControllerContext";
 import { styles } from "../styles";
 import { ReviewPresetsSetting } from "../components/review-presets-setting";
+import { ReviewPromptColorSetting } from "../components/review-prompt-color-setting";
 
 export function ReviewSettingsSection() {
+  const reviewLeftHandedMode = useSettingsStore(
+    (state) => state.reviewLeftHandedMode,
+  );
+  const setReviewLeftHandedMode = useSettingsStore(
+    (state) => state.setReviewLeftHandedMode,
+  );
   const jitaiCycleAllFonts = useSettingsStore(
     (state) => state.jitaiCycleAllFonts,
   );
@@ -815,6 +822,7 @@ export function ReviewSettingsSection() {
             description="Text size, hints and review information"
             icon="text"
           >
+            <ReviewPromptColorSetting provider="wanikani" />
             <View
               style={[styles.settingItem, { borderBottomColor: theme.border }]}
             >
@@ -1409,6 +1417,39 @@ export function ReviewSettingsSection() {
                   />
                 </View>
               )}
+            </AdvancedSetting>
+            <AdvancedSetting>
+              <View
+                style={[
+                  styles.settingItem,
+                  { borderBottomColor: theme.border },
+                ]}
+              >
+                <SettingsRowIcon setting="left-handed" color={theme.primary} />
+                <View style={styles.settingTextContainer}>
+                  <SettingsLabel
+                    style={[styles.settingText, { color: theme.textColor }]}
+                  >
+                    Left-Handed Mode
+                  </SettingsLabel>
+                  <Text
+                    style={[
+                      styles.settingSubtext,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Move submit to the left and mirror correction buttons, Anki
+                    buttons and buttonless tap zones
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Left-Handed Mode"
+                  value={reviewLeftHandedMode}
+                  onValueChange={setReviewLeftHandedMode}
+                  trackColor={{ false: "#767577", true: theme.primary }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
             </AdvancedSetting>
           </SettingsDisclosure>
         </AdvancedSettingsGroup>

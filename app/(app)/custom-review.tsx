@@ -14,7 +14,9 @@ import { Ionicons } from "@expo/vector-icons";
 import ExtraStudyCompletionTransition, {
   useExtraStudyResultsReveal,
 } from "../../src/components/ExtraStudyCompletionTransition";
-import ReviewQuestionScreen from "../../src/components/ReviewQuestionScreen";
+import ReviewQuestionScreen, {
+  type AnkiReviewSettings,
+} from "../../src/components/ReviewQuestionScreen";
 import ReviewResultsScreen from "../../src/components/ReviewResultsScreen";
 import {
   type Subject as ApiSubject,
@@ -80,6 +82,7 @@ interface CustomReviewSavedSession {
   isWrapUpMode: boolean;
   wrapUpDeferredQuestions?: ReviewQueueQuestion[];
   sessionUsesAnkiGrouping: boolean;
+  ankiSettings?: AnkiReviewSettings;
   studyMaterialEntries: [number, { meaning_synonyms?: string[] }][];
 }
 
@@ -113,12 +116,26 @@ export default function CustomReviewScreen() {
     reviewQuestionOrderEnabled,
     meaningFirst,
   } = useSettingsStore();
-  const effectiveAnkiGrouping =
-    ankiCardMode && ankiGroupQuestions && ankiCardModeScope === "both";
+  const params = useLocalSearchParams();
+  const [initialAnkiSettings] = useState<AnkiReviewSettings>(() => {
+    const reviewMode = params.reviewMode;
+    const hasExplicitMode =
+      reviewMode === "standard" || reviewMode === "flashcard";
+    return {
+      enabled: hasExplicitMode ? reviewMode === "flashcard" : ankiCardMode,
+      scope: hasExplicitMode ? "both" : ankiCardModeScope,
+      groupQuestions: ankiGroupQuestions,
+    };
+  });
+  const [sessionAnkiSettings, setSessionAnkiSettings] =
+    useState(initialAnkiSettings);
+  const initialAnkiGrouping =
+    initialAnkiSettings.enabled &&
+    initialAnkiSettings.groupQuestions &&
+    initialAnkiSettings.scope === "both";
   const preferredQuestionType: "meaning" | "reading" = meaningFirst
     ? "meaning"
     : "reading";
-  const params = useLocalSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [activeQueue, setActiveQueue] = useState<ReviewQueueQuestion[]>([]);
@@ -135,7 +152,7 @@ export default function CustomReviewScreen() {
   const groupedMeaningResultRef = useRef(new Map<number, boolean>());
   const [studyMaterialsMap, setStudyMaterialsMap] = useState<Map<number, { meaning_synonyms?: string[] }>>(new Map());
   const [sessionUsesAnkiGrouping, setSessionUsesAnkiGrouping] = useState(
-    effectiveAnkiGrouping,
+    initialAnkiGrouping,
   );
 
   // Handler for when a synonym is added from the review screen
@@ -271,16 +288,34 @@ export default function CustomReviewScreen() {
     wrapUpDeferredQuestionsRef.current =
       savedSession.isWrapUpMode === true ? restoredWrapUpDeferredQuestions : [];
     setStudyMaterialsMap(new Map(normalizedStudyMaterialEntries));
-    setSessionUsesAnkiGrouping(
+    const savedAnkiSettings = savedSession.ankiSettings;
+    const savedGrouping =
       typeof savedSession.sessionUsesAnkiGrouping === "boolean"
         ? savedSession.sessionUsesAnkiGrouping
-        : effectiveAnkiGrouping,
+        : initialAnkiGrouping;
+    const restoredAnkiSettings: AnkiReviewSettings =
+      savedAnkiSettings &&
+      typeof savedAnkiSettings.enabled === "boolean" &&
+      typeof savedAnkiSettings.groupQuestions === "boolean" &&
+      ["both", "meaning", "reading"].includes(savedAnkiSettings.scope)
+        ? savedAnkiSettings
+        : {
+            ...initialAnkiSettings,
+            enabled: savedGrouping || initialAnkiSettings.enabled,
+            scope: savedGrouping ? "both" : initialAnkiSettings.scope,
+            groupQuestions: savedGrouping,
+          };
+    setSessionAnkiSettings(restoredAnkiSettings);
+    setSessionUsesAnkiGrouping(
+      restoredAnkiSettings.enabled &&
+        restoredAnkiSettings.groupQuestions &&
+        restoredAnkiSettings.scope === "both",
     );
     setIsFinished(!restoredCurrentQuestion);
     setHasError(false);
     setIsLoading(false);
     return true;
-  }, [clearSavedCustomReviewSession, effectiveAnkiGrouping]);
+  }, [clearSavedCustomReviewSession, initialAnkiGrouping, initialAnkiSettings]);
 
   const saveCustomReviewSessionForLater = useCallback(async (): Promise<boolean> => {
     if (!currentQuestion || reviewItems.length === 0 || activeQueue.length === 0) {
@@ -296,6 +331,7 @@ export default function CustomReviewScreen() {
       isWrapUpMode,
       wrapUpDeferredQuestions: wrapUpDeferredQuestionsRef.current,
       sessionUsesAnkiGrouping,
+      ankiSettings: sessionAnkiSettings,
       studyMaterialEntries: Array.from(studyMaterialsMap.entries()),
     };
 
@@ -307,19 +343,27 @@ export default function CustomReviewScreen() {
     progress,
     reviewItems,
     sessionUsesAnkiGrouping,
+    sessionAnkiSettings,
     studyMaterialsMap,
   ]);
 
-  const startCustomReview = useCallback((items: ReviewItem[]) => {
+  const startCustomReview = useCallback((
+    items: ReviewItem[],
+    ankiSettings: AnkiReviewSettings = initialAnkiSettings,
+  ) => {
+    const groupQuestions =
+      ankiSettings.enabled &&
+      ankiSettings.groupQuestions &&
+      ankiSettings.scope === "both";
     const sortedItems = sortReviewItemsForQueue(items, {
       reviewOrder: customReviewOrder,
     });
     const allQuestions = generateReviewQuestions(sortedItems, {
-      groupQuestions: effectiveAnkiGrouping,
+      groupQuestions,
     });
     const orderedQuestions = buildReviewQuestionQueue(sortedItems, {
-      groupQuestions: effectiveAnkiGrouping,
-      backToBack: backToBackQuestions && !effectiveAnkiGrouping,
+      groupQuestions,
+      backToBack: backToBackQuestions && !groupQuestions,
       questionTypeOrderEnabled: reviewQuestionOrderEnabled,
       questionTypeOrder: preferredQuestionType,
       maxQuestionGap: 10,
@@ -329,18 +373,19 @@ export default function CustomReviewScreen() {
     wrapUpDeferredQuestionsRef.current = [];
     setIsWrapUpMode(false);
     setIsFinished(false);
-    setSessionUsesAnkiGrouping(effectiveAnkiGrouping);
+    setSessionAnkiSettings(ankiSettings);
+    setSessionUsesAnkiGrouping(groupQuestions);
     setReviewItems(sortedItems);
     setActiveQueue(orderedQuestions);
     setCurrentQuestion(orderedQuestions[0] || null);
     setProgress({
       ...EMPTY_PROGRESS_STATE,
-      total: effectiveAnkiGrouping ? sortedItems.length : allQuestions.length / 2,
+      total: groupQuestions ? sortedItems.length : allQuestions.length / 2,
       totalItems: sortedItems.length,
     });
   }, [
     customReviewOrder,
-    effectiveAnkiGrouping,
+    initialAnkiSettings,
     backToBackQuestions,
     reviewQuestionOrderEnabled,
     preferredQuestionType,
@@ -369,7 +414,7 @@ export default function CustomReviewScreen() {
       setIsFinished(false);
       setIsWrapUpMode(false);
       wrapUpDeferredQuestionsRef.current = [];
-      setSessionUsesAnkiGrouping(effectiveAnkiGrouping);
+      setSessionUsesAnkiGrouping(initialAnkiGrouping);
       await clearSavedCustomReviewSession();
 
       // Parse subject IDs from params
@@ -512,7 +557,7 @@ export default function CustomReviewScreen() {
     apiToken,
     params.resume,
     params.subjectIds,
-    effectiveAnkiGrouping,
+    initialAnkiGrouping,
     acceptUserSynonymsAsAnswers,
     startCustomReview,
     clearSavedCustomReviewSession,
@@ -867,7 +912,7 @@ export default function CustomReviewScreen() {
       readingCorrectlyAnswered: false,
       meaningIncorrectCounted: false,
       readingIncorrectCounted: false,
-    })));
+    })), sessionAnkiSettings);
   };
 
   // Render current question
@@ -882,6 +927,7 @@ export default function CustomReviewScreen() {
 
     return (
       <ReviewQuestionScreen
+        ankiSettingsOverride={sessionAnkiSettings}
         item={{ id: item.id, subject: item.subject, srsStage: item.srsStage }}
         studyMaterials={studyMaterialsMap.get(item.subjectId)}
         onSynonymAdded={handleSynonymAdded}

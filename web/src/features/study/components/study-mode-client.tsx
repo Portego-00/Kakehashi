@@ -17,13 +17,14 @@ import { useStudyDataset } from "../use-study-dataset";
 import { isDemoMode } from "@/features/demo/runtime";
 import { QuizSession } from "./quiz-session";
 import { StudyConfig } from "./study-config";
+import type { SubjectListsState } from "@/features/subjects/components/AddToSubjectListsDialog";
 import { CrosswordGame, CustomLessons, KanaWordle, SimilarKanjiMatching, SubjectLists, TextAnalysis, WritingPractice } from "./special-modes";
 import { loadSavedWordSearch, savedWordSearchFilters, WordSearchGame, type SavedWordSearch } from "./word-search-game";
 import styles from "../study.module.css";
 
 const noopSubscribe = () => () => {};
 
-function Setup({ mode, scope, maxLevel, subjects, assignments, lists, seedSubjectIds, startImmediately, defaultAnimeSources, animeSyncUsernames, starting, onStart }: { mode: StudyModeId; scope: string | number; maxLevel: number; subjects: Parameters<typeof StudyConfig>[0]["subjects"]; assignments: NonNullable<Parameters<typeof StudyConfig>[0]["assignments"]>; lists: Parameters<typeof StudyConfig>[0]["lists"]; seedSubjectIds: number[]; startImmediately: boolean; defaultAnimeSources: string[]; animeSyncUsernames: { myanimelist: string; anilist: string }; starting: boolean; onStart: (filters: StudyFilters) => void }) {
+function Setup({ mode, scope, maxLevel, subjects, assignments, lists, subjectLists, seedSubjectIds, startImmediately, defaultAnimeSources, animeSyncUsernames, starting, onStart }: { mode: StudyModeId; scope: string | number; maxLevel: number; subjects: Parameters<typeof StudyConfig>[0]["subjects"]; assignments: NonNullable<Parameters<typeof StudyConfig>[0]["assignments"]>; lists: Parameters<typeof StudyConfig>[0]["lists"]; subjectLists: SubjectListsState; seedSubjectIds: number[]; startImmediately: boolean; defaultAnimeSources: string[]; animeSyncUsernames: { myanimelist: string; anilist: string }; starting: boolean; onStart: (filters: StudyFilters) => void }) {
   const rawConfig = useSyncExternalStore(noopSubscribe, () => window.localStorage.getItem(configKey(scope, mode)), () => null);
   const initial = useMemo(() => {
     const hydrated = hydrateModeFilters(mode, rawConfig ? loadStudyConfig(scope, mode) : null, maxLevel);
@@ -49,7 +50,7 @@ function Setup({ mode, scope, maxLevel, subjects, assignments, lists, seedSubjec
   if (startImmediately && filters.selectedSubjectIds.length) {
     return <LoadingState label="Starting your list" detail={`Preparing ${filters.selectedSubjectIds.length} saved ${filters.selectedSubjectIds.length === 1 ? "subject" : "subjects"}.`} />;
   }
-  return <StudyConfig mode={mode} filters={filters} subjects={subjects} assignments={assignments} lists={lists} userLevel={maxLevel} animeSyncUsernames={animeSyncUsernames} starting={starting} onChange={update} onStart={() => onStart(filters)} />;
+  return <StudyConfig mode={mode} filters={filters} subjects={subjects} assignments={assignments} lists={lists} subjectLists={subjectLists} userLevel={maxLevel} animeSyncUsernames={animeSyncUsernames} starting={starting} onChange={update} onStart={() => onStart(filters)} />;
 }
 
 function ListeningPreparation() {
@@ -92,7 +93,8 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
   const savedWordSearch = useMemo(() => rawWordSearch ? JSON.parse(rawWordSearch) as SavedWordSearch | null : null, [rawWordSearch]);
   const resumableWordSearchFilters = useMemo(() => savedWordSearch ? savedWordSearchFilters(savedWordSearch, userLevel) : null, [savedWordSearch, userLevel]);
   const username = user?.data.username ?? "anonymous";
-  const { repository: listRepository, lists } = useSubjectLists(username);
+  const subjectLists = useSubjectLists(username);
+  const { repository: listRepository, lists } = subjectLists;
 
   useEffect(() => {
     if (scope === "pending" || listRepository.load().length) return;
@@ -211,7 +213,7 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
   else if (activeFilters && mode === "custom-lessons") content = <CustomLessons dataset={dataset} filters={activeFilters} scope={scope} subjectDetailSettings={webSettings.subjectDetails} immersionSources={webSettings.study.immersionKitAnimeSources} onExit={exit} />;
   else if (mode === "text-analysis") content = <TextAnalysis subjects={dataset.subjects} scope={scope} />;
   else if (mode === "subject-lists") content = <SubjectLists subjects={dataset.subjects} scope={scope} username={username} />;
-  else content = <>{startError ? <p className={styles.startError} role="alert">{startError}</p> : null}<Setup mode={mode} scope={scope} maxLevel={userLevel} subjects={dataset.subjects} assignments={dataset.assignments} lists={lists} seedSubjectIds={seedSubjectIds} startImmediately={startingListSession} defaultAnimeSources={webSettings.study.immersionKitAnimeSources} animeSyncUsernames={{ myanimelist: webSettings.integrations?.myAnimeListUsername ?? "", anilist: webSettings.integrations?.aniListUsername ?? "" }} starting={preparing} onStart={(filters) => { if (startingListSession) setConsumedImmediateStart(immediateStartSignature); void start(filters); }} /></>;
+  else content = <>{startError ? <p className={styles.startError} role="alert">{startError}</p> : null}<Setup mode={mode} scope={scope} maxLevel={userLevel} subjects={dataset.subjects} assignments={dataset.assignments} lists={lists} subjectLists={subjectLists} seedSubjectIds={seedSubjectIds} startImmediately={startingListSession} defaultAnimeSources={webSettings.study.immersionKitAnimeSources} animeSyncUsernames={{ myanimelist: webSettings.integrations?.myAnimeListUsername ?? "", anilist: webSettings.integrations?.aniListUsername ?? "" }} starting={preparing} onStart={(filters) => { if (startingListSession) setConsumedImmediateStart(immediateStartSignature); void start(filters); }} /></>;
 
   const sessionActive = Boolean(activeSession || activeFilters || preparingListening || startingListSession);
 

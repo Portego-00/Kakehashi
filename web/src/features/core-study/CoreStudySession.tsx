@@ -1,4 +1,5 @@
 "use client";
+import { watchReviewAudio } from "@/features/speech/review-playback";
 
 import { useReviewAnswerFocus } from "@/features/study/use-review-answer-focus";
 import { studyShortcutAction, shortcutLabel, DEFAULT_STUDY_SHORTCUTS } from "@/features/settings/study-shortcuts";
@@ -12,7 +13,7 @@ import { reorderPendingCoreQuestions } from "./reorder-pending";
 import { FormEvent, type MouseEvent, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { ReviewLoading } from "./ReviewLoading";
-import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
+import { ReviewItemMetadata } from "@/features/study/components/ReviewItemMetadata";
 import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
 import type { WebStudyPreferences } from "@/features/settings/settings";
 import { useWebSettings } from "@/features/settings/use-workspace-preferences";
@@ -50,6 +51,8 @@ import { predictedReviewStage } from "./review-sync";
 import { loadReviewOutbox } from "./review-outbox";
 import { useReviewSync } from "./use-review-sync";
 import { coreSessionKey, lessonsStartedToday, localDay, recordLessonStarted, remainingDailyLessons, selectCoreAssignments } from "./session-planning";
+import { canUseReviewAsr } from "@/features/speech/review-asr-access";
+import { ReviewAsrAnswer } from "@/features/speech/ReviewAsrAnswer";
 import { speechRecognitionConstructor, type BrowserSpeechRecognition } from "./speech-recognition";
 import { canonicalAnswer, questionOrderForMode, shouldPauseAfterResult, usesSelfAssessment } from "./study-preferences";
 import { canRevealStudyDetails, vacationDateLabel, vacationStartedAt, vacationStudyMessage, WANIKANI_VACATION_SETTINGS_URL } from "./vacation";
@@ -59,7 +62,7 @@ import styles from "./core-study.module.css";
 import { reviewSubjectFont } from "./review-subject-font";
 import { useReviewFontReady } from "./use-review-font-ready";
 import { pickPreferredPronunciationAudios } from "../../../../src/utils/pronunciationAudio";
-import { getLessonVocabularyUnlockCounts } from "../../../../src/utils/lessonVocabularyUnlocks";
+import { getLessonUnlocks } from "../../../../src/utils/lessonUnlocks";
 
 import { MixedPreviousBadge } from "@/features/mixed-reviews/MixedPreviousBadge";
 import { ReviewExitGuard } from "./ReviewExitGuard";
@@ -181,7 +184,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
   const [pickedLessonIds, setPickedLessonIds] = useState<number[] | null>(null);
   const [pickingLessons, setPickingLessons] = useState(pickLessons && mode === "lessons");
   const queryClient = useQueryClient();
-  const { user } = useSession();
+  const { user, isDemo, status: sessionStatus } = useSession();
   const currentUserQuery = useQuery(userQuery());
   // A failed background refresh retains the last confirmed Vacation Mode status.
   const hasConfirmedUser = currentUserQuery.data !== undefined;
@@ -196,6 +199,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
   const preferences = useMemo(() => applyReviewPreset(webSettings.study,
     mode === "reviews" && !mixed ? getEnabledReviewPreset(webSettings.study, reviewPresetId) : null,
   ), [webSettings.study, mode, mixed, reviewPresetId]);
+  const localAsrAllowed = sessionStatus === "authenticated" && canUseReviewAsr(user?.data.username, isDemo);
   const [lessonDay, setLessonDay] = useState(() => localDay());
   const dailyAssignmentsQuery = useQuery({
     queryKey: ["wanikani", "assignments", "lessons-started", lessonDay],
@@ -341,7 +345,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     enabled: pickingLessons && preferences.showLessonVocabularyUnlockCounts && vocabularyUnlockLevels.length > 0 && !isOnVacation,
   });
   const vocabularyUnlockCounts = useMemo(() => preferences.showLessonVocabularyUnlockCounts && vocabularyUnlockQuery.data
-    ? getLessonVocabularyUnlockCounts(subjects, vocabularyUnlockQuery.data) : undefined,
+    ? new Map([...getLessonUnlocks(subjects, vocabularyUnlockQuery.data)].map(([id, unlocks]) => [id, unlocks.length])) : undefined,
   [preferences.showLessonVocabularyUnlockCounts, subjects, vocabularyUnlockQuery.data]);
   const dailyRemaining = remainingDailyLessons(preferences.dailyLessonLimit, lessonStartsToday);
   const assignmentLimit = mode === "lessons" ? Math.min(preferences.lessonsBatchSize, dailyRemaining) : preferences.reviewBatchSize;
@@ -527,6 +531,8 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     void Promise.all([queryClient.invalidateQueries({ queryKey: wkKeys.assignments(), refetchType: "none" }), queryClient.invalidateQueries({ queryKey: wkKeys.summary(), refetchType: "none" })]).catch(() => undefined);
   }, mode === "lessons" ? "lesson" : "review");
   const current = questions[0];
+  const [voiceQuestionKey, setVoiceQuestionKey] = useState<string | null>(null);
+  const voiceEntry = voiceQuestionKey === `${current?.id}:${choiceOccurrence}`;
   const answerAccuracy = coreAccuracy(completed, errors, questions[0] && feedback && feedback.status !== "blocked" ? { id: questions[0].assignment.id, kinds: answeredKinds.length ? answeredKinds : [questions[0].kind], correct: lastCorrect } : undefined);
   const reportMixedAccuracy = useEffectEvent(() => mixed?.reportAccuracy?.(answerAccuracy));
   useEffect(() => { reportMixedAccuracy(); }, [answerAccuracy.correct, answerAccuracy.answered]);
@@ -564,11 +570,11 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
   useEffect(() => { if (!mixedFailed && !mixedLoading && (isOnVacation || phase === "quiz" || phase === "results")) reportMixed(); }, [questions, phase, mixedFailed, mixedLoading, isOnVacation]);
   const selfAssessmentKinds = useMemo<QuestionKind[]>(() => {
     if (!current) return [];
-    if (preferences.ankiMode !== "both" || !preferences.ankiGroupQuestions) return [current.kind];
+    if (voiceEntry || preferences.ankiMode !== "both" || !preferences.ankiGroupQuestions) return [current.kind];
     const completedKinds = completed[current.assignment.id] || [];
     const availableKinds = kindsForSubject(current.subject).filter((kind) => !completedKinds.includes(kind) && questions.some((question) => question.assignment.id === current.assignment.id && question.kind === kind));
     return availableKinds.length > 1 ? availableKinds : [current.kind];
-  }, [completed, current, preferences.ankiGroupQuestions, preferences.ankiMode, questions]);
+  }, [voiceEntry, completed, current, preferences.ankiGroupQuestions, preferences.ankiMode, questions]);
   const groupedSelfAssessment = selfAssessmentKinds.length > 1;
   const material = current ? materialsQuery.data?.find((item) => item.data.subject_id === current.subject.id) : undefined;
   const addSynonymMutation = useMutation({
@@ -604,9 +610,9 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
   const completedItems = submittedIds.filter((id) => sessionItemIds.has(id)).length;
   const reportMixedProgress = useEffectEvent(() => mixed?.reportProgress?.({ completed: completedItems, total: totalItems }));
   useEffect(() => { reportMixedProgress(); }, [completedItems, totalItems]);
-  const currentUsesSelfAssessment = Boolean(current && usesSelfAssessment(current.kind, preferences));
+  const currentUsesSelfAssessment = Boolean(current && !voiceEntry && usesSelfAssessment(current.kind, preferences));
   const choiceQuestionKey = `${current?.id}:${choiceOccurrence}`;
-  const multipleChoiceEnabled = preferences.reviewMultipleChoiceEnabled && !currentUsesSelfAssessment;
+  const multipleChoiceEnabled = preferences.reviewMultipleChoiceEnabled && !currentUsesSelfAssessment && !voiceEntry;
   const reviewChoices = useReviewChoices({
     enabled: Boolean(multipleChoiceEnabled && phase === "quiz" && !isOnVacation && mixed?.active !== false),
     subject: current?.subject, kind: current?.kind, questionKey: choiceQuestionKey, meaningSynonyms: material?.data.meaning_synonyms,
@@ -677,6 +683,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     const audios = preferredAudiosFor(subject, preferences.vocabularyAudioVoice);
     for (let index = 0; index < audios.length; index += 1) {
       const player = new Audio(audios[index].url);
+      watchReviewAudio(player);
       if (index === audios.length - 1) {
         await player.play().catch(() => undefined);
         continue;
@@ -1207,7 +1214,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
     ...Object.entries(errors).filter(([, mistakes]) => mistakes.meaning > 0 || mistakes.reading > 0).map(([id]) => Number(id)),
     ...(feedback && feedback.status !== "blocked" ? [current.assignment.id] : []),
   ].filter((id) => !submittedIds.includes(id)));
-  const questionMetadata = showReviewMetadata ? <div className={quiz.reviewPromptMetadata} aria-label="Question status"><span>Level {current.subject.data.level}</span><span><SrsStageIcon stage={current.assignment.data.srs_stage} size={16} />{srsStageLabel(current.assignment.data.srs_stage)}</span></div> : null;
+  const questionMetadata = showReviewMetadata ? <ReviewItemMetadata level={current.subject.data.level} srsStage={current.assignment.data.srs_stage} hideText={preferences.hideReviewItemLevelAndSrsStageText} /> : null;
 
   const renderedAnswerFeedback = feedback ? <div className={quiz.answerStatus} role="status" aria-live="polite">
           <strong className={quiz.answerVerdict} data-correct={feedback.status === "correct"} data-warning={answerResult === "warning"}>{feedback.status === "correct" ? <Check size={18} aria-hidden /> : feedback.status === "incorrect" ? <X size={18} aria-hidden /> : <RotateCcw size={18} aria-hidden />}{feedback.status === "correct" ? "Correct" : feedback.status === "close" ? "Accepted with a typo" : feedback.status === "blocked" ? "Try another answer" : "Incorrect"}</strong>
@@ -1226,7 +1233,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
           {mixed ? (mixed.active ? <MixedPreviousBadge key={mixed.previous?.id} answer={mixed.previous} claimAnimation={mixed.claimPreviousAnimation} animate={preferences.reviewAnimatePreviousQuestion} /> : null) : previousAnswerItem ? <Link key={`${previousAnswerItem.subject.id}:${previousAnswerItem.kind}`} className={quiz.previousSubjectLink} target="_blank" rel="noopener noreferrer" data-type={previousAnswerItem.subject.object} data-animate={preferences.reviewAnimatePreviousQuestion || undefined} data-correct={previousAnswerItem.isCorrect} href={`/subjects/${previousAnswerItem.subject.id}`} aria-label={`Previous ${previousAnswerItem.kind} answer: ${primaryMeaning(previousAnswerItem.subject)}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}><SubjectCharacter subject={previousAnswerItem.subject} className={quiz.previousSubjectCharacter} imageSize="1em" /><span className={quiz.previousSubjectStatus} data-correct={previousAnswerItem.isCorrect} aria-hidden>{previousAnswerItem.isCorrect ? <Check size={13} /> : <X size={13} />}</span></Link> : null}
       <header className={quiz.questionCard} aria-label={`${mode === "lessons" ? "Lesson quiz" : "Review"} prompt`}>
         {outboxMessage ? <p className={styles.syncNotice} role="alert">{outboxMessage}</p> : null}
-          <h2 style={{ fontSize: reviewCharacterSize, "--review-character-size": reviewCharacterSize } as React.CSSProperties}><SubjectCharacter subject={current.subject} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} data-jitai-font={jitaiFamily && current.subject.data.characters ? true : undefined} style={{ fontSize: "inherit", fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties} eager /></h2>
+          <h2 style={{ color: preferences.reviewPromptTextColor || undefined, fontSize: reviewCharacterSize, "--review-character-size": reviewCharacterSize } as React.CSSProperties}><SubjectCharacter subject={current.subject} imageTone={preferences.reviewPromptTextColor ? "subject" : "light"} className={current.subject.data.characters || current.subject.data.character_images?.length ? styles.characters : styles.subjectText} data-jitai-font={jitaiFamily && current.subject.data.characters ? true : undefined} style={{ fontSize: "inherit", fontFamily: jitaiFamily ?? reviewSubjectFont.style.fontFamily, fontWeight: 350, "--jitai-standard-font": reviewSubjectFont.style.fontFamily } as React.CSSProperties} eager /></h2>
           <VocabularyFrequencyBadge subject={current.subject} enabled={preferences.showVocabularyFrequency} />
           {showContextHint ? <div className={quiz.reviewContextHint}>
             <div className={styles.contextHintContent}>{contextSentences.map((sentence, index) => <div className={styles.contextHintSentenceGroup} key={`${sentence.ja}-${index}`}><p lang="ja">• {sentence.ja}</p>{contextTranslationOpen && sentence.en.trim() ? <p>• {sentence.en}</p> : null}</div>)}</div>
@@ -1322,7 +1329,8 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
         {speechError ? <p className={styles.error} role="alert">{speechError}</p> : null}
         {!hideTypedAnswer ? renderedAnswerFeedback : null}
         <div className={quiz.reviewAnswerControls}>
-          {preferences.voiceAnswers && !selfAssessment && !multipleChoiceEnabled ? <Button className={quiz.textButton} type="button" tone="ghost" disabled={!voiceAvailable || listening || Boolean(feedback)} aria-label={!voiceAvailable ? "Voice answer unavailable" : listening ? "Listening for voice answer" : "Voice answer"} onClick={startVoiceAnswer}><Mic size={17} aria-hidden /><span>{listening ? "Listening…" : "Voice"}</span></Button> : null}
+          {localAsrAllowed ? <ReviewAsrAnswer language={current.kind === "reading" ? "ja" : "en"} enabled={preferences.reviewAsrEnabled} onStart={() => { recognitionRef.current?.stop(); setVoiceQuestionKey(choiceQuestionKey); }} questionKey={choiceQuestionKey} value={answer} blocked={Boolean(feedback) || advancingQuestion || replayingAudio || mixed?.active === false || listDialogOpen || reviewSettingsOpen} onTranscript={(text) => { setAnswer(text); setSpeechError(""); }} onAnswer={submitValue} isAcceptedAnswer={text => checkAnswer(current.subject, current.kind, text, preferences.acceptUserSynonymsAsAnswers ? material : undefined, current.kind === "reading" ? { singleKanjiReadings, acceptAnyKanjiOnyomiReading: preferences.acceptAnyKanjiOnyomiReading } : undefined).status === "correct"} /> : null}
+          {preferences.voiceAnswers && !localAsrAllowed && !selfAssessment && !multipleChoiceEnabled ? <Button className={quiz.textButton} type="button" tone="ghost" disabled={!voiceAvailable || listening || Boolean(feedback)} aria-label={!voiceAvailable ? "Voice answer unavailable" : listening ? "Listening for voice answer" : "Voice answer"} onClick={startVoiceAnswer}><Mic size={17} aria-hidden /><span>{listening ? "Listening…" : "Voice"}</span></Button> : null}
           {feedback && feedback.status !== "blocked" ? <div className={quiz.closeAnswerActions} aria-label="Answer result controls">
             <Button aria-label="Mark Incorrect" className={quiz.correctionButton} type="button" tone="ghost" disabled={advancingQuestion || addSynonymMutation.isPending} onMouseDown={preservePhoneInputFocus} onClick={() => !unresolvedCloseAnswer && !lastCorrect ? advance() : markAnswer(false)}><X size={17} aria-hidden />Mark Incorrect{preferences.keyboardShortcuts ? <kbd aria-hidden>{!unresolvedCloseAnswer && !lastCorrect ? shortcutLabel(studyKeys.progress) : shortcutLabel(studyKeys.markIncorrect)}</kbd> : null}</Button>
             {unresolvedCloseAnswer || !lastCorrect ? <Button aria-label="Mark Correct" className={quiz.correctionButton} type="button" tone="ghost" disabled={advancingQuestion || addSynonymMutation.isPending} onMouseDown={preservePhoneInputFocus} onClick={() => markAnswer(true)}><Check size={17} aria-hidden />Mark Correct{preferences.keyboardShortcuts ? <kbd aria-hidden>{shortcutLabel(studyKeys.markCorrect)}</kbd> : null}</Button> : null}

@@ -23,6 +23,9 @@ jest.mock("../../src/utils/store", () => ({
   useSettingsStore: (selector: (state: typeof mockSettings) => unknown) => selector(mockSettings),
 }));
 jest.mock("../../src/hooks/useVocabularyFrequencyRanks", () => ({ useVocabularyFrequencyRanks: jest.fn() }));
+jest.mock("../../src/hooks/use-subject-list-audio", () => ({
+  useSubjectListAudio: () => ({ play: jest.fn(), stop: jest.fn(), activeSubjectId: null, loading: false, error: null }),
+}));
 jest.mock("../../src/utils/cache", () => ({ getAllSubjects: jest.fn() }));
 jest.mock("../../src/utils/api", () => ({
   getAllAssignmentsCached: jest.fn(async () => ({
@@ -44,7 +47,18 @@ jest.mock("../../src/utils/jlptClassification", () => ({
   JLPT_LEVELS: ["N5", "N4", "N3", "N2", "N1"],
 }));
 jest.mock("../../src/utils/radicalSvg", () => ({ pickBestImage: () => null, useRemoteSvg: () => null }));
-jest.mock("../../src/components/SubjectListStudyMenu", () => () => null);
+jest.mock("../../src/components/SubjectListStudyMenu", () => {
+  const { View, Text, TouchableOpacity } = jest.requireActual("react-native");
+  return function MockStudyMenu({ onStandardReview, onFlashcardReview }: {
+    onStandardReview: () => void;
+    onFlashcardReview: () => void;
+  }) {
+    return <View>
+      <TouchableOpacity onPress={onStandardReview}><Text>Standard Review</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onFlashcardReview}><Text>Flashcard Review</Text></TouchableOpacity>
+    </View>;
+  };
+});
 jest.mock("../../src/components/TransferSubjectListsModal", () => () => null);
 jest.mock("../../src/components/CommonFilterModal", () => ({ CommonFilterModal: () => null }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
@@ -63,8 +77,8 @@ jest.mock("@expo/ui/swift-ui", () => {
 });
 jest.mock("../../src/components/GlassButton", () => {
   const { TouchableOpacity } = jest.requireActual("react-native");
-  return { GlassButton: ({ iconName, ...props }: { iconName: string }) => (
-    <TouchableOpacity {...props} accessibilityLabel={iconName} />
+  return { GlassButton: ({ iconName, accessibilityLabel, ...props }: { iconName: string; accessibilityLabel?: string }) => (
+    <TouchableOpacity {...props} accessibilityLabel={accessibilityLabel ?? iconName} />
   ) };
 });
 
@@ -131,6 +145,20 @@ describe("subject list frequency filtering", () => {
     act(() => jest.advanceTimersByTime(1000));
     expect(screen.UNSAFE_getByType(SearchFilterModal).props.visible).toBe(false);
   }
+
+  it.each([
+    ["standard", "Standard Review"], ["flashcard", "Flashcard Review"],
+  ])("starts a %s review with the saved list items", async (reviewMode, label) => {
+    const screen = await openList();
+    await applyMaximum(screen);
+    fireEvent.press(screen.getByText("Select Filtered"));
+    fireEvent.press(screen.getByText(label));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({
+      pathname: "/custom-review",
+      params: { subjectIds: "1,2", reviewMode },
+    }));
+    expect(JSON.parse(storage.get(listKey)!).lists[0].subjectIds).toEqual([1, 2]);
+  });
 
   it("offers word frequency in the list creation filters", async () => {
     const screen = await openList();

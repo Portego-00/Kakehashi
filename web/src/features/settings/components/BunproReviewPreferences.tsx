@@ -5,6 +5,7 @@ import { REVIEW_CHARACTER_FONT_SCALES, REVIEW_BATCH_SIZE_VALUES, type WebStudyPr
 import { SettingsChoices } from "./review-answer-mode-cards";
 import { SettingsToggleRow } from "./SettingsToggleRow";
 import { SettingsDescription } from "./SettingsDescription";
+import { ReviewPromptColorSetting } from "./ReviewPromptColorSetting";
 import { SettingsDisclosure } from "./settings-disclosure";
 import { SettingsRowIcon, type SettingRowId } from "./settings-row-icon";
 import { StudyShortcutSettings } from "./StudyShortcutSettings";
@@ -15,7 +16,7 @@ export function BunproReviewPreferences({ study, onChange }: { study: WebStudyPr
   const toggle = (key: BooleanPreference, label: string, description: string, setting: SettingRowId, disabled = false) =>
     <SettingsToggleRow label={label} description={description} setting={setting} checked={key === "pauseOnClose" ? study.pauseOnCorrect || study.pauseOnClose : study[key]} disabled={disabled} onChange={(value) => onChange({ [key]: value })} />;
   return <div className={styles.bunproPreferences}>
-    <h3>Review preferences<SettingsDescription label="Bunpro review preferences">Except for furigana, these preferences are shared with WaniKani reviews. Changing them here also updates the Reviews section. Bunpro supports typing and Anki cards.</SettingsDescription></h3>
+    <h3>Review preferences<SettingsDescription label="Bunpro review preferences">Furigana and prompt text color are specific to Bunpro. Other preferences are shared with WaniKani reviews. Changing them here also updates the Reviews section. Bunpro supports typing and Anki cards.</SettingsDescription></h3>
     <SettingsChoices label="Bunpro answer mode" value={study.ankiMode === "off" ? "type" : "anki"}
       options={[{ value: "type", label: "Type answers", art: "type", description: "Recall and type" }, { value: "anki", label: "Anki cards", art: "cards", description: "Reveal and grade" }]}
       onChange={(mode) => onChange(mode === "anki" ? { ankiMode: study.ankiMode === "off" ? "both" : study.ankiMode } : { ankiMode: "off", ankiGroupQuestions: false })} />
@@ -30,6 +31,7 @@ export function BunproReviewPreferences({ study, onChange }: { study: WebStudyPr
     </Card>
     <div className={styles.disclosureStack}>
       <SettingsDisclosure title="Prompt & answer behavior" description="Pauses, audio, hints and the information shown during Bunpro reviews" icon="answer">
+        <ReviewPromptColorSetting provider="bunpro" value={study.bunproReviewPromptTextColor} onChange={(value) => onChange({ bunproReviewPromptTextColor: value })} />
         {toggle("pauseOnWrong", "Pause on wrong answer", "Wait after an incorrect answer before continuing.", "pause-wrong")}
         {toggle("pauseOnClose", "Pause on close answer", "Wait after an accepted fuzzy match. Always enabled when Pause on correct answer is on.", "pause-close", study.pauseOnCorrect)}
         {toggle("pauseOnCorrect", "Pause on correct answer", "Wait after a correct answer before continuing.", "pause-correct")}

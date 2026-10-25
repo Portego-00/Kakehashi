@@ -5,8 +5,13 @@ import { searchImmersionKit, type ImmersionKitSentence } from "../../services/im
 import { useAuthStore, useSettingsStore } from "../../utils/store";
 import { useTheme } from "../../utils/theme";
 import { useBunproAudio } from "../../hooks/useBunproAudio";
+import { MediaContextSource } from "../MediaContextSource";
 
 export function BunproContext({ query }: { query: string }) {
+  return <MediaContextSource query={query}><BunproAnimeContext query={query} /></MediaContextSource>;
+}
+
+function BunproAnimeContext({ query }: { query: string }) {
   const { theme } = useTheme();
   const { immersionKitAnimes, myAnimeListUsername, hideContextSentenceTranslations, hideContextSentenceTranslationsCompletely } = useSettingsStore();
   const level = useAuthStore((state) => state.userData?.level);

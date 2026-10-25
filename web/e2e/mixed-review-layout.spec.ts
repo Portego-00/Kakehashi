@@ -168,6 +168,38 @@ const preferenceCases: { name: string; study: Partial<WebStudyPreferences> }[] =
   { name: "voice answers enabled", study: { voiceAnswers: true } },
 ];
 
+for (const width of [390, 1280]) {
+  test(`review metadata hides English labels without losing the current answer at ${width}px`, async ({ page }, testInfo) => {
+    test.skip(!process.env.MIXED_REVIEW_BASE_URL, "Requires the isolated mixed-review fixture server");
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openMixedReviews(page);
+    const metadata = page.locator('[aria-label="Review prompt"] [aria-label="Question status"]');
+    await expect(metadata).toContainText("Level 1");
+    await expect(metadata.getByText("Apprentice III")).not.toHaveClass("sr-only");
+    const input = page.getByRole("textbox", { name: "Your answer", exact: true }).filter({ visible: true });
+    await input.fill("ri");
+    await page.getByRole("button", { name: "Review settings", exact: true }).filter({ visible: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Review settings" });
+    await dialog.getByLabel("Hide level & SRS text", { exact: true }).check();
+    await page.screenshot({ path: testInfo.outputPath("hide-metadata-text-setting.png"), animations: "disabled" });
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(metadata.getByText("Level", { exact: true })).toHaveClass("sr-only");
+    await expect(metadata.getByText("Apprentice III")).toHaveClass("sr-only");
+    await expect(metadata.locator("svg use")).toHaveAttribute("href", "/srs/srs-icons.svg#apprentice-3");
+    await expect(metadata.locator(":scope > span").first()).toHaveText("Level 1");
+    await expect(input).toHaveValue("ri");
+    await page.screenshot({ path: testInfo.outputPath("icon-only-metadata.png"), animations: "disabled" });
+    await page.getByRole("button", { name: "Review settings", exact: true }).filter({ visible: true }).click();
+    await expect(dialog.getByLabel("Hide level & SRS text", { exact: true })).toBeChecked();
+    await dialog.getByLabel("Hide level & SRS text", { exact: true }).uncheck();
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(metadata).toContainText("Level 1");
+    await expect(metadata.getByText("Apprentice III")).not.toHaveClass("sr-only");
+    await expect(input).toHaveValue("ri");
+  });
+}
+
 for (const { name, study } of preferenceCases) {
   test(`mixed review answer layout remains stable with ${name}`, async ({ page, isMobile }, testInfo) => {
     test.skip(isMobile, "Desktop mixed-review geometry regression");

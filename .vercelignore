@@ -57,6 +57,8 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !src/utils/lessonSrsThreshold.ts
 
 !shared/subtitleTiming.ts
+!shared/note-images.ts
+!shared/note-image-gestures.ts
 
 web/tsconfig.tsbuildinfo
 

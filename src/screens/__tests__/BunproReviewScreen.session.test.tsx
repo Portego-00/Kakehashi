@@ -12,6 +12,21 @@ import type { MixedReviewBridge } from "../../types/mixedReviews";
 const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false, ankiCardMode: false, ankiCardModeScope: "both", ankiHideAnswerCompletely: false, ankiShowOtherAcceptedAnswersAndUserSynonyms: false, ankiShowReplayAudioButton: false, ankiButtonlessMode: false, ankiGroupQuestions: false, reviewSearchButtonEnabled: false, bunproHideFurigana: false, setBunproHideFurigana: jest.fn() };
 const mockPush = jest.fn();
 
+it("uses Bunpro's own prompt color and keeps the typed answer when colors change", () => {
+  const colors = Object.assign(mockReviewSettings, { reviewPromptTextColor: "#123456", bunproReviewPromptTextColor: "#abcdef" });
+  const question = item("1");
+  question.included![0].attributes.content = "私(わたし)は学生(がくせい)____。";
+  const queue = [question];
+  const view = render(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} />);
+  fireEvent.changeText(view.getByLabelText("Bunpro answer"), "ね");
+  expect(StyleSheet.flatten(view.getByText("学生").props.style).color).toBe("#abcdef");
+  colors.bunproReviewPromptTextColor = "";
+  view.rerender(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} />);
+  expect(StyleSheet.flatten(view.getByText("学生").props.style).color).toBe("#000");
+  expect(view.getByLabelText("Bunpro answer").props.value).toBe("ね");
+  colors.reviewPromptTextColor = "";
+});
+
 jest.mock("react-native-safe-area-context", () => jest.requireActual("react-native-safe-area-context/jest/mock").default);
 
 jest.mock("react-native-reanimated", () => {

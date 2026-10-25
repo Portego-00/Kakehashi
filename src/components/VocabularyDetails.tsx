@@ -1,4 +1,5 @@
 import { useLearningDisplay } from "../features/translation-packages/display";
+import { MediaContextSource } from "./MediaContextSource";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
@@ -150,7 +151,9 @@ interface VocabularyDetailsProps {
     readingMaxStreak?: number;
     percentageCorrect?: number;
     nextReviewAt?: string;
+    burnedAt?: string | null;
     onEditNote?: (type: "meaning" | "reading") => void;
+    onRemoveNoteImage?: (type: "meaning" | "reading", index: number) => Promise<void>;
   };
   progressionStatus: "loading" | "success" | "offline";
   onSubjectPress?: (subjectId: number) => void;
@@ -371,6 +374,23 @@ export default function VocabularyDetails({
     visuallySimilarKanjiSource,
   } = useSettingsStore();
   const { userData } = useAuthStore();
+  const contextIsActive = activeTab === "context";
+  const stopContextAudio = () => {
+    ++audioPlaybackRequestIdRef.current;
+    const current = soundRef.current;
+    soundRef.current = null;
+    if (current) {
+      current.setOnPlaybackStatusUpdate(null);
+      void current.unloadAsync().catch(() => {});
+    }
+    void azureSpeechService.stop();
+    setSound(null);
+    setPlayingAudioId(null);
+    setLoadingAudioId(null);
+    setPlayingContextSentence(null);
+    setPlayingMediaSentence(null);
+    setLoadingMediaSentence(null);
+  };
   const { width: screenWidth } = useWindowDimensions();
   const pagerRef = useRef<PagerView>(null);
   const [revealedTranslations, setRevealedTranslations] = useState<Set<string>>(
@@ -2482,6 +2502,7 @@ export default function VocabularyDetails({
             {renderContextSections()}
 
             {/* Media Context Sentences Section */}
+            <MediaContextSource query={vocabulary.characters} active={contextIsActive} onYouGlishSelect={stopContextAudio}>
             {showMediaContextSentences && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
@@ -2730,6 +2751,7 @@ export default function VocabularyDetails({
                 )}
               </View>
             )}
+            </MediaContextSource>
           </View>
         )}
 
@@ -2780,6 +2802,7 @@ export default function VocabularyDetails({
                     {vocabulary.meaningNote ? (
                       <FormattedNoteText
                         text={vocabulary.meaningNote}
+                        onRemoveImage={vocabulary.onRemoveNoteImage ? (index) => vocabulary.onRemoveNoteImage!("meaning", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (
@@ -2821,6 +2844,7 @@ export default function VocabularyDetails({
                     {vocabulary.readingNote ? (
                       <FormattedNoteText
                         text={vocabulary.readingNote}
+                        onRemoveImage={vocabulary.onRemoveNoteImage ? (index) => vocabulary.onRemoveNoteImage!("reading", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (
@@ -3061,14 +3085,20 @@ export default function VocabularyDetails({
                               { color: theme.textSecondary },
                             ]}
                           >
-                            Next review:{" "}
+                            {vocabulary.srsStage === 9
+                              ? "Burned on: "
+                              : "Next review: "}
                             <Text
                               style={{
                                 fontWeight: "600",
                                 color: theme.textColor,
                               }}
                             >
-                              {formatNextReviewTime(vocabulary.nextReviewAt)}
+                              {vocabulary.srsStage === 9
+                                ? vocabulary.burnedAt
+                                  ? new Date(vocabulary.burnedAt).toLocaleDateString()
+                                  : "Date unavailable"
+                                : formatNextReviewTime(vocabulary.nextReviewAt)}
                             </Text>
                           </Text>
                         </View>

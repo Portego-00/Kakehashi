@@ -6,10 +6,16 @@ import {
   waitFor,
 } from "@testing-library/react-native";
 import React from "react";
+import { Platform } from "react-native";
+import { router } from "expo-router";
 
 import CustomReviewSelectionScreen from "../(app)/custom-review-selection";
 import { EXTRA_STUDY_CONFIG_STORAGE_KEYS } from "../../src/utils/extraStudyConfigPersistence";
 import { getAllSubjects } from "../../src/utils/cache";
+import { clearExtraStudySessionState } from "../../src/utils/extraStudySessionPersistence";
+import { getAllAssignmentsCached } from "../../src/utils/api";
+import { addSubjectsToLists, getSubjectLists } from "../../src/utils/subjectLists";
+import type { StudyDateFilter } from "../../src/utils/studyDateFilter";
 
 const mockSetShowVocabularyFrequency = jest.fn();
 type MockItemType =
@@ -26,6 +32,7 @@ type MockSearchFilters = {
   jlptLevels: Set<MockJlptLevel>;
   maxFrequencyRank: number | null;
   vocabularyTypes: string[];
+  studyDate?: StudyDateFilter | null;
 };
 type MockSearchFilterModalProps = {
   visible: boolean;
@@ -71,9 +78,21 @@ jest.mock("react-native-svg", () => {
   return { SvgXml: View };
 });
 
-jest.mock("../../src/components/SubjectListStudyMenu", () => {
+jest.mock("../../src/components/GlassButton", () => {
   const { View } = jest.requireActual("react-native");
-  return View;
+  return { GlassButton: View };
+});
+
+jest.mock("@expo/ui/swift-ui", () => {
+  const { View, Text, TouchableOpacity } = jest.requireActual("react-native");
+  return {
+    Host: View,
+    RNHostView: View,
+    Menu: View,
+    Button: ({ label, onPress }: { label: string; onPress: () => void }) => (
+      <TouchableOpacity onPress={onPress}><Text>{label}</Text></TouchableOpacity>
+    ),
+  };
 });
 
 jest.mock("../../src/components/SearchFilterModal", () => {
@@ -178,6 +197,7 @@ jest.mock("../../src/utils/subjectColors", () => ({
 }));
 
 jest.mock("../../src/utils/subjectLists", () => ({
+  addSubjectsToLists: jest.fn().mockResolvedValue(undefined),
   getSubjectIdSetForListIds: jest.fn().mockResolvedValue(new Set()),
   getSubjectLists: jest.fn().mockResolvedValue([]),
   syncSubjectListsNow: jest.fn().mockResolvedValue(undefined),
@@ -254,6 +274,44 @@ describe("Custom Review filter selection persistence", () => {
     mockedAsyncStorage.getItem.mockResolvedValue(null);
     mockedAsyncStorage.setItem.mockResolvedValue(undefined);
     (getAllSubjects as jest.Mock).mockResolvedValue([]);
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [] });
+    (getSubjectLists as jest.Mock).mockResolvedValue([]);
+  });
+
+  it.each([
+    ["ios", "standard", "Standard Review (1)"],
+    ["ios", "flashcard", "Flashcard Review (1)"],
+    ["android", "standard", "Standard Review"],
+    ["android", "flashcard", "Flashcard Review"],
+  ] as const)("starts a %s %s session from the study menu", async (platform, reviewMode, label) => {
+    const originalPlatform = Platform.OS;
+    Platform.OS = platform;
+    try {
+      (getAllSubjects as jest.Mock).mockResolvedValue([{
+        id: 1001, object: "kanji", data: {
+          characters: "漢", level: 1,
+          meanings: [{ meaning: "Chinese", primary: true }], readings: [],
+        },
+      }]);
+      const screen = render(<CustomReviewSelectionScreen />);
+      expect(screen.getByLabelText("Choose study mode").props.accessibilityState).toEqual({ disabled: true });
+      fireEvent.press(await screen.findByLabelText("Select 1 ready subjects"));
+      if (platform === "android") {
+        fireEvent.press(screen.getByLabelText("Choose study mode"));
+      }
+      fireEvent.press(await screen.findByText(label));
+      await waitFor(() => expect(router.push).toHaveBeenCalledWith({
+        pathname: "/custom-review",
+        params: { subjectIds: "1001", reviewMode },
+      }));
+      expect(clearExtraStudySessionState).toHaveBeenCalledWith("extra_study_session:custom_review");
+      if (platform === "android") {
+        expect(screen.queryByText("Choose Study Mode")).toBeNull();
+      }
+      screen.unmount();
+    } finally {
+      Platform.OS = originalPlatform;
+    }
   });
 
   it("hydrates a remembered all-level filter instead of capping it to the user level", async () => {
@@ -310,6 +368,7 @@ describe("Custom Review filter selection persistence", () => {
       jlptLevels: new Set(["N2"]),
       maxFrequencyRank: 2500,
       vocabularyTypes: ["proper noun"],
+      studyDate: null,
     };
     fireEvent.press(await openFilters(screen, "Filters, 1 active"));
 
@@ -329,7 +388,33 @@ describe("Custom Review filter selection persistence", () => {
       jlptLevels: ["N2"],
       maxFrequencyRank: 2500,
       vocabularyTypes: ["proper noun"],
+      studyDate: null,
     });
+  });
+
+  it.each(["started_at", "unlocked_at"] as const)("selects, reviews and saves only %s date matches", async (field) => {
+    const dated = { field, period: "custom" as const, from: "2026-10-01", to: "2026-10-02" };
+    (getAllSubjects as jest.Mock).mockResolvedValue([1, 2, 3].map((id) => ({ id, object: "kanji", data: { characters: `字${id}`, level: 1, meanings: [{ meaning: `Word ${id}`, primary: true }], readings: [] } })));
+    (getAllAssignmentsCached as jest.Mock).mockResolvedValue({ data: [
+      { data: { subject_id: 1, srs_stage: 1, started_at: "2026-10-01T12:00:00Z", unlocked_at: "2026-09-01T12:00:00Z" } },
+      { data: { subject_id: 2, srs_stage: 0, started_at: null, unlocked_at: "2026-10-02T12:00:00Z" } },
+      { data: { subject_id: 3, srs_stage: 1, started_at: "2026-09-01T12:00:00Z", unlocked_at: "2026-09-01T12:00:00Z" } },
+    ] });
+    (getSubjectLists as jest.Mock).mockResolvedValue([{ id: "target", name: "Practice later", subjectIds: [3], createdAt: "", updatedAt: "" }]);
+    const screen = render(<CustomReviewSelectionScreen />);
+    await openFilters(screen, "Filters, 1 active");
+    mockNextAppliedFilters = { ...latestSearchFilterModalProps()!.currentFilters, studyDate: dated };
+    fireEvent.press(screen.getByLabelText("Apply filters from test modal"));
+    fireEvent.press(await screen.findByLabelText("Select 1 ready subjects"));
+    const selectedId = field === "started_at" ? 1 : 2;
+    fireEvent.press(screen.getByLabelText("Add selected subjects to lists"));
+    fireEvent.press(await screen.findByText("Practice later"));
+    fireEvent.press(screen.getByText("Add"));
+    await waitFor(() => expect(addSubjectsToLists).toHaveBeenCalledWith(["target"], [selectedId]));
+    await waitFor(() => expect(screen.queryByLabelText("Close add to lists modal")).toBeNull());
+    fireEvent.press(screen.getByText("Standard Review (1)"));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith({ pathname: "/custom-review", params: { subjectIds: String(selectedId), reviewMode: "standard" } }));
+    expect(latestSavedCustomReviewConfig().studyDate).toEqual(dated);
   });
 
   it("applies a vocabulary type before the result limit and updates bulk selection", async () => {

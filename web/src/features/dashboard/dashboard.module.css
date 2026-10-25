@@ -195,6 +195,7 @@ button.srsGroupControl:disabled { opacity: .55; cursor: not-allowed; }
 .levelSubjectTile[data-subject="kanji"][data-status="started"] .levelSubjectBlock,
 .levelSubjectTile[data-subject="kanji"][data-status="passed"] .levelSubjectBlock { border-color: var(--color-kanji); background: var(--color-kanji); }
 .levelSubjectBlock > span { max-width: 100%; overflow: hidden; font: 700 var(--text-md) var(--font-japanese); line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.levelSubjectCharacter { width: 100%; height: 100%; display: grid; place-items: center; }
 .levelSubjectTile:focus-visible { outline: 2px solid var(--color-focus); outline-offset: var(--space-3xs); }
 .levelSubjectTile:active { opacity: .78; }
 .levelSubjectMeter { width: 100%; height: var(--space-2xs); display: flex; gap: var(--space-3xs); }

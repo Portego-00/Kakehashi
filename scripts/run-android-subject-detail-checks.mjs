@@ -10,6 +10,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixture = path.join(root, 'scripts/android-subject-details');
 const args = process.argv.slice(2);
 const option = (name, fallback) => args.includes(name) ? args[args.indexOf(name) + 1] : fallback;
+const scenario = option('--scenario', 'subjects');
+if (!['subjects', 'lessons'].includes(scenario)) throw new Error('Choose --scenario subjects or --scenario lessons.');
 const output = path.resolve(option('--output', path.join(root, 'output/android-subject-details')));
 mkdirSync(output, {recursive: true});
 const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || path.join(homedir(), 'Library/Android/sdk');
@@ -74,7 +76,7 @@ try {
   run(adb, [...adbArgs, 'reverse', 'tcp:8096', 'tcp:8096']);
   run(adb, [...adbArgs, 'reverse', 'tcp:8097', 'tcp:8097']);
   run(adb, [...adbArgs, 'install', '--no-incremental', '-r', apk]);
-  const test = spawn(adb, [...adbArgs, 'shell', 'am', 'instrument', '-w', endpoint], {stdio: ['ignore', 'pipe', 'pipe']});
+  const test = spawn(adb, [...adbArgs, 'shell', 'am', 'instrument', '-w', '-e', 'scenario', scenario, endpoint], {stdio: ['ignore', 'pipe', 'pipe']});
   subprocesses.push(test);
   let verdict = '';
   for (const stream of [test.stdout, test.stderr]) stream.on('data', data => { verdict += data; process.stdout.write(data); });
@@ -82,7 +84,8 @@ try {
   writeFileSync(path.join(output, 'native-test.log'), verdict);
   writeFileSync(path.join(output, 'runtime.log'), run(adb, [...adbArgs, 'logcat', '-d', '-t', '3500', 'ReactNativeJS:W', 'System.out:I', 'AndroidRuntime:E', '*:S']));
   run(adb, [...adbArgs, 'pull', `/sdcard/Android/data/${appId}/files/subject-details-proof`, output]);
-  if (exitCode !== 0 || !verdict.includes('PASS: subject tabs')) throw new Error(`Native regression failed; see ${output}`);
+  const expected = scenario === 'lessons' ? 'PASS: lesson synonyms' : 'PASS: subject tabs';
+  if (exitCode !== 0 || !verdict.includes(expected)) throw new Error(`Native regression failed; see ${output}`);
   console.log(`Android details checks passed. Screenshots and timings: ${output}`);
 } finally {
   for (const process of subprocesses) if (process.exitCode === null) process.kill('SIGTERM');

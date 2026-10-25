@@ -58,12 +58,15 @@ export interface WebStudyPreferences {
   answerFeedbackSoundEnabled: boolean;
   showSrsIndicator: boolean;
   showReviewItemLevelAndSrsStage: boolean;
+  hideReviewItemLevelAndSrsStageText: boolean;
   showVocabularyFrequency: boolean;
   showVocabContextSentencesInReviews: boolean;
   allowSkippingReviews: boolean;
   reviewSearchButtonEnabled: boolean;
   bunproHideFurigana: boolean;
   reviewCharacterFontScale: number;
+  reviewPromptTextColor: string;
+  bunproReviewPromptTextColor: string;
   compactReviews: boolean;
   reviewDefaultDetailsTab: "question" | "meaning" | "reading" | "stroke";
   pauseOnWrong: boolean;
@@ -118,6 +121,7 @@ export interface WebStudyPreferences {
   ankiShowReplayAudioButton: boolean;
   acceptAnyKanjiOnyomiReading: boolean;
   voiceAnswers: boolean;
+  reviewAsrEnabled: boolean;
   jitaiEnabled: boolean;
   jitaiSelectedFontIds: string[];
   jitaiCustomFonts: WebJitaiFont[];
@@ -136,6 +140,7 @@ export interface WebSettings {
   subjectDetails: {
     showContextSentences: boolean;
     showImmersionExamples: boolean;
+    showYouGlishContext?: boolean;
     showPitchAccent: boolean;
     showKanjiReadingExamples: boolean;
     showStrokeOrder: boolean;
@@ -325,6 +330,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   subjectDetails: {
     showContextSentences: true,
     showImmersionExamples: true,
+    showYouGlishContext: false,
     showPitchAccent: false,
     showKanjiReadingExamples: true,
     showStrokeOrder: true,
@@ -336,12 +342,15 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     answerFeedbackSoundEnabled: true,
     showSrsIndicator: true,
     showReviewItemLevelAndSrsStage: false,
+    hideReviewItemLevelAndSrsStageText: false,
     showVocabularyFrequency: false,
     showVocabContextSentencesInReviews: false,
     allowSkippingReviews: false,
     reviewSearchButtonEnabled: false,
     bunproHideFurigana: false,
     reviewCharacterFontScale: 1,
+    reviewPromptTextColor: "",
+    bunproReviewPromptTextColor: "",
     compactReviews: false,
     reviewDefaultDetailsTab: "question",
     pauseOnWrong: true,
@@ -396,6 +405,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     ankiShowReplayAudioButton: false,
     acceptAnyKanjiOnyomiReading: false,
     voiceAnswers: false,
+    reviewAsrEnabled: false,
     jitaiEnabled: false,
     jitaiSelectedFontIds: ["gothic", "mincho", "rounded", "zen-kurenaido", "yuji-syuku", "reggae-one"],
     jitaiCustomFonts: [],
@@ -555,6 +565,7 @@ export function readWebSettings(storage: Pick<ListStorage, "getItem">, username:
     subjectDetails: {
       showContextSentences: typeof parsed.subjectDetails?.showContextSentences === "boolean" ? parsed.subjectDetails.showContextSentences : DEFAULT_WEB_SETTINGS.subjectDetails.showContextSentences,
       showImmersionExamples: typeof parsed.subjectDetails?.showImmersionExamples === "boolean" ? parsed.subjectDetails.showImmersionExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showImmersionExamples,
+      showYouGlishContext: parsed.subjectDetails?.showYouGlishContext === true,
       showPitchAccent: typeof parsed.subjectDetails?.showPitchAccent === "boolean" ? parsed.subjectDetails.showPitchAccent : DEFAULT_WEB_SETTINGS.subjectDetails.showPitchAccent,
       showKanjiReadingExamples: typeof parsed.subjectDetails?.showKanjiReadingExamples === "boolean" ? parsed.subjectDetails.showKanjiReadingExamples : DEFAULT_WEB_SETTINGS.subjectDetails.showKanjiReadingExamples,
       showStrokeOrder: typeof parsed.subjectDetails?.showStrokeOrder === "boolean" ? parsed.subjectDetails.showStrokeOrder : DEFAULT_WEB_SETTINGS.subjectDetails.showStrokeOrder,
@@ -570,6 +581,7 @@ export function readWebSettings(storage: Pick<ListStorage, "getItem">, username:
       answerFeedbackSoundEnabled: typeof parsed.study?.answerFeedbackSoundEnabled === "boolean" ? parsed.study.answerFeedbackSoundEnabled : DEFAULT_WEB_SETTINGS.study.answerFeedbackSoundEnabled,
       showSrsIndicator: typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showSrsIndicator,
       showReviewItemLevelAndSrsStage: typeof parsed.study?.showReviewItemLevelAndSrsStage === "boolean" ? parsed.study.showReviewItemLevelAndSrsStage : typeof parsed.study?.showSrsIndicator === "boolean" ? parsed.study.showSrsIndicator : DEFAULT_WEB_SETTINGS.study.showReviewItemLevelAndSrsStage,
+      hideReviewItemLevelAndSrsStageText: typeof parsed.study?.hideReviewItemLevelAndSrsStageText === "boolean" ? parsed.study.hideReviewItemLevelAndSrsStageText : DEFAULT_WEB_SETTINGS.study.hideReviewItemLevelAndSrsStageText,
       showVocabularyFrequency: typeof parsed.study?.showVocabularyFrequency === "boolean" ? parsed.study.showVocabularyFrequency : DEFAULT_WEB_SETTINGS.study.showVocabularyFrequency,
       showVocabContextSentencesInReviews: typeof parsed.study?.showVocabContextSentencesInReviews === "boolean" ? parsed.study.showVocabContextSentencesInReviews : DEFAULT_WEB_SETTINGS.study.showVocabContextSentencesInReviews,
       allowSkippingReviews: typeof parsed.study?.allowSkippingReviews === "boolean" ? parsed.study.allowSkippingReviews : DEFAULT_WEB_SETTINGS.study.allowSkippingReviews,
@@ -578,6 +590,8 @@ export function readWebSettings(storage: Pick<ListStorage, "getItem">, username:
       compactReviews: typeof parsed.study?.compactReviews === "boolean" ? parsed.study.compactReviews : DEFAULT_WEB_SETTINGS.study.compactReviews,
       reviewDefaultDetailsTab: ["question", "meaning", "reading", "stroke"].includes(parsed.study?.reviewDefaultDetailsTab ?? "") ? parsed.study!.reviewDefaultDetailsTab : DEFAULT_WEB_SETTINGS.study.reviewDefaultDetailsTab,
       reviewCharacterFontScale: REVIEW_CHARACTER_FONT_SCALES.includes(parsed.study?.reviewCharacterFontScale ?? 0) ? parsed.study!.reviewCharacterFontScale : DEFAULT_WEB_SETTINGS.study.reviewCharacterFontScale,
+      reviewPromptTextColor: validColor(parsed.study?.reviewPromptTextColor, DEFAULT_WEB_SETTINGS.study.reviewPromptTextColor),
+      bunproReviewPromptTextColor: validColor(parsed.study?.bunproReviewPromptTextColor, DEFAULT_WEB_SETTINGS.study.bunproReviewPromptTextColor),
       pauseOnWrong: typeof parsed.study?.pauseOnWrong === "boolean" ? parsed.study.pauseOnWrong : legacyAnswerStopBehavior ? legacyAnswerStopBehavior !== "never" : DEFAULT_WEB_SETTINGS.study.pauseOnWrong,
       pauseOnClose: typeof parsed.study?.pauseOnClose === "boolean" ? parsed.study.pauseOnClose : DEFAULT_WEB_SETTINGS.study.pauseOnClose,
       pauseOnCorrect: typeof parsed.study?.pauseOnCorrect === "boolean" ? parsed.study.pauseOnCorrect : legacyAnswerStopBehavior ? legacyAnswerStopBehavior === "always" : DEFAULT_WEB_SETTINGS.study.pauseOnCorrect,
@@ -629,6 +643,7 @@ export function readWebSettings(storage: Pick<ListStorage, "getItem">, username:
       ankiButtonlessMode: typeof parsed.study?.ankiButtonlessMode === "boolean" ? parsed.study.ankiButtonlessMode : DEFAULT_WEB_SETTINGS.study.ankiButtonlessMode,
       ankiShowReplayAudioButton: typeof parsed.study?.ankiShowReplayAudioButton === "boolean" ? parsed.study.ankiShowReplayAudioButton : DEFAULT_WEB_SETTINGS.study.ankiShowReplayAudioButton,
       acceptAnyKanjiOnyomiReading: typeof parsed.study?.acceptAnyKanjiOnyomiReading === "boolean" ? parsed.study.acceptAnyKanjiOnyomiReading : DEFAULT_WEB_SETTINGS.study.acceptAnyKanjiOnyomiReading,
+      reviewAsrEnabled: typeof parsed.study?.reviewAsrEnabled === "boolean" ? parsed.study.reviewAsrEnabled : DEFAULT_WEB_SETTINGS.study.reviewAsrEnabled,
       voiceAnswers: typeof parsed.study?.voiceAnswers === "boolean" ? parsed.study.voiceAnswers : DEFAULT_WEB_SETTINGS.study.voiceAnswers,
       jitaiEnabled: typeof parsed.study?.jitaiEnabled === "boolean" ? parsed.study.jitaiEnabled : DEFAULT_WEB_SETTINGS.study.jitaiEnabled,
       jitaiSelectedFontIds: validStringArray(parsed.study?.jitaiSelectedFontIds, 16).length ? validStringArray(parsed.study?.jitaiSelectedFontIds, 16) : [...DEFAULT_WEB_SETTINGS.study.jitaiSelectedFontIds],

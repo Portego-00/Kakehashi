@@ -1,4 +1,5 @@
 import { DEFAULT_STUDY_SHORTCUTS, normalizeStudyShortcuts, type StudyShortcuts } from "./bunpro-study-shortcuts";
+import { normalizeReviewPromptTextColor } from "./review-prompt-color";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
@@ -554,12 +555,15 @@ type SettingsState = {
   activeLearningPageId: string | null; // null (or a deleted page) shows the unfiltered Home
   reviewWrapUpTargetSubjects: number; // Subjects left after tapping Wrap Up (5-20, step 5)
   reviewSearchButtonEnabled: boolean; // Show quick search button below Wrap Up during reviews
+  reviewLeftHandedMode: boolean; // Mirror review controls for left-handed use
   bunproHideFurigana: boolean;
   showDetailsOnWrongAnswer: boolean;
   answerFeedbackSoundEnabled: boolean;
   reviewKeyboardShortcutsEnabled: boolean;
   bunproStudyShortcuts: StudyShortcuts;
   reviewCharacterFontScale: number; // Scale for the large Japanese prompt during reviews
+  reviewPromptTextColor: string;
+  bunproReviewPromptTextColor: string;
   reviewInputFontScale: number; // Scale for answer text entered during reviews
   backToBackImmediateRetryIncorrect: boolean; // In back-to-back mode, immediately re-ask incorrect questions (legacy behavior)
   allowSkippingReviews: boolean; // Allow skipping a review item by submitting an empty answer
@@ -621,6 +625,7 @@ type SettingsState = {
   showSimilarVocabulary: boolean;
   showSingleKanjiVocabularySimilarKanji: boolean;
   showMediaContextSentences: boolean;
+  showYouGlishContext: boolean;
   hideContextSentenceTranslations: boolean;
   hideContextSentenceTranslationsCompletely: boolean;
   showContextSentenceSpeedControl: boolean;
@@ -761,12 +766,15 @@ type SettingsState = {
   setActiveLearningPageId: (id: string | null) => void;
   setReviewWrapUpTargetSubjects: (target: number) => void;
   setReviewSearchButtonEnabled: (enabled: boolean) => void;
+  setReviewLeftHandedMode: (enabled: boolean) => void;
   setBunproHideFurigana: (hidden: boolean) => void;
   setShowDetailsOnWrongAnswer: (enabled: boolean) => void;
   setAnswerFeedbackSoundEnabled: (enabled: boolean) => void;
   setReviewKeyboardShortcutsEnabled: (enabled: boolean) => void;
   setBunproStudyShortcuts: (shortcuts: StudyShortcuts) => void;
   setReviewCharacterFontScale: (scale: number) => void;
+  setReviewPromptTextColor: (color: string) => void;
+  setBunproReviewPromptTextColor: (color: string) => void;
   setReviewInputFontScale: (scale: number) => void;
   setBackToBackImmediateRetryIncorrect: (enabled: boolean) => void;
   setAllowSkippingReviews: (enabled: boolean) => void;
@@ -832,6 +840,7 @@ type SettingsState = {
   setShowSimilarVocabulary: (show: boolean) => void;
   setShowSingleKanjiVocabularySimilarKanji: (show: boolean) => void;
   setShowMediaContextSentences: (show: boolean) => void;
+  setShowYouGlishContext: (show: boolean) => void;
   setHideContextSentenceTranslations: (hide: boolean) => void;
   setHideContextSentenceTranslationsCompletely: (hide: boolean) => void;
   setShowContextSentenceSpeedControl: (show: boolean) => void;
@@ -948,12 +957,15 @@ export const useSettingsStore = create<SettingsState>()(
       activeLearningPageId: null,
       reviewWrapUpTargetSubjects: 10, // Default to wrap up after 10 subjects
       reviewSearchButtonEnabled: false, // Default to disabled - keep review header focused unless enabled
+      reviewLeftHandedMode: false,
       bunproHideFurigana: false,
       showDetailsOnWrongAnswer: false,
       answerFeedbackSoundEnabled: false,
       reviewKeyboardShortcutsEnabled: true,
       bunproStudyShortcuts: { ...DEFAULT_STUDY_SHORTCUTS },
       reviewCharacterFontScale: DEFAULT_REVIEW_CHARACTER_FONT_SCALE, // Default to the current prompt size
+      reviewPromptTextColor: "",
+      bunproReviewPromptTextColor: "",
       reviewInputFontScale: DEFAULT_REVIEW_INPUT_FONT_SCALE, // Default to the current answer input size
       backToBackImmediateRetryIncorrect: false, // Default to disabled - keep delayed boundary-safe requeue
       allowSkippingReviews: false, // Default to disabled to match standard WaniKani review flow
@@ -1017,6 +1029,7 @@ export const useSettingsStore = create<SettingsState>()(
       showSimilarVocabulary: false, // Default to disabled (optional similar reading/meaning lookup)
       showSingleKanjiVocabularySimilarKanji: false, // Default to disabled (optional similar kanji for one-kanji vocabulary)
       showMediaContextSentences: true, // Default to enabled (show media context sentences)
+      showYouGlishContext: false,
       hideContextSentenceTranslations: false, // Default to disabled (show translations immediately)
       hideContextSentenceTranslationsCompletely: false, // Default to keeping translations available
       showContextSentenceSpeedControl: false, // Default to disabled (hide per-sentence speed controls)
@@ -1178,7 +1191,10 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       setReviewSearchButtonEnabled: (enabled) =>
         set({ reviewSearchButtonEnabled: enabled }),
+      setReviewLeftHandedMode: (enabled) => set({ reviewLeftHandedMode: enabled }),
       setBunproHideFurigana: (hidden) => set({ bunproHideFurigana: hidden }),
+      setReviewPromptTextColor: (color) => set({ reviewPromptTextColor: normalizeReviewPromptTextColor(color) }),
+      setBunproReviewPromptTextColor: (color) => set({ bunproReviewPromptTextColor: normalizeReviewPromptTextColor(color) }),
       setShowDetailsOnWrongAnswer: (enabled) => set({ showDetailsOnWrongAnswer: enabled }),
       setAnswerFeedbackSoundEnabled: (enabled) => set({ answerFeedbackSoundEnabled: enabled }),
       setReviewKeyboardShortcutsEnabled: (enabled) => set({ reviewKeyboardShortcutsEnabled: enabled }),
@@ -1297,6 +1313,7 @@ export const useSettingsStore = create<SettingsState>()(
         set({ showSingleKanjiVocabularySimilarKanji: show }),
       setShowMediaContextSentences: (show) =>
         set({ showMediaContextSentences: show }),
+      setShowYouGlishContext: (show) => set({ showYouGlishContext: show }),
       setHideContextSentenceTranslations: (hide) =>
         set({ hideContextSentenceTranslations: hide }),
       setHideContextSentenceTranslationsCompletely: (hide) =>
@@ -1509,6 +1526,10 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...currentState,
           ...persisted,
+          reviewLeftHandedMode: persisted.reviewLeftHandedMode === true,
+          showYouGlishContext: persisted.showYouGlishContext === true,
+          reviewPromptTextColor: normalizeReviewPromptTextColor(persisted.reviewPromptTextColor),
+          bunproReviewPromptTextColor: normalizeReviewPromptTextColor(persisted.bunproReviewPromptTextColor),
           showLessonVocabularyUnlockCounts: persisted.showLessonVocabularyUnlockCounts === true,
           ankiAskIncorrectPart: persisted.ankiAskIncorrectPart === true,
           reviewPresetsEnabled: persisted.reviewPresetsEnabled === true,

@@ -24,6 +24,7 @@ const mockSettings = {
   showSimilarVocabulary: false,
   showSingleKanjiVocabularySimilarKanji: false,
   showMediaContextSentences: true,
+  showYouGlishContext: false,
   hideContextSentenceTranslations: false,
   hideContextSentenceTranslationsCompletely: false,
   showContextSentenceSpeedControl: false,
@@ -77,6 +78,10 @@ jest.mock("../PitchAccentVisualization", () => () => null);
 jest.mock("../SrsLevelIcon", () => () => null);
 jest.mock("../SynonymsModal", () => ({ SynonymsModal: () => null }));
 jest.mock("../VocabularyFrequencyBadge", () => () => null);
+jest.mock("../YouGlishContextPlayer", () => ({ __esModule: true, default: ({ query }: { query: string }) => {
+  const { Text } = jest.requireActual<typeof import("react-native")>("react-native");
+  return <Text testID="youglish-player">{query}</Text>;
+} }));
 
 const vocabulary = {
   id: -2026,
@@ -97,6 +102,7 @@ const vocabulary = {
 };
 
 beforeEach(() => {
+  mockSettings.showYouGlishContext = false;
   packageManager.state.setState({packet: parseTranslationPackage(pilotContent), hydrated: true});
   jest.clearAllMocks();
   useLearningContentStore.setState({enabled: true});
@@ -109,6 +115,17 @@ beforeEach(() => {
   jest.mocked(getAllSubjects).mockResolvedValue([]);
   jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([]);
   jest.mocked(searchImmersionKit).mockResolvedValue({ results: [], nextOffset: 0 });
+});
+
+it("adds opt-in YouGlish beside ImmersionKit for the current vocabulary and stops it on tab exit", async () => {
+  mockSettings.showYouGlishContext = true;
+  const screen = render(<VocabularyDetails vocabulary={vocabulary} progressionStatus="success" initialTab="context" />);
+  expect(screen.queryByTestId("youglish-player")).toBeNull();
+  fireEvent.press(screen.getByRole("tab", { name: "YouGlish" }));
+  expect((await screen.findByTestId("youglish-player")).props.children).toBe(vocabulary.characters);
+  expect(screen.queryByText("Media Context Sentences")).toBeNull();
+  fireEvent.press(screen.getByText("Meaning"));
+  expect(screen.queryByTestId("youglish-player")).toBeNull();
 });
 
 const turkishFixture = () => {

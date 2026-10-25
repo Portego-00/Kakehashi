@@ -210,6 +210,12 @@ interface SRSProgressionInfo {
   nextReviewInterval: string;
 }
 
+export interface AnkiReviewSettings {
+  enabled: boolean;
+  scope: "both" | "meaning" | "reading";
+  groupQuestions: boolean;
+}
+
 interface ReviewQuestionProps {
   item: ReviewItem;
   questionType: QuestionType;
@@ -240,6 +246,8 @@ interface ReviewQuestionProps {
   onSRSCardDismiss?: () => void;
   // Force disable Anki grouped questions (for random tests)
   forceDisableAnkiGrouping?: boolean;
+  // Session-specific review mode without changing the learner's global settings.
+  ankiSettingsOverride?: AnkiReviewSettings;
   // Hide accuracy for lesson flow
   isLessonFlow?: boolean;
   // When provided, overrides the central prompt display text (e.g., show meaning instead of characters)
@@ -1009,6 +1017,7 @@ export default function ReviewQuestionScreen({
   srsProgression,
   onSRSCardDismiss,
   forceDisableAnkiGrouping = false,
+  ankiSettingsOverride,
   isLessonFlow = false,
   overridePromptText,
   audioPrompt,
@@ -1078,7 +1087,9 @@ export default function ReviewQuestionScreen({
     showJLPTLevel,
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
+    reviewLeftHandedMode,
     reviewCharacterFontScale,
+    reviewPromptTextColor,
     reviewInputFontScale,
     srsProgressionCardDisplayMode,
     visuallySimilarKanjiSource,
@@ -1104,16 +1115,18 @@ export default function ReviewQuestionScreen({
     [reviewCorrectKeyboardShortcuts],
   );
 
+  const resolvedAnkiScope = ankiSettingsOverride?.scope ?? ankiCardModeScope;
   const ankiModeMatchesQuestionType =
-    ankiCardModeScope === "both" || ankiCardModeScope === questionType;
+    resolvedAnkiScope === "both" || resolvedAnkiScope === questionType;
 
   // Override Anki mode settings if forced to disable grouping
-  const effectiveAnkiCardMode = ankiCardMode && ankiModeMatchesQuestionType;
+  const effectiveAnkiCardMode =
+    (ankiSettingsOverride?.enabled ?? ankiCardMode) && ankiModeMatchesQuestionType;
   const effectiveAnkiGroupQuestions = forceDisableAnkiGrouping
     ? false
     : effectiveAnkiCardMode &&
-      ankiCardModeScope === "both" &&
-      ankiGroupQuestions;
+      resolvedAnkiScope === "both" &&
+      (ankiSettingsOverride?.groupQuestions ?? ankiGroupQuestions);
   const effectiveAnkiButtonlessMode =
     effectiveAnkiCardMode && ankiButtonlessMode;
   // Regular reviews may also accept kanji, but still support kana choices.
@@ -1233,6 +1246,7 @@ export default function ReviewQuestionScreen({
   const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
     useState(false);
+  const [noteImageComposerOpen, setNoteImageComposerOpen] = useState(false);
   const [localStudyMaterials, setLocalStudyMaterials] = useState<
     ReviewStudyMaterials | undefined
   >(studyMaterials);
@@ -3626,6 +3640,7 @@ export default function ReviewQuestionScreen({
 
   const handleReviewDetailNotePress = useCallback(
     (noteType: StudyMaterialNoteType) => {
+      setNoteImageComposerOpen(false);
       setStudyMaterialNoteEditorSession((session) => session + 1);
       releasePausedShortcutFocus();
       setEditingStudyMaterialNoteType(noteType);
@@ -4031,6 +4046,10 @@ export default function ReviewQuestionScreen({
       );
     }
 
+    if (reviewLeftHandedMode) {
+      buttons.reverse();
+    }
+
     if (canReplayPausedAudio) {
       buttons.push(
         renderPausedDetailsActionButton({
@@ -4185,6 +4204,8 @@ export default function ReviewQuestionScreen({
             autoFocus
             value={editingStudyMaterialNoteText}
             onChangeText={setEditingStudyMaterialNoteText}
+            onImageComposerOpenChange={setNoteImageComposerOpen}
+            editable={!isSavingStudyMaterialNote}
             onFocus={syncAndroidKeyboardMetrics}
             accessibilityLabel={`${
               editingStudyMaterialNoteType === "meaning"
@@ -4221,9 +4242,13 @@ export default function ReviewQuestionScreen({
                 styles.studyMaterialNoteModalButton,
                 styles.studyMaterialNoteSaveButton,
                 { backgroundColor: getItemColor(item.subject.object) },
+                { opacity: noteImageComposerOpen ? 0.45 : 1 },
               ]}
               onPress={handleSaveStudyMaterialNote}
-              disabled={isSavingStudyMaterialNote}
+              accessibilityRole="button"
+              accessibilityLabel="Save note"
+              disabled={isSavingStudyMaterialNote || noteImageComposerOpen}
+              accessibilityState={{ disabled: isSavingStudyMaterialNote || noteImageComposerOpen }}
             >
               <Text
                 style={[
@@ -4231,7 +4256,7 @@ export default function ReviewQuestionScreen({
                   { color: "#ffffff" },
                 ]}
               >
-                {isSavingStudyMaterialNote ? "Saving..." : "Save"}
+                {isSavingStudyMaterialNote ? "Saving..." : "Save note"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -4874,7 +4899,8 @@ export default function ReviewQuestionScreen({
     // necessarily relative to the review pane.
     const { left, width: hitAreaWidth } = buttonlessGestureBoundsRef.current;
     const isLeftHalfTap = event.nativeEvent.pageX < left + hitAreaWidth / 2;
-    if (isLeftHalfTap) handleAnkiWrongButton();
+    const isWrongTap = reviewLeftHandedMode ? !isLeftHalfTap : isLeftHalfTap;
+    if (isWrongTap) handleAnkiWrongButton();
     else handleAnkiAnswerButton(true);
   };
 
@@ -6006,7 +6032,9 @@ export default function ReviewQuestionScreen({
           }
           accessibilityHint={
             effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed && !ankiWrongOptionsVisible
-              ? "Tap a kanji card for its details. Elsewhere, tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
+              ? reviewLeftHandedMode
+                ? "Tap a kanji card for its details. Elsewhere, tap left for correct, tap right for wrong, swipe up for details, swipe down to skip"
+                : "Tap a kanji card for its details. Elsewhere, tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
               : undefined
           }
           layout={
@@ -6056,6 +6084,7 @@ export default function ReviewQuestionScreen({
                   style={[
                     styles.placeholderText,
                     overridePromptUsesJapaneseFont && fontStyles.japaneseText,
+                    reviewPromptTextColor ? { color: reviewPromptTextColor } : undefined,
                   ]}
                   numberOfLines={2}
                   adjustsFontSizeToFit
@@ -6633,7 +6662,11 @@ export default function ReviewQuestionScreen({
               )}
               {isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode && !ankiWrongOptionsVisible && (
                 <Animated.View
-                  style={[styles.ankiButtonSection, ankiButtonSectionStyle]}
+                  style={[
+                    styles.ankiButtonSection,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                    ankiButtonSectionStyle,
+                  ]}
                 >
                   <TouchableOpacity
                     style={[
@@ -6834,7 +6867,12 @@ export default function ReviewQuestionScreen({
                   {renderAudioAnswerReading()}
                 </View>
 
-                <View style={styles.pausedPrimaryActions}>
+                <View
+                  style={[
+                    styles.pausedPrimaryActions,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                  ]}
+                >
                   <TouchableOpacity
                     style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
                     onPress={handleProgressAsWrong}
@@ -6955,7 +6993,12 @@ export default function ReviewQuestionScreen({
                   {renderAudioAnswerReading()}
                 </View>
 
-                <View style={styles.pausedPrimaryActions}>
+                <View
+                  style={[
+                    styles.pausedPrimaryActions,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                  ]}
+                >
                   <TouchableOpacity
                     style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
                     onPress={handleProgressAsWrong}
@@ -7177,6 +7220,10 @@ export default function ReviewQuestionScreen({
                         (isVoiceRecognizing
                           ? styles.answerInputVoiceModeDual
                           : styles.answerInputVoiceMode),
+                      isVoiceReviewEnabled &&
+                        isVoiceRecognizing &&
+                        reviewLeftHandedMode &&
+                        styles.answerInputVoiceModeDualMirrored,
                       {
                         backgroundColor: theme.isDark ? "#000000" : "white",
                         color: theme.isDark ? "#ffffff" : "#000000",
@@ -7221,6 +7268,10 @@ export default function ReviewQuestionScreen({
                             (isVoiceRecognizing
                               ? styles.answerInputVoiceModeDual
                               : styles.answerInputVoiceMode),
+                          isVoiceReviewEnabled &&
+                            isVoiceRecognizing &&
+                            reviewLeftHandedMode &&
+                            styles.answerInputVoiceModeDualMirrored,
                           {
                             backgroundColor: theme.isDark ? "#000000" : "white",
                             fontSize: reviewAnswerInputFontSize,
@@ -7241,6 +7292,7 @@ export default function ReviewQuestionScreen({
                       <TouchableOpacity
                         style={[
                           styles.voiceButtonInside,
+                          reviewLeftHandedMode && styles.voiceButtonInsideMirrored,
                           voiceSessionEnabled ? styles.voiceButtonActive : null,
                         ]}
                         onPress={handleVoiceAnswerButton}
@@ -7257,7 +7309,10 @@ export default function ReviewQuestionScreen({
 
                       {isVoiceRecognizing && (
                         <TouchableOpacity
-                          style={styles.voiceRetryButtonInside}
+                          style={[
+                            styles.voiceRetryButtonInside,
+                            reviewLeftHandedMode && styles.voiceRetryButtonInsideMirrored,
+                          ]}
                           onPress={handleRetryVoiceRecognition}
                           accessibilityRole="button"
                           accessibilityLabel="Retry voice answer"
@@ -7276,6 +7331,7 @@ export default function ReviewQuestionScreen({
                   <TouchableOpacity
                     style={[
                       styles.submitButtonInside,
+                      reviewLeftHandedMode && styles.submitButtonInsideMirrored,
                       hasCorrectAccent
                         ? styles.correctButton
                         : hasCloseAccent
@@ -7642,6 +7698,21 @@ const styles = StyleSheet.create({
   voiceButtonActive: {
     backgroundColor: "#d32f2f",
   },
+  submitButtonInsideMirrored: {
+    left: 8,
+    right: "auto",
+  },
+  voiceButtonInsideMirrored: {
+    left: "auto",
+    right: 8,
+  },
+  voiceRetryButtonInsideMirrored: {
+    left: "auto",
+    right: 52,
+  },
+  mirroredReviewActions: {
+    flexDirection: "row-reverse",
+  },
   voiceRetryButtonInside: {
     position: "absolute",
     left: 52,
@@ -7958,6 +8029,10 @@ const styles = StyleSheet.create({
   answerInputVoiceModeDual: {
     paddingLeft: 100,
     paddingRight: 56,
+  },
+  answerInputVoiceModeDualMirrored: {
+    paddingLeft: 56,
+    paddingRight: 100,
   },
   correctButton: {
     backgroundColor: "#4caf50",

@@ -9,6 +9,7 @@ import { EmbeddedSubjectHeader } from "./EmbeddedSubjectHeader";
 import { AnimeSentence, ContextSentences, StudyMaterialEditor, SubjectDetail, SubjectDetailPanels, SubjectStickyHeader } from "./SubjectDetail";
 
 const { wkCollectionMock, wkRequestMock } = vi.hoisted(() => ({ wkCollectionMock: vi.fn(), wkRequestMock: vi.fn() }));
+const contextSession = vi.hoisted(() => ({ user: null as { data: { username: string } } | null, isDemo: false }));
 const voiceMock = vi.hoisted(() => ({
   checked: true,
   supported: true,
@@ -24,6 +25,7 @@ const voiceMock = vi.hoisted(() => ({
 }));
 
 afterEach(() => {
+  contextSession.user = null;
   window.localStorage.clear();
   vi.unstubAllGlobals();
 });
@@ -34,8 +36,10 @@ vi.mock("@/lib/wanikani/client", () => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ user: null }),
+  useSession: () => contextSession,
 }));
+
+vi.mock("@/lib/theme", () => ({ useTheme: () => ({ resolvedTheme: "light" }) }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
   useWebSettings: () => ({
@@ -503,6 +507,32 @@ describe("subject detail saved-list action", () => {
 describe("subject detail notes", () => {
   beforeEach(() => wkRequestMock.mockReset());
 
+  it.each(["meaning_note", "reading_note"] as const)("adds an image to %s without changing its text", async (field) => {
+    const original = material.data[field] ?? "";
+    const value = `${original}\n<img src="https://example.com/bridge.png">`;
+    wkRequestMock.mockResolvedValue({ ...material, data: { ...material.data, [field]: value } });
+    renderEditor(field);
+    fireEvent.click(screen.getByRole("button", { name: "Add image" }));
+    fireEvent.change(screen.getByLabelText("Image URL"), { target: { value: "https://example.com/bridge.png" } });
+    expect(screen.getByRole("button", { name: "Save note" })).toBeDisabled();
+    fireEvent.load(await screen.findByRole("img", { name: "Note image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to note" }));
+    expect(screen.getByRole("textbox", { name: field === "meaning_note" ? "Meaning note" : "Reading note" })).toHaveValue(original);
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+    await waitFor(() => expect(wkRequestMock).toHaveBeenCalledWith("study_materials/42", { method: "PUT", body: { study_material: { [field]: value } } }));
+  });
+
+  it("cancels image additions with the rest of the note draft", async () => {
+    renderEditor("meaning_note");
+    fireEvent.click(screen.getByRole("button", { name: "Add image" }));
+    fireEvent.change(screen.getByLabelText("Image URL"), { target: { value: "https://example.com/a.png" } });
+    fireEvent.load(await screen.findByRole("img", { name: "Note image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to note" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("img", { name: "Note image" })).not.toBeInTheDocument();
+    expect(wkRequestMock).not.toHaveBeenCalled();
+  });
+
   it("places synonyms in the meaning card and notes in their matching tabs", () => {
     renderAudioSubject();
     fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
@@ -694,4 +724,34 @@ describe("embedded subject reference", () => {
       scroller.remove();
     }
   });
+});
+
+it.each(["Portego", "Other"])("gates a YouGlish-only Context tab for %s", (username) => {
+  contextSession.user = { data: { username } };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  render(<QueryClientProvider client={client}><SubjectDetailPanels
+    record={kanaVocabularySubject}
+    materialLoading={false}
+    materialsKey={[]}
+    relatedSubjects={[]}
+    pitchAccents={[]}
+    usagePatterns={[]}
+    immersionExamples={[]}
+    immersionLoading={false}
+    immersionFailed={false}
+    settings={{ showContextSentences: false, showImmersionExamples: false, showYouGlishContext: true, showPitchAccent: false, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+    returnTo="/subjects"
+    allowStudyMaterialEditing={false}
+  /></QueryClientProvider>);
+  if (username === "Other") {
+    expect(screen.queryByRole("tab", { name: "Context" })).toBeNull();
+    return;
+  }
+  const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+  fireEvent.click(screen.getByRole("tab", { name: "Context" }));
+  fireEvent.click(screen.getByRole("tab", { name: "YouGlish" }));
+  expect(screen.getByTitle(`YouGlish Japanese examples for ${kanaVocabularySubject.data.characters}`)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
+  expect(screen.queryByTitle(`YouGlish Japanese examples for ${kanaVocabularySubject.data.characters}`)).toBeNull();
+  pause.mockRestore();
 });

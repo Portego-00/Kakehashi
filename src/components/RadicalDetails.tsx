@@ -95,7 +95,9 @@ interface RadicalDetailsProps {
     meaningIncorrect?: number;
     percentageCorrect?: number;
     nextReviewAt?: string;
+    burnedAt?: string | null;
     onEditNote?: () => void;
+    onRemoveNoteImage?: (index: number) => Promise<void>;
   };
   progressionStatus: "loading" | "success" | "offline";
   onKanjiPress?: (kanjiId: number) => void;
@@ -709,6 +711,7 @@ export default function RadicalDetails({
                 </View>
                 <FormattedNoteText
                   text={radical.meaningNote}
+                  onRemoveImage={radical.onRemoveNoteImage}
                   style={[styles.noteContent, { color: theme.textColor }]}
                 />
               </View>
@@ -930,11 +933,15 @@ export default function RadicalDetails({
                           { color: theme.textSecondary },
                         ]}
                       >
-                        Next review:{" "}
+                        {radical.srsStage === 9 ? "Burned on: " : "Next review: "}
                         <Text
                           style={{ fontWeight: "600", color: theme.textColor }}
                         >
-                          {formatNextReviewTime(radical.nextReviewAt)}
+                          {radical.srsStage === 9
+                            ? radical.burnedAt
+                              ? new Date(radical.burnedAt).toLocaleDateString()
+                              : "Date unavailable"
+                            : formatNextReviewTime(radical.nextReviewAt)}
                         </Text>
                       </Text>
                     </View>
