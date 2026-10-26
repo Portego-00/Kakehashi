@@ -1,3 +1,4 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useIsFocused } from "@react-navigation/native";
@@ -124,6 +125,7 @@ export default function CustomReviewSelectionScreen() {
     (state) => state.setShowVocabularyFrequency,
   );
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const isScreenFocused = useIsFocused();
   const params = useLocalSearchParams<{ listId?: string | string[] }>();
   const [searchQuery, setSearchQuery] = useState("");
@@ -1136,7 +1138,7 @@ export default function CustomReviewSelectionScreen() {
           style={[styles.itemCharacter, fontStyles.japaneseText]}
           numberOfLines={1}
         >
-          {item.data.meanings[0].meaning}
+          {display.meaning(item, item.data.meanings[0]?.meaning ?? "")}
         </Text>
       );
     }
@@ -1149,7 +1151,7 @@ export default function CustomReviewSelectionScreen() {
     const jlptLevel = getJLPTLevelForSubject(item);
     const frequencyRank = frequencyRanks.get(item.id);
     const displayName =
-      item.data.characters?.trim() || item.data.meanings[0].meaning;
+      item.data.characters?.trim() || display.meaning(item, item.data.meanings[0]?.meaning ?? "");
     const openDetailsAccessibilityAction = `Open details for ${displayName}`;
     const levelAndSrsLabel = isSubjectSrsDataReady
       ? formatLevelWithSrsStage(item.data.level, srsStage)
@@ -1175,7 +1177,7 @@ export default function CustomReviewSelectionScreen() {
         activeOpacity={0.7}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: isSelected }}
-        accessibilityLabel={`${displayName}, ${item.data.meanings[0].meaning}, ${accessibilityMetadata}`}
+        accessibilityLabel={`${displayName}, ${display.meaning(item, item.data.meanings[0]?.meaning ?? "")}, ${accessibilityMetadata}`}
         accessibilityHint={
           isSelected ? "Deselects this subject" : "Selects this subject"
         }
@@ -1206,13 +1208,13 @@ export default function CustomReviewSelectionScreen() {
             <SubjectRadicalCharacter item={item} />
           ) : (
             <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-              {item.data.characters || item.data.meanings[0].meaning}
+              {item.data.characters || display.meaning(item, item.data.meanings[0]?.meaning ?? "")}
             </Text>
           )}
         </TouchableOpacity>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {item.data.meanings[0].meaning}
+            {display.meaning(item, item.data.meanings[0]?.meaning ?? "")}
           </Text>
           <View style={styles.itemMetadata}>
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>
