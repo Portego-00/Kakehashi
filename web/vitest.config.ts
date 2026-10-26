@@ -1,7 +1,11 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    tsconfigPaths: true,
+    // Shared mobile DOM components and their icons use the web renderer's React.
+    dedupe: ["react", "react-dom", "lucide-react"],
+  },
   test: {
     environment: "jsdom",
     globals: true,

@@ -617,6 +617,35 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.showAnswerStopSubjectDetails = false;
   });
 
+  it("lets native keyboard avoidance move the typed answer without a second details layout animation", async () => {
+    mockSettings.showAnswerStopSubjectDetails = true;
+    mockSettings.disableAutoProgressOnCorrect = true;
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "gro");
+
+    // Every ancestor of the live input moves when KeyboardAvoidingView changes
+    // its padding. A Reanimated layout transition here retimes that same move.
+    const inputLayoutTransitions = () => {
+      const transitions: unknown[] = [];
+      for (let parent = screen.getByTestId("answer-input").parent; parent; parent = parent.parent) {
+        if (parent.props.layout) transitions.push(parent.props.layout);
+      }
+      return transitions;
+    };
+    expect(inputLayoutTransitions()).toHaveLength(0);
+    expect(screen.getByTestId("answer-input")).toBe(input);
+    expect(input.props.value).toBe("gro");
+    expect(onAnswer).not.toHaveBeenCalled();
+
+    fireEvent(input, "submitEditing", { nativeEvent: { text: "ground" } });
+    await waitFor(() => expect(screen.getByText("Continue")).toBeTruthy());
+    expect(inputLayoutTransitions().length).toBeGreaterThan(0);
+    expect(screen.getByTestId("answer-input")).toBe(input);
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
   describe("review font cycling", () => {
     const item = {
       id: 1,

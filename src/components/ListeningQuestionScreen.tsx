@@ -3,11 +3,10 @@ import Slider from "@react-native-community/slider";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { useIsFocused } from "expo-router/react-navigation";
 import * as Haptics from "@/src/utils/haptics";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Dimensions,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -18,6 +17,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -34,7 +34,6 @@ import { useSettingsStore } from "../utils/store";
 import KanaInput from "./TextToKanaInput";
 import MultipleChoiceKeyboard from "./multiple-choice-keyboard";
 
-const { width, height } = Dimensions.get("window");
 const ANDROID_AUTOFOCUS_DELAY_MS = 200;
 const CONTEXT_AUDIO_SPEED_MIN = 0.5;
 const CONTEXT_AUDIO_SPEED_MAX = 1.5;
@@ -42,10 +41,6 @@ const CONTEXT_AUDIO_SPEED_STEP = 0.05;
 const DEFAULT_CONTEXT_AUDIO_SPEED = 1;
 const CONTEXT_AUDIO_SPEED_STEPS = Math.round(
   (CONTEXT_AUDIO_SPEED_MAX - CONTEXT_AUDIO_SPEED_MIN) / CONTEXT_AUDIO_SPEED_STEP,
-);
-const AUDIO_SPEED_INLINE_SLIDER_WIDTH = Math.max(
-  96,
-  Math.min(140, width * 0.32),
 );
 
 interface ListeningQuestionScreenProps {
@@ -90,6 +85,14 @@ export default function ListeningQuestionScreen({
   autoPlayAudio = true,
   studyMaterials,
 }: ListeningQuestionScreenProps) {
+  const { width, height } = useWindowDimensions();
+  const styles = useMemo(() => createStyles(width, height), [width, height]);
+  const [choicesGridWidth, setChoicesGridWidth] = useState(0);
+  const choiceButtonWidth = Math.max(0, ((choicesGridWidth || width - 32) - 12) / 2);
+  const handleChoicesGridLayout = (event: LayoutChangeEvent) => {
+    const nextWidth = event.nativeEvent.layout.width;
+    if (nextWidth > 0) setChoicesGridWidth(nextWidth);
+  };
   const subjectColors = useSubjectColors();
   const isFocused = useIsFocused();
   const { showContextSentenceSpeedControl } = useSettingsStore();
@@ -126,7 +129,7 @@ export default function ListeningQuestionScreen({
   const [showVocabInSentence, setShowVocabInSentence] = useState(false);
   const [wasKanjiCorrect, setWasKanjiCorrect] = useState(false);
   const imageOpacity = useRef(new Animated.Value(1)).current;
-  const sentenceTranslateY = useRef(new Animated.Value(0)).current;
+  const sentenceRevealProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     return () => {
@@ -229,7 +232,7 @@ export default function ListeningQuestionScreen({
     setWasKanjiCorrect(false);
     feedbackOpacity.setValue(0);
     imageOpacity.setValue(1);
-    sentenceTranslateY.setValue(0);
+    sentenceRevealProgress.setValue(0);
 
     // Clear the KanaInputs when question changes
     if (vocabInputRef.current?.clearInput) {
@@ -243,7 +246,7 @@ export default function ListeningQuestionScreen({
     return () => {
       void unloadCurrentSound();
     };
-  }, [question.id, feedbackOpacity, imageOpacity, sentenceTranslateY, unloadCurrentSound]);
+  }, [question.id, feedbackOpacity, imageOpacity, sentenceRevealProgress, unloadCurrentSound]);
 
   // Auto-play audio on mount (only for kanji phase, if enabled)
   useEffect(() => {
@@ -436,8 +439,8 @@ export default function ListeningQuestionScreen({
           duration: 300,
           useNativeDriver: true,
         }),
-        Animated.timing(sentenceTranslateY, {
-          toValue: -(height * 0.25 + 16), // Move up by image height + margin
+        Animated.timing(sentenceRevealProgress, {
+          toValue: 1,
           duration: 300,
           useNativeDriver: true,
         }),
@@ -852,7 +855,10 @@ export default function ListeningQuestionScreen({
           style={[
             styles.sentenceCard,
             {
-              transform: [{ translateY: sentenceTranslateY }],
+              transform: [{ translateY: sentenceRevealProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -(height * 0.25 + 16)],
+              }) }],
             },
           ]}
         >
@@ -887,6 +893,7 @@ export default function ListeningQuestionScreen({
 
               <MultipleChoiceKeyboard
                 style={styles.choicesGrid}
+                onLayout={handleChoicesGridLayout}
                 questionKey={`${question.id}:${questionPhase}`}
                 enabled={isFocused && !answerFeedback}
                 onSelectIndex={handleChoiceSelect}
@@ -898,6 +905,7 @@ export default function ListeningQuestionScreen({
                     key={index}
                     style={[
                       styles.choiceButton,
+                      { width: choiceButtonWidth },
                       selectedChoiceIndex === index && styles.choiceSelected,
                     ]}
                     onPress={() => handleChoiceSelect(index)}
@@ -987,7 +995,7 @@ export default function ListeningQuestionScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (width: number, height: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "transparent",
@@ -1134,7 +1142,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   audioSpeedInlineSlider: {
-    width: AUDIO_SPEED_INLINE_SLIDER_WIDTH,
+    width: Math.max(96, Math.min(140, width * 0.32)),
     height: 28,
   },
   sentence: {
@@ -1226,7 +1234,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   choiceButton: {
-    width: (width - 32 - 12) / 2, // Two columns with gap
     paddingVertical: 20,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,

@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { ColorSchemeName, useColorScheme } from "react-native";
+import { Appearance, type ColorSchemeName, Platform, useColorScheme } from "react-native";
 
 // Define light and dark color themes
 export const lightTheme = {
@@ -84,6 +84,13 @@ export const sepiaTheme = {
 // Theme mode type
 export type ThemeMode = "light" | "dark" | "system" | "midnight" | "sepia";
 
+const explicitThemes = {
+  light: lightTheme,
+  dark: darkTheme,
+  midnight: midnightTheme,
+  sepia: sepiaTheme,
+};
+
 // Theme context
 type ThemeContextType = {
   theme: typeof lightTheme;
@@ -114,65 +121,50 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const systemColorScheme = useColorScheme();
-  const [currentTheme, setCurrentTheme] = useState(lightTheme);
   const [themeMode, setThemeModeState] = useState<ThemeMode>("system");
   const [isLoaded, setIsLoaded] = useState(false);
+  const currentTheme = themeMode === "system"
+    ? systemColorScheme === "dark" ? darkTheme : lightTheme
+    : explicitThemes[themeMode];
 
   // Load saved preferences
   useEffect(() => {
+    let cancelled = false;
     const loadSavedTheme = async () => {
       try {
         const savedThemeMode = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-
-        if (savedThemeMode === "dark") {
-          setThemeModeState("dark");
-          setCurrentTheme(darkTheme);
-        } else if (savedThemeMode === "midnight") {
-          setThemeModeState("midnight");
-          setCurrentTheme(midnightTheme);
-        } else if (savedThemeMode === "sepia") {
-          setThemeModeState("sepia");
-          setCurrentTheme(sepiaTheme);
-        } else if (savedThemeMode === "light") {
-          setThemeModeState("light");
-          setCurrentTheme(lightTheme);
-        } else if (savedThemeMode === "system") {
-          setThemeModeState("system");
-          // Follow system preference
-          if (systemColorScheme === "dark") {
-            setCurrentTheme(darkTheme);
-          } else {
-            setCurrentTheme(lightTheme);
-          }
-        } else {
-          // If no preference is saved, default to system
-          setThemeModeState("system");
-          if (systemColorScheme === "dark") {
-            setCurrentTheme(darkTheme);
-          } else {
-            setCurrentTheme(lightTheme);
-          }
+        if (cancelled) return;
+        if (
+          savedThemeMode === "light" || savedThemeMode === "dark" ||
+          savedThemeMode === "midnight" || savedThemeMode === "sepia" ||
+          savedThemeMode === "system"
+        ) {
+          setThemeModeState(savedThemeMode);
         }
       } catch (error) {
         console.warn("Failed to load theme preferences", error);
       } finally {
-        setIsLoaded(true);
+        if (!cancelled) setIsLoaded(true);
       }
     };
 
-    loadSavedTheme();
-  }, []); // Run only on mount
+    void loadSavedTheme();
+    return () => { cancelled = true; };
+  }, []);
 
-  // Listen for system color scheme changes when in "system" mode
+  // Native glass, SwiftUI and UIKit controls inherit the app's window traits.
+  // Follow the selected mode, not useColorScheme(), which also reports overrides.
   useEffect(() => {
-    if (themeMode === "system" && isLoaded) {
-      if (systemColorScheme === "dark") {
-        setCurrentTheme(darkTheme);
-      } else {
-        setCurrentTheme(lightTheme);
-      }
-    }
-  }, [systemColorScheme, themeMode, isLoaded]);
+    if (!isLoaded || Platform.OS === "web") return;
+    Appearance.setColorScheme(
+      themeMode === "system" ? "unspecified"
+        : themeMode === "dark" || themeMode === "midnight" ? "dark" : "light",
+    );
+  }, [themeMode, isLoaded]);
+
+  useEffect(() => () => {
+    if (Platform.OS !== "web") Appearance.setColorScheme("unspecified");
+  }, []);
 
   // Handler for setting theme mode
   const setThemeMode = useCallback(async (mode: ThemeMode) => {
@@ -184,18 +176,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (error) {
       console.warn("Failed to save theme preference", error);
     }
-
-    // Apply the theme
-    if (mode === "dark") {
-      setCurrentTheme(darkTheme);
-    } else if (mode === "midnight") {
-      setCurrentTheme(midnightTheme);
-    } else if (mode === "sepia") {
-      setCurrentTheme(sepiaTheme);
-    } else if (mode === "light") {
-      setCurrentTheme(lightTheme);
-    }
-    // For "system" mode, the useEffect above will handle it
   }, []);
 
   // Handler for toggling the theme manually.

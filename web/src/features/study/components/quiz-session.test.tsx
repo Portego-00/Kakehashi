@@ -1232,7 +1232,7 @@ describe("extra-study quiz interaction", () => {
       return nextFrame;
     });
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frame) => {
-      frames.delete(frame);
+      if (frame != null) frames.delete(frame);
     });
     const firstQuestion = makeQuestion();
     const secondQuestion = makeQuestion({ id: "question-2", prompt: "猫", acceptedAnswers: ["ねこ"], displayAnswer: "ねこ" });

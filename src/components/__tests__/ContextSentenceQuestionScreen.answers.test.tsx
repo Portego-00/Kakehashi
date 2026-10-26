@@ -1,6 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
 import React from "react";
-import { Animated } from "react-native";
+import { Animated, Dimensions, StyleSheet, TouchableOpacity } from "react-native";
 import type { ContextSentenceQuestion } from "../../types/contextSentencePractice";
 import { azureSpeechService } from "../../utils/azureSpeech";
 import ContextSentenceQuestionScreen from "../ContextSentenceQuestionScreen";
@@ -264,4 +264,80 @@ it("allows a typed answer to be edited after feedback", async () => {
   expect(azureSpeechService.speak).toHaveBeenCalledTimes(1);
   fireEvent(input, "submitEditing");
   expect(screen.onAnswer).toHaveBeenCalledWith(true, "ねこ");
+});
+
+it("fits sentence choices to the measured grid after folding while retaining the pending answer", async () => {
+  const originalWindow = Dimensions.get("window");
+  const screen = renderQuestion();
+  fireEvent.press(screen.getByText("犬"));
+  try {
+    for (const [width, height, gridWidth] of [[951, 669, 815], [466, 678, 410], [669, 951, 613], [951, 669, 815]]) {
+      act(() => Dimensions.set({ window: { ...originalWindow, width, height } }));
+      fireEvent(screen.getByTestId("multiple-choice-keyboard"), "layout", {
+        nativeEvent: { layout: { x: 0, y: 0, width: gridWidth, height: 160 } },
+      });
+      const choices = screen.UNSAFE_getAllByType(TouchableOpacity).filter((node) =>
+        question.kanjiChoices.some((choice) => node.props.accessibilityLabel === choice.kanji),
+      );
+      expect(choices).toHaveLength(4);
+      expect(StyleSheet.flatten(choices[0].props.style).width * 2 + 10).toBeCloseTo(gridWidth);
+      expect(StyleSheet.flatten(choices[1].props.style).borderColor).toBe("#f44336");
+      expect(screen.onAnswer).not.toHaveBeenCalled();
+    }
+    fireEvent.press(screen.getByText("Next Question"));
+    expect(screen.onAnswer).toHaveBeenCalledTimes(1);
+    expect(screen.onAnswer).toHaveBeenCalledWith(false, "犬");
+  } finally {
+    screen.unmount();
+    act(() => Dimensions.set({ window: originalWindow }));
+  }
+});
+
+it("keeps an unsubmitted sentence answer and its mounted input through display changes", async () => {
+  const originalWindow = Dimensions.get("window");
+  const screen = renderQuestion({ solutionMode: "writing" });
+  const input = screen.UNSAFE_getByType(KanaInput);
+  fireEvent(input, "kanaChange", "猫");
+  try {
+    for (const [width, height] of [[951, 669], [466, 678], [669, 951], [951, 669]]) {
+      act(() => Dimensions.set({ window: { ...originalWindow, width, height } }));
+      expect(screen.UNSAFE_getByType(KanaInput)).toBe(input);
+      expect(screen.onAnswer).not.toHaveBeenCalled();
+    }
+    fireEvent(input, "submitEditing");
+    expect(screen.onAnswer).not.toHaveBeenCalled();
+    fireEvent(input, "submitEditing");
+    expect(screen.onAnswer).toHaveBeenCalledTimes(1);
+    expect(screen.onAnswer).toHaveBeenCalledWith(true, "猫");
+  } finally {
+    screen.unmount();
+    act(() => Dimensions.set({ window: originalWindow }));
+  }
+});
+
+it("keeps the previous-answer chip below the header after the window changes", () => {
+  const originalWindow = Dimensions.get("window");
+  jest.mocked(Animated.timing).mockImplementation((value, config) => {
+    if (value instanceof Animated.Value && typeof config.toValue === "number") {
+      value.setValue(config.toValue);
+    }
+    return { start: jest.fn(), stop: jest.fn(), reset: jest.fn() };
+  });
+  const screen = renderQuestion({ stopAfterAnswer: false });
+  fireEvent.press(screen.getByText("猫"));
+  try {
+    for (const [width, height] of [[951, 669], [466, 678], [669, 951]]) {
+      act(() => Dimensions.set({ window: { ...originalWindow, width, height } }));
+      const chip = screen.UNSAFE_getAllByType(Animated.View).find((node) =>
+        StyleSheet.flatten(node.props.style)?.zIndex === 35,
+      )!;
+      const style = StyleSheet.flatten(chip.props.style);
+      expect(style.left + style.transform[0].translateX.__getValue()).toBe(0);
+      expect(style.top + style.transform[1].translateY.__getValue()).toBe(140);
+      expect(screen.onAnswer).not.toHaveBeenCalled();
+    }
+  } finally {
+    screen.unmount();
+    act(() => Dimensions.set({ window: originalWindow }));
+  }
 });

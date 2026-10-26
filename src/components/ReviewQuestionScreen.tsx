@@ -5480,6 +5480,11 @@ export default function ReviewQuestionScreen({
     effectiveShowAnswerStopSubjectDetails && isPausedOnAnswer && !effectiveAnkiCardMode;
   const shouldShowPausedSubjectDetails =
     shouldUsePausedSubjectDetailsMode && pausedDetailsSheetVisible;
+  // KeyboardAvoidingView owns the active iOS answer's movement. Applying a
+  // second layout transition retimes that movement after the keyboard starts.
+  const shouldAnimatePausedDetailsLayout =
+    effectiveShowAnswerStopSubjectDetails &&
+    (Platform.OS !== "ios" || effectiveAnkiCardMode || isPausedOnAnswer);
   const pausedSubjectDetailsPanelHeight = Math.round(
     Math.max(
       240,
@@ -6047,7 +6052,7 @@ export default function ReviewQuestionScreen({
               : undefined
           }
           layout={
-            effectiveShowAnswerStopSubjectDetails
+            shouldAnimatePausedDetailsLayout
               ? pausedDetailsLayoutTransition
               : undefined
           }
@@ -6783,7 +6788,7 @@ export default function ReviewQuestionScreen({
           /* Traditional WaniKani Mode */
           <Animated.View
             layout={
-              effectiveShowAnswerStopSubjectDetails
+              shouldAnimatePausedDetailsLayout
                 ? pausedDetailsLayoutTransition
                 : undefined
             }
