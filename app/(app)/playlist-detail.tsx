@@ -168,7 +168,7 @@ export default function PlaylistDetailScreen() {
           ...filteredHistory,
         ].slice(0, MAX_HISTORY_ITEMS);
 
-        historyFile.write(JSON.stringify(nextHistory, null, 2));
+        await historyFile.write(JSON.stringify(nextHistory, null, 2));
       } catch (historyError) {
         console.error("Error saving playlist song history:", historyError);
       }

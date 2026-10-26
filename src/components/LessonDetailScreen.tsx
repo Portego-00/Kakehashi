@@ -29,6 +29,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  type ScrollViewInstance,
   StyleProp,
   StyleSheet,
   Text,
@@ -36,6 +37,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import PagerView from "react-native-pager-view";
@@ -394,7 +396,7 @@ const SubjectContent = ({
   onYouGlishSelect?: () => void;
 }) => {
   const display = useLearningDisplay();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const customContextSentencesRef =
     useRef<CustomContextSentencesSectionHandle>(null);
   const {
@@ -4746,7 +4748,7 @@ export default function LessonDetailScreen({
     tooltipTranslateY,
     copyText,
   } = useCopyTooltip();
-  const pageCharacterRefs = useRef<Record<number, View | null>>({});
+  const pageCharacterRefs = useRef<Record<number, ViewInstance | null>>({});
   // Ref for PagerView to enable programmatic page changes
   const pagerRef = useRef<PagerView>(null);
   const layout = useWindowDimensions();

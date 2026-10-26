@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   confettiContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: "hidden",
   },
   glowWrap: {

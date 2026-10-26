@@ -1,3 +1,4 @@
+import { scheduleIdleTask } from "../utils/scheduleIdleTask";
 import {
   createContext,
   ReactNode,
@@ -7,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Alert, InteractionManager } from "react-native";
+import { Alert } from "react-native";
 import { buildRecentUnlocks, buildBurnedItems, buildCriticalItems } from "../utils/dashboardItemLists";
 import { SRS_COLORS } from "../constants/srsColors";
 import {
@@ -1870,7 +1871,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
               }
             };
 
-            InteractionManager.runAfterInteractions(() => {
+            scheduleIdleTask(() => {
               setTimeout(() => {
                 void runBackgroundRefresh();
               }, 1500);

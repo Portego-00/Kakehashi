@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -155,7 +156,7 @@ export default function LevelTimingChart({
   const widgetLevelTimingResetColor = useSettingsStore(
     (state) => state.widgetLevelTimingResetColor,
   );
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const shouldPersistDisabledLevelsRef = useRef(false);
   const [disabledLevels, setDisabledLevels] = useState<number[]>([]);
   const [disabledLevelsHydrated, setDisabledLevelsHydrated] = useState(false);

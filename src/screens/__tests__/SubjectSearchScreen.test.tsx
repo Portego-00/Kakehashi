@@ -1,11 +1,30 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { FlatList } from "react-native";
+import { FlatList, StyleSheet, View } from "react-native";
 
 import SubjectSearchScreen from "../SubjectSearchScreen";
 
 const mockRouter = { push: jest.fn() };
 const mockDashboardData = { assignments: [] };
+let mockDimensions = { width: 390, height: 844, scale: 3, fontScale: 1 };
+let mockInsets = { top: 0, bottom: 0, left: 0, right: 0 };
+let mockSupportsNativeTabs = false;
+
+jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
+  __esModule: true, default: () => mockDimensions,
+}));
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => mockInsets,
+}));
+jest.mock("react-native-reanimated", () => ({
+  __esModule: true,
+  default: { View: jest.requireActual("react-native").View },
+  Easing: { bezier: () => undefined },
+  ReduceMotion: { System: "system" },
+  useSharedValue: (value: number) => jest.requireActual("react").useRef({ value }).current,
+  useAnimatedStyle: (callback: () => object) => callback(),
+  withTiming: (value: number) => value,
+}));
 const mockSubjects = [
   ...Array.from({ length: 220 }, (_, index) => ({
     id: index + 1,
@@ -61,7 +80,7 @@ jest.mock("../../utils/cache", () => ({
 jest.mock("../../utils/api", () => ({
   getAllAssignmentsCached: jest.fn(() => Promise.resolve({ data: [] })),
 }));
-jest.mock("../../utils/nativeTabs", () => ({ supportsNativeTabs: () => false }));
+jest.mock("../../utils/nativeTabs", () => ({ supportsNativeTabs: () => mockSupportsNativeTabs }));
 jest.mock("../../utils/fonts", () => ({ fontStyles: {} }));
 jest.mock("../../utils/radicalSvg", () => ({
   pickBestImage: () => null,
@@ -98,7 +117,12 @@ jest.mock("../../utils/theme", () => ({
   }),
 }));
 
-beforeEach(() => jest.useFakeTimers());
+beforeEach(() => {
+  jest.useFakeTimers();
+  mockDimensions = { width: 390, height: 844, scale: 3, fontScale: 1 };
+  mockInsets = { top: 0, bottom: 0, left: 0, right: 0 };
+  mockSupportsNativeTabs = false;
+});
 afterEach(() => jest.useRealTimers());
 
 it("finds ドキドキ by romaji and opens its subject details", async () => {
@@ -119,9 +143,12 @@ it("filters browsing and ranked search before result limits, and restores result
   await waitFor(() => expect(screen.UNSAFE_getByType(FlatList).props.data).toHaveLength(200));
 
   fireEvent.press(screen.getByLabelText("Search filters"));
+  await act(async () => { jest.advanceTimersByTime(350); });
   fireEvent.press(screen.getByLabelText("Vocab type: All"));
   fireEvent.press(screen.getByLabelText("Proper noun vocabulary type"));
+  expect(screen.getByLabelText("Proper noun vocabulary type").props.accessibilityState.checked).toBe(true);
   fireEvent.press(screen.getByRole("button", { name: "Apply Filters" }));
+  expect(screen.getByLabelText("Search filters, 1 active")).toBeTruthy();
 
   await waitFor(() => {
     expect(screen.UNSAFE_getByType(FlatList).props.data.map((item: { id: number }) => item.id)).toEqual([500]);
@@ -136,6 +163,7 @@ it("filters browsing and ranked search before result limits, and restores result
   });
 
   fireEvent.press(screen.getByLabelText("Search filters, 1 active"));
+  await act(async () => { jest.advanceTimersByTime(350); });
   const collapsedType = screen.getByLabelText("Vocab type: Proper noun");
   if (!collapsedType.props.accessibilityState.expanded) fireEvent.press(collapsedType);
   fireEvent.press(screen.getByLabelText("Clear vocabulary types"));
@@ -143,4 +171,31 @@ it("filters browsing and ranked search before result limits, and restores result
 
   await waitFor(() => expect(screen.UNSAFE_getByType(FlatList).props.data.length).toBeGreaterThan(1));
   expect(screen.getByLabelText("Search filters")).toBeTruthy();
+}, 20000);
+
+it("keeps native search actions reachable as the window opens, closes, and moves its rail", async () => {
+  mockSupportsNativeTabs = true;
+  const screen = render(<SubjectSearchScreen />);
+  await waitFor(() => expect(screen.UNSAFE_getByType(FlatList).props.data).toHaveLength(200));
+
+  const floatingControls = () => screen.UNSAFE_getAllByType(View).find((view) =>
+    StyleSheet.flatten(view.props.style)?.position === "absolute"
+    && StyleSheet.flatten(view.props.style)?.borderRadius === 30);
+  expect(floatingControls()).toBeUndefined();
+
+  mockDimensions = { ...mockDimensions, width: 1040, height: 730 };
+  mockInsets = { ...mockInsets, right: 84 };
+  screen.rerender(<SubjectSearchScreen />);
+  expect(StyleSheet.flatten(floatingControls()!.props.style)).toMatchObject({ right: 108 });
+  expect(screen.getAllByLabelText("Search filters")).toHaveLength(1);
+
+  mockInsets = { ...mockInsets, left: 84, right: 0 };
+  screen.rerender(<SubjectSearchScreen />);
+  expect(StyleSheet.flatten(floatingControls()!.props.style)).toMatchObject({ right: 24 });
+  expect(StyleSheet.flatten(screen.UNSAFE_getAllByType(View)[0].props.style)).toMatchObject({ paddingLeft: 84, paddingRight: 0 });
+
+  mockDimensions = { ...mockDimensions, width: 390, height: 844 };
+  screen.rerender(<SubjectSearchScreen />);
+  expect(floatingControls()).toBeUndefined();
+  expect(screen.getAllByLabelText("Search filters")).toHaveLength(1);
 });

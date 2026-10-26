@@ -1,21 +1,30 @@
-import { CommonActions, StackActions, StackRouter } from "@react-navigation/routers";
+import { CommonActions, isActionHandled, StackActions, StackRouter, type StackNavigationState } from "expo-router/react-navigation";
 import { goBackFromCustomVocabulary } from "../navigation";
 
 jest.mock("expo-router", () => ({ router: {} }));
 
 function stack(routeNames: string[]) {
   const router = StackRouter({ initialRouteName: routeNames[0] });
-  const options = { routeNames, routeParamList: {}, routeGetIdList: {} };
-  let state = router.getInitialState(options);
+  const options = { routeNames, routeGetIdList: {} };
+  // SDK 58 builds initial state from the URL; this fixture supplies that state.
+  let state: StackNavigationState<Record<string, object | undefined>> = {
+    stale: false,
+    type: "stack",
+    key: "test-stack",
+    routeKeySeq: 1,
+    index: 0,
+    routeNames,
+    routes: [{ key: `${routeNames[0]}-initial`, name: routeNames[0] }],
+  };
   const dispatch = (action: ReturnType<typeof StackActions.push> | ReturnType<typeof CommonActions.goBack>) => {
     const next = router.getStateForAction(state, action, options);
-    if (!next || next.stale !== false) throw new Error("Expected a complete navigation state");
-    state = next;
+    if (!isActionHandled(next)) throw new Error("Expected the navigation action to be handled");
+    state = next.state;
   };
   return {
     getState: () => state,
     push: (name: string, params?: object) => dispatch(StackActions.push(name, params)),
-    canGoBack: () => router.getStateForAction(state, CommonActions.goBack(), options) !== null,
+    canGoBack: () => isActionHandled(router.getStateForAction(state, CommonActions.goBack(), options)),
     back: () => dispatch(CommonActions.goBack()),
     replace: jest.fn(),
   };

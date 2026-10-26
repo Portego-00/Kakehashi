@@ -1,3 +1,4 @@
+import type { FlatListInstance } from "react-native";
 import { useLearningDisplay } from "../../../src/features/translation-packages/display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,7 +22,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import { SvgXml } from "react-native-svg";
 import {
   createDefaultSearchFilters,
@@ -132,7 +133,7 @@ export default function SubjectListEditorScreen() {
   const { theme } = useTheme();
   const display = useLearningDisplay();
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<Subject>>(null);
+  const listRef = useRef<FlatListInstance>(null);
   const tabScrollOffsetsRef = useRef<Record<SubjectListEditorTab, number>>({
     browse: 0,
     selected: 0,

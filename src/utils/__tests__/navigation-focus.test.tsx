@@ -1,4 +1,4 @@
-import { NavigationContext } from "@react-navigation/native";
+import { NavigationContext } from "expo-router/react-navigation";
 import { act, renderHook } from "@testing-library/react-native";
 import React from "react";
 

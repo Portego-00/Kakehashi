@@ -178,7 +178,7 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
         pointerEvents={laneBridge.active ? "auto" : "none"}
         accessibilityElementsHidden={!laneBridge.active}
         importantForAccessibility={laneBridge.active ? "auto" : "no-hide-descendants"}
-        style={[StyleSheet.absoluteFillObject, { opacity: laneBridge.active ? 1 : 0, zIndex: laneBridge.active ? 1 : -1 }]}
+        style={[StyleSheet.absoluteFill, { opacity: laneBridge.active ? 1 : 0, zIndex: laneBridge.active ? 1 : -1 }]}
       >
         {lane === "wanikani" ? <MixedWaniKaniScreen mixed={laneBridge} /> : <MixedBunproScreen initialMode={lane} mixed={laneBridge} savePolicy={bunproSavePolicy} />}
       </View>;

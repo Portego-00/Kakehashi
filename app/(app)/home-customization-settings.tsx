@@ -1,3 +1,4 @@
+import type { FlatListInstance, ListRenderItemInfo } from "react-native";
 import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
 
 import { router } from "expo-router";
@@ -246,7 +247,7 @@ export default function HomeCustomizationSettings() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isIPadLandscape = width > 768 && width > height;
-  const listRef = useRef<FlatList<HomeWidgetId>>(null);
+  const listRef = useRef<FlatListInstance>(null);
   const { dashboardData } = useDashboardData();
   const { userData } = useAuthStore();
   const setHomeStudyPacePlannerEnabled = useSettingsStore((state) => state.setHomeStudyPacePlannerEnabled);
@@ -1022,7 +1023,7 @@ export default function HomeCustomizationSettings() {
           styles.listContent,
           { paddingBottom: Math.max(insets.bottom, 16) + 320 },
         ]}
-        renderItem={({ item, index }) => {
+        renderItem={({ item, index }: ListRenderItemInfo<HomeWidgetId>) => {
           const definition = widgetDefinitionMap.get(item);
           if (!definition) {
             return null;

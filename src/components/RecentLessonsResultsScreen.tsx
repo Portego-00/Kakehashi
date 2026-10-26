@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  Dimensions,
   FlatList,
   Platform,
   ScrollView,
@@ -18,8 +17,6 @@ import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { GroupedReviewItem } from "../utils/reviewUtils";
 import { getSubjectTypeColor } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
-
-const { width } = Dimensions.get("window");
 
 // Circular Progress Ring Component
 const CircularProgress = ({
@@ -122,8 +119,7 @@ export default function RecentLessonsResultsScreen({
   const [selectedTab, setSelectedTab] = useState<"mistakes" | "all">(
     "mistakes"
   );
-  const bottomActionPadding =
-    Platform.OS === "android" ? Math.max(insets.bottom, 16) : 34;
+  const bottomActionPadding = Math.max(insets.bottom, 16);
 
   // Filter to only show items that were actually completed
   const completedItems = reviewItems.filter((item) => {
@@ -385,7 +381,7 @@ export default function RecentLessonsResultsScreen({
 
   return (
     <SafeAreaView
-      edges={["top"]}
+      edges={["top", "left", "right"]}
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
     >
       <ScrollView
@@ -798,7 +794,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   itemCard: {
-    width: (width - 48) / 2,
+    width: "48%",
     marginBottom: 16,
     borderRadius: 12,
     borderWidth: 1,

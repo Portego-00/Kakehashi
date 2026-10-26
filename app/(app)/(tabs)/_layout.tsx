@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import { router, Tabs, useSegments } from "expo-router";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/native-tabs";
 import { useEffect, useState } from "react";
 import { Appearance, DynamicColorIOS, Platform } from "react-native";
 import { TabBarVisibilityProvider, useTabBarHidden } from "../../../src/contexts/TabBarVisibilityContext";
+import { NativeSearchProvider, useNativeSearch } from "../../../src/contexts/NativeSearchContext";
 import { supportsNativeTabs } from "../../../src/utils/nativeTabs";
 import { useTabNavigation } from "../../../src/hooks/useTabNavigation";
 import { TAB_INFO, type TabId } from "../../../src/utils/tabNavigation";
@@ -15,11 +16,12 @@ function tabBarKey({ direct, overflow }: ReturnType<typeof useTabNavigation>) {
 }
 
 export default function TabsLayout() {
-  return <TabBarVisibilityProvider><TabsContent /></TabBarVisibilityProvider>;
+  return <NativeSearchProvider><TabBarVisibilityProvider><TabsContent /></TabBarVisibilityProvider></NativeSearchProvider>;
 }
 
 function TabsContent() {
   const tabBarHidden = useTabBarHidden();
+  const { markAppeared } = useNativeSearch();
   const { theme, themeMode, isDark } = useTheme();
   const useNativeTabs = supportsNativeTabs();
   const navigation = useTabNavigation();
@@ -28,7 +30,7 @@ function TabsContent() {
   const [nativeNavigation, setNativeNavigation] = useState(navigation);
   const nextTabBarKey = tabBarKey(navigation);
   const currentTabBarKey = tabBarKey(nativeNavigation);
-  const tabsSegmentIndex = segments.indexOf("(tabs)");
+  const tabsSegmentIndex = segments.findIndex(segment => segment === "(tabs)");
   const activeTab = tabsSegmentIndex >= 0 ? segments[tabsSegmentIndex + 1] ?? "index" : undefined;
   const { direct, overflow } = useNativeTabs ? nativeNavigation : navigation;
   const routeName = (id: TabId) => id === "home" ? "index" : id;
@@ -101,11 +103,11 @@ function TabsContent() {
         {TAB_INFO.map(tab => <Tabs.Screen key={tab.id} name={routeName(tab.id)} options={{
           title: tab.label,
           href: isTabVisible(tab.id) ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name={tab.id === "progress" ? "stats-chart" : tab.icon} size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name={tab.id === "progress" ? "stats-chart" : tab.icon} size={size} color={color ?? undefined} />,
         }} />)}
 
         <Tabs.Screen name="more" options={{ title: "More", href: overflow.length ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="ellipsis-horizontal" size={size} color={color ?? undefined} />,
         }} />
         <Tabs.Screen
           name="search"
@@ -148,7 +150,7 @@ function TabsContent() {
         <NativeTabs.Trigger.Icon sf="ellipsis" />
         <NativeTabs.Trigger.Label>More</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search" role="search">
+      <NativeTabs.Trigger name="search" role="search" unstable_nativeProps={{ onDidAppear: markAppeared }}>
         <NativeTabs.Trigger.Icon sf="magnifyingglass" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

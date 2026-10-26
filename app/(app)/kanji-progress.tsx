@@ -1,3 +1,4 @@
+import type { ScaledSize } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import { FlashList } from "@shopify/flash-list";
@@ -69,7 +70,7 @@ export default function KanjiProgressScreen() {
 
   // Listen for orientation changes
   useEffect(() => {
-    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+    const subscription = Dimensions.addEventListener("change", ({ window }: { window: ScaledSize }) => {
       setScreenData(window);
     });
     return () => subscription?.remove();

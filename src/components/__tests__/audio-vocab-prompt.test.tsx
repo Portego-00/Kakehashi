@@ -112,7 +112,7 @@ it("plays the cached recording without exposing the answer and stops on exit", a
   expect(player.state.playing).toBe(true);
   player.pause.mockClear();
   expect(() => view.unmount()).not.toThrow();
-  expect(player.release).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(player.release).toHaveBeenCalledTimes(1));
   expect(player.state.playing).toBe(false);
   expect(player.pause).not.toHaveBeenCalled();
 });
@@ -193,7 +193,7 @@ it("keeps audio playing through details rerenders with the test-session subject 
       detailsState="answering"
     />,
   );
-  expect(first.release).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(first.release).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(mockPlayers[1].play).toHaveBeenCalledTimes(1));
   expect(mockPlayers).toHaveLength(2);
 });
@@ -211,7 +211,7 @@ it("releases the previous question before loading the next recording", async () 
       <AudioVocabPrompt subject={{ ...subject, id: 2 }} autoPlay />,
     ),
   ).not.toThrow();
-  expect(first.release).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(first.release).toHaveBeenCalledTimes(1));
   expect(first.state.playing).toBe(false);
   const second = mockPlayers[1];
   expect(second.play).not.toHaveBeenCalled();

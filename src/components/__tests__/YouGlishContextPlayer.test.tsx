@@ -4,7 +4,7 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import YouGlishContextPlayer from "../YouGlishContextPlayer";
 
 let mockFocused = true;
-jest.mock("@react-navigation/native", () => ({ useIsFocused: () => mockFocused }));
+jest.mock("expo-router/react-navigation", () => ({ useIsFocused: () => mockFocused }));
 jest.mock("react-native-webview", () => {
   const { View } = jest.requireActual<typeof import("react-native")>("react-native");
   return { __esModule: true, default: View };

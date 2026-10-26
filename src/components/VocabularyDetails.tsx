@@ -1,3 +1,4 @@
+import type { ViewInstance } from "react-native";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { MediaContextSource } from "./MediaContextSource";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
@@ -5,7 +6,7 @@ import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { BlurView } from "expo-blur";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -21,6 +22,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   enableLayoutAnimations,
   FadeInDown,
@@ -305,6 +307,8 @@ export default function VocabularyDetails({
     setActiveTab(tab);
   };
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const headerTop = Math.max(HEADER_TOP_OFFSET, insets.top + 16);
   const [sound, setSound] = useState<AudioSound | null>(null);
   const soundRef = useRef<AudioSound | null>(null);
   const audioPlaybackRequestIdRef = useRef(0);
@@ -349,7 +353,7 @@ export default function VocabularyDetails({
     () => createStyles(subjectColors),
     [subjectColors.kanji, subjectColors.radical, subjectColors.vocabulary]
   );
-  const mainCharacterRef = useRef<View>(null);
+  const mainCharacterRef = useRef<ViewInstance>(null);
   const customContextSentencesRef =
     useRef<CustomContextSentencesSectionHandle>(null);
   const {
@@ -3354,16 +3358,23 @@ export default function VocabularyDetails({
         ]}
       >
         {!embedded && (
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            { paddingTop: headerTop, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+          ]}
+        >
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Back"
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={[styles.backButton, { top: headerTop, left: 20 + insets.left }]}
             hitSlop={BACK_BUTTON_HIT_SLOP}
           >
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
 
-          <View style={styles.headerActions}>
+          <View style={[styles.headerActions, { top: headerTop, right: 16 + insets.right }]}>
             <SubjectHistoryButton subjectType="vocabulary" meaning={vocabulary.meanings.find(item => item.primary)?.meaning} subjectId={vocabulary.id} label={vocabulary.characters || "Radical"} />
             {onAddToList && (
               <TouchableOpacity
@@ -3391,7 +3402,7 @@ export default function VocabularyDetails({
           {onOpenConstellation && vocabulary.object !== "kana_vocabulary" && (
             <TouchableOpacity
               onPress={onOpenConstellation}
-              style={styles.constellationButton}
+              style={[styles.constellationButton, { right: 20 + insets.right }]}
             >
               <Ionicons name="planet-outline" size={24} color="#fff" />
             </TouchableOpacity>
@@ -3972,10 +3983,10 @@ const createStyles = (subjectColors: SubjectColors) =>
     opacity: 0.18,
   },
   translationBlurOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   translationRevealHint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",

@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import {act,render,fireEvent} from '@testing-library/react-native';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
@@ -8,8 +9,9 @@ import {packageManager} from '../../features/translation-packages/package-store'
 import {useLearningContentStore} from '../../features/translation-packages/store';
 import {formatTurkishMeaning} from '../../features/translation-packages/format';
 jest.mock('@expo/vector-icons',()=>({Ionicons:()=>null}));
-jest.mock('react-native-safe-area-context',()=>({useSafeAreaInsets:()=>({top:0,left:0,right:0,bottom:0})}));
-jest.mock('@react-navigation/native',()=>({useNavigation:()=>({goBack:jest.fn()})}));
+let mockHeaderInsets = { top: 0, left: 0, right: 0, bottom: 0 };
+jest.mock('react-native-safe-area-context',()=>({useSafeAreaInsets:()=>mockHeaderInsets}));
+jest.mock('expo-router/react-navigation',()=>({useNavigation:()=>({goBack:jest.fn()})}));
 jest.mock('react-native-reanimated',()=>{
  const React=jest.requireActual('react');const {View,ScrollView}=jest.requireActual('react-native');
  const chain:any={};for(const k of ['duration','delay','easing'])chain[k]=()=>chain;
@@ -49,4 +51,31 @@ it('falls back to English for changed related kanji readings',()=>{
  const changed={...radical,amalgamationSubjects:[{...related,readings:[{reading:'changed'}]}]};
  const screen=render(<RadicalDetails radical={changed} progressionStatus="success" embedded />);
  expect(screen.getByText(related.meanings[0])).toBeTruthy();
+});
+
+
+it("keeps header actions inside changing top and horizontal safe areas", async () => {
+  const onAddToList = jest.fn();
+  const onOpenConstellation = jest.fn();
+  mockHeaderInsets = { top: 0, left: 0, right: 72, bottom: 0 };
+  const details = () => <RadicalDetails radical={radical} progressionStatus="success" onAddToList={onAddToList} onOpenConstellation={onOpenConstellation} />;
+  const screen = render(details());
+  for (const [top, left, right, contentTop] of [[0, 0, 72, 64], [96, 0, 0, 112], [0, 64, 0, 64], [44, 0, 0, 64]]) {
+    mockHeaderInsets = { ...mockHeaderInsets, top, left, right };
+    screen.rerender(details());
+    const save = screen.getByRole("button", { name: "Add to saved lists" });
+    let actions = save.parent;
+    while (actions && StyleSheet.flatten(actions.props.style)?.position !== "absolute") actions = actions.parent;
+    expect(StyleSheet.flatten(actions?.props.style)).toMatchObject({ right: 16 + right, top: contentTop });
+    let header = actions?.parent;
+    while (header && typeof StyleSheet.flatten(header.props.style)?.paddingTop !== "number") header = header.parent;
+    expect(StyleSheet.flatten(header?.props.style)).toMatchObject({ paddingLeft: 16 + left, paddingRight: 16 + right, paddingTop: contentTop });
+    const buttons = screen.UNSAFE_getAllByType(TouchableOpacity);
+    const constellation = buttons.find(button => button.props.onPress === onOpenConstellation)!;
+    expect(StyleSheet.flatten(constellation.props.style).right).toBe(20 + right);
+    const back = buttons.find(button => StyleSheet.flatten(button.props.style)?.left === 20 + left);
+    expect(StyleSheet.flatten(back?.props.style)).toMatchObject({ left: 20 + left, top: contentTop });
+  }
+  await act(async () => {});
+  mockHeaderInsets = { top: 0, left: 0, right: 0, bottom: 0 };
 });

@@ -1,3 +1,5 @@
+import type { ScaledSize } from "react-native";
+import type { FlatListInstance } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import { useRouter } from "expo-router";
@@ -322,7 +324,7 @@ export default function MiniPlayer({
     mediaSource === "apple" ? "logo-apple" : "musical-notes";
   const expandedTopPadding = videoId ? 8 : insets.top + 12;
 
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<FlatListInstance>(null);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [showLyricsList, setShowLyricsList] = useState(false); // Optimization: Delay rendering of list
   const [screenHeight, setScreenHeight] = useState(
@@ -368,7 +370,7 @@ export default function MiniPlayer({
 
   // Listen to dimension changes (device rotation)
   useEffect(() => {
-    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+    const subscription = Dimensions.addEventListener("change", ({ window }: { window: ScaledSize }) => {
       setScreenHeight(window.height);
       setScreenWidth(window.width);
     });

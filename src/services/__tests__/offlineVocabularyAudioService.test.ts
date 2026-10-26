@@ -50,8 +50,8 @@ describe("offlineVocabularyAudioService", () => {
   };
 
   it("deduplicates matching queue requests before initialization completes", async () => {
-    let resolveDirectoryInfo: ((value: any) => void) | null = null;
-    const directoryInfoPromise = new Promise((resolve) => {
+    let resolveDirectoryInfo!: (value: { exists: boolean; isDirectory: boolean }) => void;
+    const directoryInfoPromise = new Promise<{ exists: boolean; isDirectory: boolean }>((resolve) => {
       resolveDirectoryInfo = resolve;
     });
     const getDirectoryInfo = jest.fn(() => directoryInfoPromise);
@@ -66,7 +66,7 @@ describe("offlineVocabularyAudioService", () => {
     const secondQueue = service.queueOfflineVocabularyAudioDownloads(options);
 
     expect(getInfoAsync).toHaveBeenCalledTimes(1);
-    resolveDirectoryInfo?.({ exists: true, isDirectory: true });
+    resolveDirectoryInfo({ exists: true, isDirectory: true });
     await Promise.all([firstQueue, secondQueue]);
     expect(getInfoAsync).toHaveBeenCalledTimes(1);
   });

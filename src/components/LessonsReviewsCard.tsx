@@ -3,11 +3,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
   ColorValue,
-  Dimensions,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { withAlpha } from "../utils/subjectColors";
@@ -21,9 +21,6 @@ import { isAssignmentInReviewQueueState } from "../utils/api";
 import { type LessonSrsThresholdStatus } from "../utils/lessonSrsThreshold";
 import { getEnabledReviewPreset, type ReviewPreset } from "../utils/review-presets";
 import { getReviewOrderLabel } from "../utils/reviewOrdering";
-
-const { width: screenWidth } = Dimensions.get("window");
-const isTablet = screenWidth > 768;
 
 type LessonsReviewsCardProps = {
   type: "lessons" | "reviews";
@@ -61,6 +58,9 @@ export default function LessonsReviewsCard({
   assignments,
 }: LessonsReviewsCardProps) {
   const { theme, themeMode } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
+  const [cardWidth, setCardWidth] = React.useState<number | null>(null);
+  const isCompactCard = (cardWidth ?? windowWidth) < 600;
   const reviewBatchSizeEnabled = useSettingsStore((state) => state.reviewBatchSizeEnabled);
   const reviewBatchSize = useSettingsStore((state) => state.reviewBatchSize);
   const reviewPresetsEnabled = useSettingsStore((state) => state.reviewPresetsEnabled);
@@ -309,6 +309,7 @@ export default function LessonsReviewsCard({
 
   return (
     <TouchableOpacity
+      onLayout={({ nativeEvent }) => setCardWidth(nativeEvent.layout.width)}
       style={[
         styles.container,
         { shadowColor: theme.isDark ? "#000000" : "#000000" },
@@ -340,7 +341,7 @@ export default function LessonsReviewsCard({
             }
             style={[
               styles.backgroundImage,
-              !isTablet && styles.backgroundImageMobile,
+              isCompactCard && styles.backgroundImageMobile,
             ]}
             resizeMode="contain"
           />
@@ -353,7 +354,7 @@ export default function LessonsReviewsCard({
             }
             style={[
               styles.backgroundImage,
-              !isTablet && styles.backgroundImageMobile,
+              isCompactCard && styles.backgroundImageMobile,
             ]}
             resizeMode="contain"
           />
@@ -362,11 +363,11 @@ export default function LessonsReviewsCard({
         <View
           style={[
             styles.contentContainer,
-            !isTablet && styles.contentContainerMobile,
+            isCompactCard && styles.contentContainerMobile,
             showsPresets && { paddingRight: 16 },
           ]}
         >
-          <View style={[styles.headerRow, showsPresets && { paddingRight: isTablet ? 150 : 104 }]}>
+          <View style={[styles.headerRow, showsPresets && { paddingRight: isCompactCard ? 104 : 150 }]}>
             <View style={styles.titleRow}>
               <Text
                 style={[
@@ -398,7 +399,7 @@ export default function LessonsReviewsCard({
           <Text
             style={[
               styles.subtitle,
-              showsPresets && { marginRight: isTablet ? 150 : 104 },
+              showsPresets && { marginRight: isCompactCard ? 104 : 150 },
               isGrayedOut ? { color: theme.isDark ? "#808080" : "#444" } : null,
             ]}
           >
@@ -637,6 +638,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     padding: 16,
+    paddingRight: 166,
     justifyContent: "space-between",
     zIndex: 1,
     position: "relative",
@@ -737,6 +739,7 @@ const styles = StyleSheet.create({
   },
   bottomLeft: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
   },

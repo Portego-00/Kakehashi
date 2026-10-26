@@ -1,3 +1,4 @@
+import type { TextInputInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -23,7 +24,7 @@ export default function YouTubeSearchScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const textInputRef = useRef<TextInput>(null);
+  const textInputRef = useRef<TextInputInstance>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<YouTubeSearchResult[]>([]);

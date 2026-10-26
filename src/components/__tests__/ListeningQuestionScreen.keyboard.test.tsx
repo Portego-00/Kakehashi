@@ -7,7 +7,7 @@ import ListeningQuestionScreen from "../ListeningQuestionScreen";
 jest.mock("@expo/vector-icons", () => ({ Ionicons: "Icon" }));
 jest.mock("@react-native-community/slider", () => "Slider");
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView" }));
-jest.mock("@react-navigation/native", () => ({ ...jest.requireActual("@react-navigation/native"), useIsFocused: () => true }));
+jest.mock("expo-router/react-navigation", () => ({ ...jest.requireActual("expo-router/react-navigation"), useIsFocused: () => true }));
 jest.mock("../../utils/store", () => ({ useSettingsStore: () => ({ showContextSentenceSpeedControl: false }) }));
 jest.mock("../../utils/subjectColors", () => ({ useSubjectColors: () => ({ vocabulary: "#9933cc" }) }));
 jest.mock("../../utils/haptics", () => ({ impactAsync: jest.fn(), notificationAsync: jest.fn(), ImpactFeedbackStyle: { Light: "light" }, NotificationFeedbackType: { Success: "success", Error: "error" } }));

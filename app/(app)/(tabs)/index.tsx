@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -7,15 +7,16 @@ import * as Updates from "expo-updates";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassButton } from "../../../src/components/GlassButton";
 import HomeDashboardWidget from "../../../src/components/HomeDashboardWidget";
 import { type ReviewPreset } from "../../../src/utils/review-presets";
@@ -135,6 +136,7 @@ function toDayKeyInTimezone(date: Date, timezone?: string): string {
 }
 
 export default function StudyTab() {
+  const insets = useSafeAreaInsets();
   const {
     apiToken,
     userData,
@@ -213,7 +215,9 @@ export default function StudyTab() {
   const lastStreakWidgetSignatureRef = useRef<string | null>(null);
   const lastManualWidgetRefreshTokenRef = useRef(0);
   const lastStreakRefreshDayKeyRef = useRef<string | null>(null);
-  const [screenData, setScreenData] = useState(Dimensions.get("window"));
+  const screenData = useWindowDimensions();
+  const contentWidth = screenData.width - insets.left - insets.right;
+  const horizontalSafeArea = { paddingLeft: insets.left, paddingRight: insets.right };
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -454,15 +458,6 @@ export default function StudyTab() {
     delete (global as any).clearApiCache;
   }, [userData?.username]);
 
-  // Listen for orientation changes
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener("change", ({ window }) => {
-      setScreenData(window);
-    });
-
-    return () => subscription?.remove();
-  }, []);
-
   // Check for OTA updates
   useEffect(() => {
     async function checkForUpdates() {
@@ -697,7 +692,7 @@ export default function StudyTab() {
 
   // Keep the landscape check for the lessons/reviews card which might need different behavior
   const isIPadLandscape =
-    screenData.width > 768 && screenData.width > screenData.height;
+    contentWidth > 768 && contentWidth > screenData.height;
 
   // Refresh when returning to Home from other screens (lessons/reviews, gestures, etc.).
   useFocusEffect(
@@ -1193,7 +1188,16 @@ export default function StudyTab() {
       />
 
       <View
-        style={[styles.header, { backgroundColor: theme.headerBackground }]}
+        style={[
+          styles.header,
+          contentWidth < 360 && styles.compactHeader,
+          {
+            backgroundColor: theme.headerBackground,
+            paddingTop: Math.max(60, insets.top + 16),
+            paddingLeft: 16 + insets.left,
+            paddingRight: 16 + insets.right,
+          },
+        ]}
       >
         <View style={styles.headerOverlay} />
         <View style={styles.profileContainer}>
@@ -1279,7 +1283,10 @@ export default function StudyTab() {
 
       {isUpdateAvailable && (
         <TouchableOpacity
-          style={[styles.updateBanner, { backgroundColor: theme.secondary }]}
+          style={[
+            styles.updateBanner,
+            { backgroundColor: theme.secondary, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+          ]}
           onPress={handleUpdateApp}
           disabled={isDownloadingUpdate}
         >
@@ -1305,18 +1312,21 @@ export default function StudyTab() {
       />
 
       {learningPages.length > 0 && (
-        <LearningPageSwitcher
-          pages={learningPages}
-          activePageId={activeLearningPage?.id ?? null}
-          onSelectPage={setActiveLearningPageId}
-        />
+        <View style={horizontalSafeArea}>
+          <LearningPageSwitcher
+            pages={learningPages}
+            activePageId={activeLearningPage?.id ?? null}
+            onSelectPage={setActiveLearningPageId}
+          />
+        </View>
       )}
 
       <ScrollView
         style={styles.content}
         contentContainerStyle={[
           styles.scrollViewContent,
-          shouldUseNativeTabsPadding && styles.nativeTabsPadding,
+          horizontalSafeArea,
+          shouldUseNativeTabsPadding && { paddingBottom: Math.max(insets.bottom, 16) },
         ]}
         refreshControl={
           <RefreshControl
@@ -1468,6 +1478,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: "rgba(255, 255, 255, 0.12)",
   },
+  compactHeader: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 12,
+  },
   profileContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -1511,8 +1526,10 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     marginTop: 4,
+    rowGap: 4,
   },
   statItem: {
     flexDirection: "row",
@@ -1536,9 +1553,6 @@ const styles = StyleSheet.create({
   },
   scrollViewContent: {
     paddingTop: 0,
-  },
-  nativeTabsPadding: {
-    paddingBottom: 120,
   },
   cardsContainer: {
     padding: 16,

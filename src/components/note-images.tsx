@@ -1,3 +1,4 @@
+import type { ViewInstance } from "react-native";
 import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -111,7 +112,7 @@ function NoteImageViewer({ url, onClose, onRemove }: { url: string; onClose: () 
   const offset = useRef(new Animated.ValueXY()).current;
   const position = useRef({ scale: 1, x: 0, y: 0 });
   const origin = useRef({ transform: { scale: 1, x: 0, y: 0 }, touches: noteImageTouchGeometry([]) });
-  const viewportRef = useRef<View>(null);
+  const viewportRef = useRef<ViewInstance>(null);
   const viewportPosition = useRef({ x: 0, y: 0 });
   const [zoomLabel, setZoomLabel] = useState(100);
   const [removing, setRemoving] = useState(false);

@@ -1,3 +1,5 @@
+import type { TextInputInstance } from "react-native";
+import { scheduleIdleTask } from "../../../src/utils/scheduleIdleTask";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   startTransition,
@@ -9,7 +11,6 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
-  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -56,38 +57,7 @@ import { useIsNoteSubjectPreviewOpen } from "../../../src/utils/note-subject-pre
 import { doesReviewShortcutMatchKey, resolveReviewIncorrectKeyboardShortcuts } from "../../../src/utils/reviewKeyboardShortcuts";
 
 type ProgressionStatus = "loading" | "success" | "offline";
-type DeferredTaskHandle = {
-  cancel: () => void;
-};
 const PROGRESSION_REQUEST_TIMEOUT_MS = 9000;
-
-function scheduleTaskAfterInteractions(
-  task: () => void,
-  fallbackDelayMs = 350
-): DeferredTaskHandle {
-  let completed = false;
-  const fallbackTimeout = setTimeout(() => {
-    if (completed) return;
-    completed = true;
-    task();
-  }, fallbackDelayMs);
-
-  const interactionTask = InteractionManager.runAfterInteractions(() => {
-    if (completed) return;
-    completed = true;
-    clearTimeout(fallbackTimeout);
-    task();
-  });
-
-  return {
-    cancel: () => {
-      if (completed) return;
-      completed = true;
-      clearTimeout(fallbackTimeout);
-      interactionTask.cancel?.();
-    },
-  };
-}
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -152,11 +122,11 @@ export default function SubjectDetailsScreen() {
   } = useSubjectLists();
   const requestIdRef = useRef(0);
   const studyMaterialRevisionRef = useRef(0);
-  const deferredTaskRef = useRef<DeferredTaskHandle | null>(null);
+  const deferredTaskRef = useRef<ReturnType<typeof scheduleIdleTask> | null>(null);
   const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
   const originalNoteSignatureRef = useRef("");
   const checkingNoteChangesRef = useRef(false);
-  const returnShortcutInputRef = useRef<TextInput>(null);
+  const returnShortcutInputRef = useRef<TextInputInstance>(null);
   const returningToReviewRef = useRef(false);
   const screenFocused = useOptionalScreenIsFocused();
   const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
@@ -604,13 +574,13 @@ export default function SubjectDetailsScreen() {
       };
 
       // Execute fetches
-      deferredTaskRef.current = scheduleTaskAfterInteractions(() => {
+      deferredTaskRef.current = scheduleIdleTask(() => {
         if (!isCurrentRequest()) {
           return;
         }
         void fetchProgressionData();
         void fetchRelatedSubjects();
-      });
+      }, 350);
 
       setInitialLoading(false);
     } catch (error) {

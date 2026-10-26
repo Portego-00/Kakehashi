@@ -26,7 +26,7 @@ const makeAssignmentsCollection = (assignments: any[]) => ({
   url: "https://api.wanikani.com/v2/assignments",
   pages: {
     per_page: 500,
-    next_url: null,
+    next_url: null as string | null,
     previous_url: null,
   },
   total_count: assignments.length,
@@ -316,7 +316,7 @@ describe("api offline assignment fallbacks", () => {
       (assignment: any) => assignment.id === reviewedAssignment.id
     );
     const cachedReviewedAssignment =
-      getCanonicalAssignmentCollection().data.find(
+      getCanonicalAssignmentCollection()?.data.find(
         (assignment: any) => assignment.id === reviewedAssignment.id
       );
     const permanentReviewedAssignment = getPermanentAssignmentData().find(

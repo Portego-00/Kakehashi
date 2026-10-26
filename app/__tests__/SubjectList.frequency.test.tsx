@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, cleanupAsync, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { Alert } from "react-native";
 import SubjectListEditorScreen from "../(app)/subject-list/[id]";
@@ -14,7 +14,7 @@ jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "source" }),
   useRouter: () => mockRouter,
 }));
-jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
+jest.mock("expo-router/react-navigation", () => ({ useIsFocused: () => true }));
 jest.mock("../../src/lib/supabase", () => ({ supabase: {} }));
 jest.mock("../../src/utils/store", () => ({
   useAuthStore: Object.assign(() => ({ apiToken: "test-token" }), {
@@ -127,8 +127,8 @@ describe("subject list frequency filtering", () => {
     jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
   });
 
-  afterEach(() => {
-    cleanup();
+  afterEach(async () => {
+    await cleanupAsync();
     jest.useRealTimers();
     jest.restoreAllMocks();
   });

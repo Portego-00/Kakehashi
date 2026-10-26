@@ -1,3 +1,4 @@
+import type { ViewInstance } from "react-native";
 import React, { useCallback, useContext, useEffect, useRef } from "react";
 import { View, type ViewProps } from "react-native";
 import {
@@ -18,7 +19,7 @@ export const settingsLayoutTransition = CurvedTransition.duration(220)
   .reduceMotion(ReduceMotion.System);
 
 export function SettingsSectionSurface(props: ViewProps) {
-  const ref = useRef<View>(null);
+  const ref = useRef<ViewInstance>(null);
   const section = useSettingsSearchSection();
   const register = useContext(SettingsSectionAnchorContext);
   const measure = useCallback(

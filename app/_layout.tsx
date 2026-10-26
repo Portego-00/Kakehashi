@@ -1,3 +1,4 @@
+import { scheduleIdleTask } from "../src/utils/scheduleIdleTask";
 import { useFonts } from "expo-font";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
@@ -7,7 +8,6 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
-  InteractionManager,
   Platform,
   type AppStateStatus,
 } from "react-native";
@@ -500,7 +500,7 @@ function RootLayoutContentInner() {
       lastHandledDeepLinkSignatureRef.current = intent.signature;
       lastHandledDeepLinkAtRef.current = Date.now();
 
-      InteractionManager.runAfterInteractions(() => {
+      scheduleIdleTask(() => {
         void executeDeepLinkIntent(intent);
       });
     },
@@ -530,7 +530,7 @@ function RootLayoutContentInner() {
       lastHandledIssueNotificationIssueIdRef.current = issueId;
       lastHandledIssueNotificationAtRef.current = now;
 
-      InteractionManager.runAfterInteractions(() => {
+      scheduleIdleTask(() => {
         router.push({
           pathname: "/issue/[id]",
           params: {
@@ -704,7 +704,7 @@ function RootLayoutContentInner() {
           },
         });
 
-        InteractionManager.runAfterInteractions(() => {
+        scheduleIdleTask(() => {
           setTimeout(() => {
             task()
               .then(() => {
@@ -889,7 +889,7 @@ function RootLayoutContentInner() {
                 }
               );
 
-              InteractionManager.runAfterInteractions(() => {
+              scheduleIdleTask(() => {
                 setTimeout(() => {
                   ensureAllSubjectsCached(
                     token,

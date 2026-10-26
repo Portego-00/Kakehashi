@@ -1,3 +1,4 @@
+import type { TextInputInstance, ViewInstance } from "react-native";
 import React, {
   useCallback,
   useEffect,
@@ -165,8 +166,8 @@ function SettingsScreenContent() {
   const [query, setQuery] = useState("");
   const [, refreshIndex] = useState(0);
   const entries = useRef(new Map<string, SettingsSearchEntry>());
-  const searchRef = useRef<TextInput>(null);
-  const contentRef = useRef<View>(null);
+  const searchRef = useRef<TextInputInstance>(null);
+  const contentRef = useRef<ViewInstance>(null);
   const scrollY = useRef(0);
   const anchors = useRef(
     new Map<string, (callback: (y: number) => void) => void>(),
@@ -253,6 +254,8 @@ function SettingsScreenContent() {
               styles.header,
               {
                 paddingTop: insets.top + 4,
+                paddingLeft: insets.left + 12,
+                paddingRight: insets.right + 12,
                 backgroundColor: theme.backgroundColor,
               },
             ]}
@@ -343,14 +346,16 @@ function SettingsScreenContent() {
               {
                 borderBottomColor: theme.border,
                 backgroundColor: theme.backgroundColor,
+                paddingLeft: insets.left,
+                paddingRight: insets.right,
               },
             ]}
-            onLayout={(event) =>
-              setSectionChipBarWidth(event.nativeEvent.layout.width)
-            }
           >
             <ScrollView
               ref={sectionChipScrollViewRef}
+              onLayout={(event) =>
+                setSectionChipBarWidth(event.nativeEvent.layout.width)
+              }
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.sectionChipContent}

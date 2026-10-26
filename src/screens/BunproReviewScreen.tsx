@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
@@ -1226,7 +1227,7 @@ export default function BunproReviewScreen({
   const [outbox] = useState(() => createBunproReviewOutbox(savePolicy, setOutboxState));
   const sessionLimitRef = useRef(Infinity);
   const appliedWrapUpRef = useRef<number | null>(null);
-  const promptScrollRef = useRef<ScrollView>(null);
+  const promptScrollRef = useRef<ScrollViewInstance>(null);
   const commitLockRef = useRef(false);
 
   const isPortegoUser = isPortegoUsername(userData?.username);
@@ -2087,7 +2088,7 @@ export default function BunproReviewScreen({
       pointerEvents={mixed && !isActive ? "none" : "auto"}
       accessibilityElementsHidden={Boolean(mixed && !isActive)}
       importantForAccessibility={mixed && !isActive ? "no-hide-descendants" : "auto"}
-      style={[styles.container, { backgroundColor }, mixed && !isActive && { ...StyleSheet.absoluteFillObject, opacity: 0 }]}
+      style={[styles.container, { backgroundColor }, mixed && !isActive && { ...StyleSheet.absoluteFill, opacity: 0 }]}
     >
       {isActive ? <StatusBar style={isDark ? "light" : "dark"} /> : null}
 

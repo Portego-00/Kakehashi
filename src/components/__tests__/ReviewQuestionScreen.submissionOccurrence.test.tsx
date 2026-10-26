@@ -33,6 +33,7 @@ const mockSpeechListeners = new Map<string, (event: unknown) => void>();
 let mockUseRealKanaInput = false;
 let mockVoicePermissionsGranted = false;
 let mockScreenFocused = true;
+let mockReviewSafeAreaInsets = { top: 59, right: 0, bottom: 34, left: 0 };
 
 jest.mock("../../utils/navigation-focus", () => ({
   useOptionalScreenIsFocused: () => mockScreenFocused,
@@ -124,7 +125,7 @@ jest.mock("expo-blur", () => {
 
 jest.mock("react-native-safe-area-context", () => ({
   ...jest.requireActual("react-native-safe-area-context"),
-  useSafeAreaInsets: () => ({ top: 59, right: 0, bottom: 34, left: 0 }),
+  useSafeAreaInsets: () => mockReviewSafeAreaInsets,
 }));
 
 jest.mock("expo-router", () => {
@@ -886,10 +887,10 @@ describe("ReviewQuestionScreen question occurrences", () => {
 
   it("closes an unchanged review note without asking to discard", async () => {
     const screen = await renderReviewNote();
-    fireEvent.press(screen.getByLabelText("Close note editor"));
-    await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
+    await act(async () => { fireEvent.press(screen.getByLabelText("Close note editor")); });
     expect(mockEditorFlush).toHaveBeenCalledTimes(1);
     expect(mockAlert).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Meaning note text")).toBeNull();
   });
 
   it("checks the freshly flushed review draft before closing", async () => {
@@ -1257,7 +1258,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
       mockSettings.autoplayVocabularyAudio = true;
       const item = { ...audioItem, subject: { ...audioItem.subject, id: -2, data: {
         ...audioItem.subject.data,
-        pronunciation_audios: [{ url: "file:///cat.mp3", content_type: "audio/mpeg", metadata: { gender: "female", pronunciation: "ねこ" } }],
+        pronunciation_audios: [{ url: "file:///cat.mp3", content_type: "audio/mpeg", metadata: { voice_actor_name: "Kyoko", gender: "female", pronunciation: "ねこ" } }],
       } } };
       let playbackStatus: ((status: unknown) => void) | null = null;
       jest.mocked(Audio.Sound.createAsync).mockResolvedValue({ sound: {
@@ -2992,6 +2993,107 @@ it("moves the mixed Bunpro previous-answer card from the center into the corner"
     { translateY: -Dimensions.get("window").height / 2 + 130 },
     { scale: 0.6 },
   ]);
+});
+
+it("repositions the previous answer and preserves typed text when the window folds or rotates", () => {
+  const originalWindow = Dimensions.get("window");
+  const previous = { title: "Bunpro grammar", correct: true, source: "bunpro" as const };
+  const props = { item: radicalItem, questionType: "meaning" as const, onAnswer: jest.fn(), mixedPrevious: previous };
+  const screen = render(<ReviewQuestionScreen {...props} />);
+  fireEvent.changeText(screen.getByTestId("answer-input"), "gro");
+
+  try {
+    for (const [width, height] of [[410, 872], [772, 539], [772, 1088], [1088, 772]]) {
+      act(() => Dimensions.set({ window: { ...originalWindow, width, height } }));
+      // The animation mock resolves shared values immediately; rerender to read them.
+      screen.rerender(<ReviewQuestionScreen {...props} />);
+      const style = StyleSheet.flatten(screen.getByLabelText("Previous Bunpro answer: Bunpro grammar, correct").props.style);
+      expect(style).toMatchObject({ left: width / 2, top: height / 2 });
+      expect(style.transform).toEqual([
+        { translateX: -width / 2 },
+        { translateY: -height / 2 + 130 },
+        { scale: 0.6 },
+      ]);
+      expect(screen.getByTestId("answer-input").props.value).toBe("gro");
+      expect(props.onAnswer).not.toHaveBeenCalled();
+    }
+  } finally {
+    screen.unmount();
+    act(() => Dimensions.set({ window: originalWindow }));
+  }
+});
+
+it.each(["meaning", "reading"] as const)("keeps the prompt beside a retained typed %s answer on the closed landscape display", (questionType) => {
+  const originalWindow = Dimensions.get("window");
+  const item = {
+    id: 2467,
+    subject: {
+      id: 2467,
+      object: "vocabulary" as const,
+      data: {
+        characters: "一",
+        meanings: [{ meaning: "One", primary: true, accepted_answer: true }],
+        readings: [{ reading: "いち", primary: true, accepted_answer: true }],
+      },
+    },
+  };
+  const onAnswer = jest.fn();
+  const view = render(<ReviewQuestionScreen item={item} questionType={questionType} onAnswer={onAnswer} totalItems={2} />);
+  const input = view.getByTestId("answer-input");
+  fireEvent.changeText(input, questionType === "meaning" ? "o" : "い");
+
+  try {
+    // Closing an open portrait Duo can leave its outer display in landscape.
+    // A row reserves independent space for the prompt above the keyboard;
+    // the former column let the fixed-height answer card collapse that space.
+    for (const [width, height] of [[678, 894], [678, 466], [466, 678]]) {
+      act(() => Dimensions.set({ window: { ...originalWindow, width, height } }));
+      const prompt = view.UNSAFE_getByType(ReviewPromptCharacters);
+      let pane = prompt.parent;
+      const containsInput = (node: typeof pane) => {
+        for (let parent = input.parent; parent; parent = parent.parent) {
+          if (parent === node) return true;
+        }
+        return false;
+      };
+      while (pane && !containsInput(pane)) pane = pane.parent;
+      expect(pane).toBeTruthy();
+
+      if (height === 466) {
+        expect(StyleSheet.flatten(pane!.props.style).flexDirection).toBe("row");
+        expect(prompt.props.size).toBeLessThanOrEqual(72);
+      } else {
+        expect(StyleSheet.flatten(pane!.props.style).flexDirection).not.toBe("row");
+      }
+      expect(view.getByTestId("answer-input")).toBe(input);
+      expect(input.props.value).toBe(questionType === "meaning" ? "o" : "い");
+      expect(view.getByLabelText("0 items completed")).toBeTruthy();
+      expect(onAnswer).not.toHaveBeenCalled();
+    }
+  } finally {
+    view.unmount();
+    act(() => Dimensions.set({ window: originalWindow }));
+  }
+});
+
+it("keeps review statistics below the live portrait status area without a fixed landscape top gap", () => {
+  const originalInsets = mockReviewSafeAreaInsets;
+  const props = { item: radicalItem, questionType: "meaning" as const, onAnswer: jest.fn() };
+  const view = render(<ReviewQuestionScreen {...props} />);
+  try {
+    for (const top of [84, 0, 59]) {
+      mockReviewSafeAreaInsets = { ...originalInsets, top };
+      view.rerender(<ReviewQuestionScreen {...props} />);
+      let header = view.getByLabelText("0 items completed").parent!;
+      while (StyleSheet.flatten(header.props.style)?.paddingTop === undefined) header = header.parent!;
+      expect(StyleSheet.flatten(header.props.style).paddingTop).toBe(top + 10);
+      expect(view.getByTestId("answer-input")).toBeTruthy();
+      expect(props.onAnswer).not.toHaveBeenCalled();
+    }
+  } finally {
+    view.unmount();
+    mockReviewSafeAreaInsets = originalInsets;
+  }
 });
 
 it("keeps the WaniKani answer field mounted but ignores answers while its mixed lane is inactive", async () => {

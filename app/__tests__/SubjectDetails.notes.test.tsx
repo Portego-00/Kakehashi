@@ -210,10 +210,10 @@ it.each([
   const screen = await renderSubjectNote();
   expect(screen.getByLabelText("Meaning note text").props.value).toBe(original);
   mockFlushedNoteText = flushed;
-  fireEvent.press(screen.getByLabelText("Close note editor"));
-  await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
+  await act(async () => { fireEvent.press(screen.getByLabelText("Close note editor")); });
   expect(mockEditorFlush).toHaveBeenCalledTimes(1);
   expect(mockAlert).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText("Meaning note text")).toBeNull();
 });
 
 it.each([

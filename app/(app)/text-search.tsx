@@ -1,3 +1,4 @@
+import type { TextInputInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import { useRouter } from "expo-router";
@@ -25,7 +26,7 @@ export default function TextSearchScreen() {
   const [inputText, setInputText] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("japanese");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const textInputRef = useRef<TextInput>(null);
+  const textInputRef = useRef<TextInputInstance>(null);
 
   // Animations
   const fadeAnim = useState(new Animated.Value(0))[0];

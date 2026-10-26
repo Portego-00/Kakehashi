@@ -60,7 +60,7 @@ jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({}),
 }));
 
-jest.mock("@react-navigation/native", () => ({
+jest.mock("expo-router/react-navigation", () => ({
   useIsFocused: () => true,
 }));
 

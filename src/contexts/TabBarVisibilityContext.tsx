@@ -1,4 +1,4 @@
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import React, { createContext, useCallback, useContext, useId, useLayoutEffect, useMemo, useState } from "react";
 
 type TabBarVisibility = {

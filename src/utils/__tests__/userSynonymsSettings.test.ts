@@ -21,7 +21,7 @@ describe("user synonym answer preference", () => {
     expect(useSettingsStore.getState().acceptUserSynonymsAsAnswers).toBe(true);
     expect(useSettingsStore.getState().lessonBatchSize).toBe(10);
     const stored = JSON.parse(permanentStorage.getString("wanikani-settings")!);
-    expect(stored.version).toBe(22);
+    expect(stored.version).toBe(useSettingsStore.persist.getOptions().version);
     expect(stored.state.acceptUserSynonymsAsAnswers).toBe(true);
 
     useSettingsStore.getState().setAcceptUserSynonymsAsAnswers(false);

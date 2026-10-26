@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
+import { act, cleanupAsync, fireEvent, render } from "@testing-library/react-native";
 import { AppState, Pressable, Text, View, type AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { completeCustomLesson, createCustomSrsState, enrollCustomVocabularyPack } from "../../../../web/src/features/custom-srs/model";
@@ -94,7 +94,7 @@ beforeEach(() => {
   setAuth({ apiToken: "fixture-token", userData: { id: 21, username: "Portego" } });
 });
 afterEach(async () => {
-  cleanup();
+  await cleanupAsync();
   setAuth({ apiToken: null, userData: null });
   await flush();
   jest.clearAllTimers();

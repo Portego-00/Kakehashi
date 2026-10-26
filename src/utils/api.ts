@@ -634,7 +634,7 @@ export type Assignment = {
   data: {
     created_at: string;
     subject_id: number;
-    subject_type: "radical" | "kanji" | "vocabulary";
+    subject_type: "radical" | "kanji" | "vocabulary" | "kana_vocabulary";
     srs_stage: number;
     unlocked_at: string | null;
     started_at: string | null;
@@ -730,7 +730,7 @@ export type ReviewStatistic = {
   data: {
     created_at: string;
     subject_id: number;
-    subject_type: "radical" | "kanji" | "vocabulary";
+    subject_type: "radical" | "kanji" | "vocabulary" | "kana_vocabulary";
     meaning_correct: number;
     meaning_incorrect: number;
     meaning_max_streak: number;

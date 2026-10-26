@@ -118,8 +118,8 @@ it("keeps highlights and the passage list hidden until requested", async () => {
 it("saves a selected passage, then removes the selection action", async () => {
   const { view, send } = await openReader();
   send("selection", { page: 4, text: "日本語", passage });
-  fireEvent.press(view.getByLabelText("Highlight selected passage"));
-  await waitFor(() => expect(view.queryByLabelText("Highlight selected passage")).toBeNull());
+  await act(async () => { fireEvent.press(view.getByLabelText("Highlight selected passage")); });
+  expect(view.queryByLabelText("Highlight selected passage")).toBeNull();
   expect(epubAnnotations.save).toHaveBeenLastCalledWith("book-a", [expect.objectContaining({ kind: "highlight", text: "日本語", passage })]);
   expect(mockInject.mock.calls.some(([script]) => script.includes("setAnnotations") && script.includes('"kind":"highlight"'))).toBe(true);
 });

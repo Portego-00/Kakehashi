@@ -1,3 +1,4 @@
+import type { ScrollViewInstance, ViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import * as SwiftUI from "@expo/ui/swift-ui";
@@ -415,8 +416,8 @@ export default function SongLyricsScreen() {
   const [timedLyricsStatus, setTimedLyricsStatus] = useState<
     "loading" | "available" | "unavailable" | null
   >("loading");
-  const scrollViewRef = useRef<ScrollView>(null);
-  const lineRefs = useRef<{ [key: number]: View | null }>({});
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const lineRefs = useRef<{ [key: number]: ViewInstance | null }>({});
 
   // Autoscroll state - track if user has manually scrolled
   const [isAutoscrollEnabled, setIsAutoscrollEnabled] = useState(true);
@@ -867,9 +868,9 @@ export default function SongLyricsScreen() {
   const [isFirstVisit, setIsFirstVisit] = useState<boolean | null>(null); // null = checking, true/false = determined
   const [pendingAutoPlay, setPendingAutoPlay] = useState(false); // Track if we should auto-play after tutorial
   const loadedSongKeyRef = useRef<string | null>(null);
-  const settingsButtonRef = useRef<View>(null);
-  const syncToggleRef = useRef<View>(null);
-  const lyricsContentRef = useRef<View>(null);
+  const settingsButtonRef = useRef<ViewInstance>(null);
+  const syncToggleRef = useRef<ViewInstance>(null);
+  const lyricsContentRef = useRef<ViewInstance>(null);
 
   // Skeleton loader animation
   const skeletonOpacity = useSharedValue(0.3);

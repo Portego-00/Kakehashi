@@ -280,7 +280,7 @@ function buildHiraganaMeaningContextHints(
       : "";
 
   return contextSentences
-    .map((sentence: any) => {
+    .map((sentence: any): { ja?: string; en?: string } | null => {
       const rawJa = typeof sentence?.ja === "string" ? sentence.ja.trim() : "";
       const maskedJa =
         rawJa && targetCharacters

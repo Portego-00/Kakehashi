@@ -25,7 +25,7 @@ beforeEach(() => {
   jest.spyOn(global, 'requestAnimationFrame').mockImplementation((callback) => {
     const id = ++nextId; callbacks.set(id, callback); return id;
   });
-  jest.spyOn(global, 'cancelAnimationFrame').mockImplementation((id) => { callbacks.delete(id); });
+  jest.spyOn(global, 'cancelAnimationFrame').mockImplementation((id) => { if (id != null) callbacks.delete(id); });
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, callback) => {
     changeAppState = callback;
     return { remove: removeListener };

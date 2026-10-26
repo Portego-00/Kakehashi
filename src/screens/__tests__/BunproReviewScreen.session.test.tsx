@@ -881,11 +881,13 @@ it("loads unseen questions before immediately repeating the final miss in a load
     .mockResolvedValueOnce({ review_session_id: 42, pending_attempt: [item("1")], pending_wrapup: [], total_pending_attempt_count: 3, total_pending_wrapup_count: 0 })
     .mockResolvedValueOnce({ review_session_id: 43, pending_attempt: [item("2"), item("3")], pending_wrapup: [], total_pending_attempt_count: 2, total_pending_wrapup_count: 0 });
   const view = render(<BunproReviewScreen />);
-  await waitFor(() => expect(view.getByLabelText("Bunpro answer")).toBeTruthy());
+  await act(async () => {});
+  expect(view.getByLabelText("Bunpro answer")).toBeTruthy();
   fireEvent.changeText(view.getByLabelText("Bunpro answer"), "いぬ");
   fireEvent.press(view.getByLabelText("Check answer"));
-  fireEvent.press(view.getByLabelText("Next question"));
-  await waitFor(() => expect(view.queryByText("Question 1 ")).toBeNull());
+  await act(async () => { fireEvent.press(view.getByLabelText("Next question")); });
+  // The previous-answer card retains Question 1; the active prompt must be unseen.
+  await waitFor(() => expect(view.getByText(/^Question [23]$/)).toBeTruthy());
   expect(view.getByLabelText("Check answer")).toBeTruthy();
   expect(view.getByLabelText("Bunpro review progress").props.children).toBe("1/3");
   expect(updateBunproReview).toHaveBeenCalledTimes(1);

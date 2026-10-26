@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { router } from "expo-router";
@@ -228,7 +229,7 @@ export default function WhatsNewScreen() {
   const [expandedVersions, setExpandedVersions] = useState<Set<string>>(
     new Set([PATCH_NOTES[0]?.version]) // Latest version expanded by default
   );
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const sectionPositions = useRef<Record<string, number>>({});
 
   // Mark patch notes as seen when screen is opened

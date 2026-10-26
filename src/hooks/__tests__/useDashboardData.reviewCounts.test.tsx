@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { act, render } from "@testing-library/react-native";
-import { InteractionManager, Text } from "react-native";
+import { Text } from "react-native";
+import * as idleTasks from "../../utils/scheduleIdleTask";
 import { DashboardProvider, useDashboardData } from "../useDashboardData";
 import type { Assignment } from "../../utils/api";
 
@@ -355,8 +356,8 @@ describe("dashboard review count while refresh is pending", () => {
     mockReconstructedDashboard.mockImplementation(async () => ({
       assignments: rows, subjects: [], dataLoadingState: {},
     }));
-    const interactions = jest.spyOn(InteractionManager, "runAfterInteractions")
-      .mockImplementation((task: any) => { task(); return { cancel: jest.fn(), then: jest.fn(), done: jest.fn() }; });
+    const interactions = jest.spyOn(idleTasks, "scheduleIdleTask")
+      .mockImplementation((task: any) => { task(); return { cancel: jest.fn() }; });
     render(<DashboardProvider><Count /></DashboardProvider>);
     await act(async () => { await jest.advanceTimersByTimeAsync(1500); });
     expect(mockGetStatistics).toHaveBeenCalled();
@@ -383,8 +384,8 @@ describe("dashboard review count while refresh is pending", () => {
     mockReconstructedDashboard.mockImplementation(async () => ({
       assignments: rows, subjects: [], dataLoadingState: {},
     }));
-    const interactions = jest.spyOn(InteractionManager, "runAfterInteractions")
-      .mockImplementation((task: any) => { task(); return { cancel: jest.fn(), then: jest.fn(), done: jest.fn() }; });
+    const interactions = jest.spyOn(idleTasks, "scheduleIdleTask")
+      .mockImplementation((task: any) => { task(); return { cancel: jest.fn() }; });
     render(<DashboardProvider><Count /></DashboardProvider>);
     await act(async () => { await jest.advanceTimersByTimeAsync(1500); });
     const slowAssignments = deferred<unknown>();
@@ -422,8 +423,8 @@ describe("dashboard review count while refresh is pending", () => {
     mockReconstructedDashboard.mockResolvedValue({
       assignments: rows, subjects: [], dataLoadingState: {},
     });
-    const interactions = jest.spyOn(InteractionManager, "runAfterInteractions")
-      .mockImplementation((task: any) => { task(); return { cancel: jest.fn(), then: jest.fn(), done: jest.fn() }; });
+    const interactions = jest.spyOn(idleTasks, "scheduleIdleTask")
+      .mockImplementation((task: any) => { task(); return { cancel: jest.fn() }; });
     render(<DashboardProvider><Count /></DashboardProvider>);
     await act(async () => { await jest.advanceTimersByTimeAsync(1500); });
     expect(mockGetStatistics).toHaveBeenCalled();

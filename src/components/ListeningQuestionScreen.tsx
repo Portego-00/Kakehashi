@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import * as Haptics from "@/src/utils/haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {

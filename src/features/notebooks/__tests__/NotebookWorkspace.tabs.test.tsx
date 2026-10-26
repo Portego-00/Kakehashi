@@ -13,7 +13,7 @@ let mockWorkspaceMounted = true;
 
 // The native navigator owns the bar; mount the actual selected route beneath it.
 // This keeps the test focused on the real layout/editor visibility contract.
-jest.mock("expo-router/unstable-native-tabs", () => {
+jest.mock("expo-router/native-tabs", () => {
   const React = require("react");
   const { Text, View } = require("react-native");
   const NativeTabs = ({ hidden, children }: { hidden?: boolean; children: React.ReactNode }) => {
@@ -40,7 +40,7 @@ jest.mock("expo-router", () => {
     useSegments: () => ["(app)", "(tabs)", "notebooks"],
   };
 });
-jest.mock("@react-navigation/native", () => ({ useIsFocused: () => mockFocused }));
+jest.mock("expo-router/react-navigation", () => ({ useIsFocused: () => mockFocused }));
 jest.mock("../../../utils/store", () => ({
   useAuthStore: (selector?: (state: object) => unknown) => {
     const state = { apiToken: mockApiToken, userData: { id: mockAccountId, username: "ordinary-user" } };

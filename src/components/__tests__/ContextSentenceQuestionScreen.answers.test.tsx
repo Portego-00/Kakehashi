@@ -54,10 +54,10 @@ const question: ContextSentenceQuestion = {
   } } as ContextSentenceQuestion["vocab"],
   sentence: "猫がいます。", translation: "There is a cat.", sentenceWithBlank: "＿＿＿がいます。",
   kanjiChoices: [
-    { vocabId: 101, kanji: "猫", isCorrect: true },
-    { vocabId: 102, kanji: "犬", isCorrect: false },
-    { vocabId: 103, kanji: "鳥", isCorrect: false },
-    { vocabId: 104, kanji: "馬", isCorrect: false },
+    { vocabId: 101, kanji: "猫", reading: "ねこ", isCorrect: true },
+    { vocabId: 102, kanji: "犬", reading: "いぬ", isCorrect: false },
+    { vocabId: 103, kanji: "鳥", reading: "とり", isCorrect: false },
+    { vocabId: 104, kanji: "馬", reading: "うま", isCorrect: false },
   ],
 };
 

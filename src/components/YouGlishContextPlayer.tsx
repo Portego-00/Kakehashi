@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, AppState, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import WebView from "react-native-webview";
 import { readYouGlishMessage, youGlishPlayerDocument, youGlishSearchUrl } from "../features/youglish/player";
 import { useTheme } from "../utils/theme";
