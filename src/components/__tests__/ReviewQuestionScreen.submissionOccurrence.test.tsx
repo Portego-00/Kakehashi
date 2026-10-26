@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/react-
 import { router } from "expo-router";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 import React from "react";
-import { Alert, AppState, Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Alert, AppState, Dimensions, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import ReviewQuestionScreen from "../ReviewQuestionScreen";
 import ReviewPromptCharacters from "../ReviewPromptCharacters";
@@ -34,6 +34,31 @@ let mockUseRealKanaInput = false;
 let mockVoicePermissionsGranted = false;
 let mockScreenFocused = true;
 let mockReviewSafeAreaInsets = { top: 59, right: 0, bottom: 34, left: 0 };
+const mockNativeKeyboardHeight = { value: 0 };
+const mockNativeKeyboardState = { value: 4 };
+let mockReviewNativeFrame: { pageY: number; height: number } | null = null;
+const mockUseAnimatedKeyboard = jest.fn(() => ({
+  height: mockNativeKeyboardHeight,
+  state: mockNativeKeyboardState,
+}));
+let mockAnimatedStyleObserver: (() => void) | undefined;
+
+function mockCreateSharedValue(initialValue: unknown) {
+  let value = initialValue;
+  const observers = new Set<() => void>();
+  const shared: { value: unknown; get: () => unknown } = {
+    get value() {
+      if (mockAnimatedStyleObserver) observers.add(mockAnimatedStyleObserver);
+      return value;
+    },
+    set value(next: unknown) {
+      value = next;
+      for (const observer of observers) observer();
+    },
+    get: () => shared.value,
+  };
+  return shared;
+}
 
 jest.mock("../../utils/navigation-focus", () => ({
   useOptionalScreenIsFocused: () => mockScreenFocused,
@@ -188,10 +213,27 @@ jest.mock("react-native-reanimated", () => {
       const index = value >= inputRange[inputRange.length - 1] ? -1 : 0;
       return outputRange.at(index) ?? outputRange[0];
     },
-    useAnimatedStyle: (factory: () => object) => factory(),
+    useAnimatedStyle: (factory: () => object) => {
+      const style = React.useRef({});
+      const update = () => {
+        const previousObserver = mockAnimatedStyleObserver;
+        mockAnimatedStyleObserver = update;
+        try {
+          Object.assign(style.current, factory());
+        } finally {
+          mockAnimatedStyleObserver = previousObserver;
+        }
+      };
+      update();
+      return style.current;
+    },
+    useAnimatedKeyboard: () => mockUseAnimatedKeyboard(),
+    useAnimatedRef: () => React.useRef(null),
+    measure: () => mockReviewNativeFrame,
+    KeyboardState: { UNKNOWN: 0, OPENING: 1, OPEN: 2, CLOSING: 3, CLOSED: 4 },
     useReducedMotion: () => false,
     cancelAnimation: jest.fn(),
-    useSharedValue: (value: unknown) => React.useRef({ value }).current,
+    useSharedValue: (value: unknown) => React.useRef(mockCreateSharedValue(value)).current,
     withDelay: (_delay: number, value: unknown) => value,
     withSequence: (...values: unknown[]) => values.at(-1),
     withRepeat: (value: unknown) => value,
@@ -615,6 +657,123 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockSettings.disableAutoProgressOnWrong = false;
     mockSettings.disableAutoProgressOnCorrect = false;
     mockSettings.showAnswerStopSubjectDetails = false;
+    mockNativeKeyboardHeight.value = 0;
+    mockNativeKeyboardState.value = 4;
+    mockUseAnimatedKeyboard.mockClear();
+    mockReviewNativeFrame = null;
+  });
+
+  it("tracks native keyboard progress before first layout without replaying a delayed full animation", () => {
+    const onAnswer = jest.fn();
+    const props = { item: radicalItem, questionType: "meaning" as const, onAnswer };
+    const screen = render(<ReviewQuestionScreen {...props} />);
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "gro");
+    const avoidanceView = () => screen.UNSAFE_getAllByType(View).find((view) => {
+      const style = StyleSheet.flatten(view.props.style);
+      return style?.padding === 16 && style.flex === 1;
+    })!;
+
+    for (const [state, height] of [[1, 180], [2, 300], [3, 120], [4, 0]]) {
+      // The native progress signal reaches the UI before JS receives a layout
+      // or keyboardWillShow callback during the incoming screen transition.
+      mockNativeKeyboardState.value = state;
+      mockNativeKeyboardHeight.value = height;
+      screen.rerender(<ReviewQuestionScreen {...props} />);
+      const expectedInset = height > 0 ? Math.max(0, height - mockReviewSafeAreaInsets.bottom + 10) : 0;
+      expect(StyleSheet.flatten(avoidanceView().props.style).paddingBottom).toBe(expectedInset);
+      fireEvent(avoidanceView(), "layout", {
+        nativeEvent: { layout: { x: 0, y: 120, width: 402, height: 720 } },
+        persist: () => {},
+      });
+      expect(StyleSheet.flatten(avoidanceView().props.style).paddingBottom).toBe(expectedInset);
+      expect(screen.getByTestId("answer-input")).toBe(input);
+      expect(input.props.value).toBe("gro");
+      expect(onAnswer).not.toHaveBeenCalled();
+    }
+  });
+
+  it("uses an already-visible keyboard until native progress starts and rejects fullscreen hardware-keyboard frames", () => {
+    const metrics = jest.spyOn(Keyboard, "metrics").mockReturnValue({
+      height: 300, width: 402, screenX: 0, screenY: 574,
+    });
+    mockNativeKeyboardState.value = 0;
+    const props = { item: radicalItem, questionType: "meaning" as const, onAnswer: jest.fn() };
+    const screen = render(<ReviewQuestionScreen {...props} />);
+    const bottomInset = () => {
+      const view = screen.UNSAFE_getAllByType(View).find((node) => {
+        const style = StyleSheet.flatten(node.props.style);
+        return style?.padding === 16 && style.flex === 1;
+      })!;
+      return StyleSheet.flatten(view.props.style).paddingBottom;
+    };
+    try {
+      expect(bottomInset()).toBe(300 - mockReviewSafeAreaInsets.bottom + 10);
+      mockNativeKeyboardState.value = 2;
+      mockNativeKeyboardHeight.value = Dimensions.get("window").height;
+      screen.rerender(<ReviewQuestionScreen {...props} />);
+      expect(bottomInset()).toBe(0);
+      expect(props.onAnswer).not.toHaveBeenCalled();
+    } finally {
+      screen.unmount();
+      metrics.mockRestore();
+    }
+  });
+
+  it("uses the native review pane bottom instead of assuming every review fills the window", () => {
+    mockNativeKeyboardHeight.value = 300;
+    mockNativeKeyboardState.value = 2;
+    mockReviewNativeFrame = { pageY: 100, height: Dimensions.get("window").height - 300 };
+    const screen = renderQuestion();
+    const view = screen.UNSAFE_getAllByType(View).find((node) => {
+      const style = StyleSheet.flatten(node.props.style);
+      return style?.padding === 16 && style.flex === 1;
+    })!;
+    expect(StyleSheet.flatten(view.props.style).paddingBottom).toBe(110);
+    expect(screen.getByTestId("answer-input")).toBeTruthy();
+  });
+
+  it("remeasures an already-visible keyboard's pane on its first layout without waiting for another keyboard event or React render", () => {
+    const metrics = jest.spyOn(Keyboard, "metrics").mockReturnValue({
+      height: 300, width: 402, screenX: 0, screenY: 574,
+    });
+    mockNativeKeyboardState.value = 0;
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    const input = screen.getByTestId("answer-input");
+    fireEvent.changeText(input, "gro");
+    const view = screen.UNSAFE_getAllByType(View).find((node) => {
+      const style = StyleSheet.flatten(node.props.style);
+      return style?.padding === 16 && style.flex === 1;
+    })!;
+    try {
+      expect(StyleSheet.flatten(view.props.style).paddingBottom).toBe(276);
+      mockReviewNativeFrame = { pageY: 100, height: Dimensions.get("window").height - 300 };
+      const layout = { x: 0, y: 100, width: 402, height: mockReviewNativeFrame.height };
+      fireEvent(view, "layout", { nativeEvent: { layout }, persist: () => {} });
+      expect(StyleSheet.flatten(view.props.style).paddingBottom).toBe(110);
+      fireEvent(view, "layout", { nativeEvent: { layout }, persist: () => {} });
+      expect(StyleSheet.flatten(view.props.style).paddingBottom).toBe(110);
+      expect(mockNativeKeyboardState.value).toBe(0);
+      expect(screen.getByTestId("answer-input")).toBe(input);
+      expect(input.props.value).toBe("gro");
+      expect(onAnswer).not.toHaveBeenCalled();
+    } finally {
+      screen.unmount();
+      metrics.mockRestore();
+    }
+  });
+
+  it("keeps Android on native keyboard avoidance without subscribing to the iOS progress observer", () => {
+    const platform = jest.replaceProperty(Platform, "OS", "android");
+    try {
+      const screen = renderQuestion();
+      expect(mockUseAnimatedKeyboard).not.toHaveBeenCalled();
+      expect(screen.getByTestId("answer-input")).toBeTruthy();
+      screen.unmount();
+    } finally {
+      platform.restore();
+    }
   });
 
   it("lets native keyboard avoidance move the typed answer without a second details layout animation", async () => {

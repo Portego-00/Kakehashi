@@ -1527,13 +1527,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
+    columnGap: 8,
     marginTop: 4,
     rowGap: 4,
   },
   statItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 16,
   },
   statText: {
     fontSize: 14,

@@ -33,10 +33,14 @@ import {
 } from "react-native";
 import Animated, {
   Easing,
+  KeyboardState,
   LinearTransition,
   SlideInDown,
   SlideOutDown,
   interpolate,
+  measure,
+  useAnimatedKeyboard,
+  useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -995,6 +999,77 @@ const AnsweredItemCharacterDisplay = React.memo(function AnsweredItemCharacterDi
     </Text>
   );
 });
+
+type ReviewKeyboardAvoidingViewProps = React.ComponentProps<typeof KeyboardAvoidingView> & {
+  bottomInset: number;
+  windowHeight: number;
+};
+
+function IosReviewKeyboardAvoidingView({
+  children,
+  enabled = true,
+  keyboardVerticalOffset = 0,
+  onLayout,
+  style,
+  bottomInset,
+  windowHeight,
+}: ReviewKeyboardAvoidingViewProps) {
+  // Reuse the observer already included in the app's native Reanimated build.
+  // Its UI-thread progress avoids replaying a complete JS layout animation when
+  // the first layout arrives after the incoming screen's keyboard has started.
+  const keyboard = useAnimatedKeyboard();
+  const viewRef = useAnimatedRef<ViewInstance>();
+  const layoutVersion = useSharedValue(0);
+  const lastLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [initialKeyboardHeight] = useState(() => Keyboard.metrics()?.height ?? 0);
+  const keyboardStyle = useAnimatedStyle(() => {
+    // A first layout must remeasure even when the keyboard was already visible
+    // and its native observer has no new height/state event to publish.
+    layoutVersion.get();
+    const height = keyboard.state.value === KeyboardState.UNKNOWN
+      ? initialKeyboardHeight
+      : keyboard.height.value;
+    if (!enabled || height <= 0 || height >= windowHeight * IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO) {
+      return { paddingBottom: 0 };
+    }
+
+    // The safe-area fallback is available before the first native layout. Once
+    // mounted, measure the actual screen bottom to support embedded review panes.
+    const frame = measure(viewRef);
+    const viewBottom = frame && frame.height > 0
+      ? Math.min(windowHeight, frame.pageY + frame.height)
+      : windowHeight - bottomInset;
+    return {
+      paddingBottom: Math.max(
+        0,
+        height - (windowHeight - viewBottom) + keyboardVerticalOffset,
+      ),
+    };
+  });
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const layout = event.nativeEvent.layout;
+    const previous = lastLayoutRef.current;
+    if (!previous || previous.x !== layout.x || previous.y !== layout.y ||
+      previous.width !== layout.width || previous.height !== layout.height) {
+      lastLayoutRef.current = layout;
+      layoutVersion.value += 1;
+    }
+    onLayout?.(event);
+  };
+
+  return (
+    <Animated.View ref={viewRef} style={[style, keyboardStyle]} onLayout={handleLayout}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function ReviewKeyboardAvoidingView({ bottomInset, windowHeight, ...props }: ReviewKeyboardAvoidingViewProps) {
+  if (Platform.OS === "ios") {
+    return <IosReviewKeyboardAvoidingView {...props} bottomInset={bottomInset} windowHeight={windowHeight} />;
+  }
+  return <KeyboardAvoidingView {...props} />;
+}
 
 export default function ReviewQuestionScreen({
   item,
@@ -5999,8 +6074,10 @@ export default function ReviewQuestionScreen({
         </Animated.View>
       ))}
 
-      <KeyboardAvoidingView
+      <ReviewKeyboardAvoidingView
         style={styles.questionContainer}
+        bottomInset={shouldShowPausedSubjectDetails ? 0 : noteModalInsets.bottom}
+        windowHeight={windowHeight}
         behavior={
           Platform.OS === "ios" && iosKeyboardAvoidingEnabled
             ? "padding"
@@ -7462,7 +7539,7 @@ export default function ReviewQuestionScreen({
               importantForAccessibility="no-hide-descendants"
             />
           )}
-      </KeyboardAvoidingView>
+      </ReviewKeyboardAvoidingView>
       {renderStudyMaterialNoteModal()}
     </SafeAreaView>
   );
