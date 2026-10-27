@@ -6867,6 +6867,15 @@ export default function ReviewQuestionScreen({
             style={[
               styles.answerContainer,
               useCompactTypedLayout && styles.compactTypedAnswer,
+              // Duo's right-only status area is above the answer field. Reclaim
+              // that space here while keeping the header and prompt protected.
+              Platform.OS === "ios" &&
+                noteModalInsets.left === 0 &&
+                noteModalInsets.right > 0 &&
+                !hideTypedAnswerInput &&
+                !isPausedOnAnswer && {
+                  marginRight: -noteModalInsets.right,
+                },
               hideTypedAnswerInput && !isPausedOnAnswer && { flexShrink: 1 },
               Platform.OS === "android" &&
                 androidKeyboardLift > 0 && { paddingBottom: androidKeyboardLift },
