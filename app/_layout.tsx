@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AnimatedKanjiLoader from "../src/components/AnimatedKanjiLoader";
+import { AppKeyboardProvider } from "../src/components/app-keyboard-provider";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import GlobalMiniPlayer from "../src/components/GlobalMiniPlayer";
 import { SessionProvider, useSession } from "../src/contexts/AuthContext";
@@ -1108,9 +1109,11 @@ function RootLayoutContent() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
-        <BackgroundTasksProvider>
-          <RootLayoutContentInner />
-        </BackgroundTasksProvider>
+        <AppKeyboardProvider>
+          <BackgroundTasksProvider>
+            <RootLayoutContentInner />
+          </BackgroundTasksProvider>
+        </AppKeyboardProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>
   );

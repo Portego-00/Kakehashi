@@ -4,6 +4,7 @@ import { useLearningDisplay } from "../features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { BlurView } from "expo-blur";
+import { useReviewKeyboard } from "../contexts/ReviewKeyboardContext";
 import * as Haptics from "@/src/utils/haptics";
 import { router, useFocusEffect } from "expo-router";
 import {
@@ -33,13 +34,11 @@ import {
 } from "react-native";
 import Animated, {
   Easing,
-  KeyboardState,
   LinearTransition,
   SlideInDown,
   SlideOutDown,
   interpolate,
   measure,
-  useAnimatedKeyboard,
   useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
@@ -1014,21 +1013,17 @@ function IosReviewKeyboardAvoidingView({
   bottomInset,
   windowHeight,
 }: ReviewKeyboardAvoidingViewProps) {
-  // Reuse the observer already included in the app's native Reanimated build.
-  // Its UI-thread progress avoids replaying a complete JS layout animation when
-  // the first layout arrives after the incoming screen's keyboard has started.
-  const keyboard = useAnimatedKeyboard();
+  // The root observer is already running before the first quiz opens. Consume
+  // its movement frames instead of starting a private keyboard observer here.
+  const keyboard = useReviewKeyboard();
   const viewRef = useAnimatedRef<ViewInstance>();
   const layoutVersion = useSharedValue(0);
   const lastLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [initialKeyboardHeight] = useState(() => Keyboard.metrics()?.height ?? 0);
   const keyboardStyle = useAnimatedStyle(() => {
     // A first layout must remeasure even when the keyboard was already visible
     // and its native observer has no new height/state event to publish.
     layoutVersion.get();
-    const height = keyboard.state.value === KeyboardState.UNKNOWN
-      ? initialKeyboardHeight
-      : keyboard.height.value;
+    const height = keyboard.height.value;
     if (!enabled || height <= 0 || height >= windowHeight * IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO) {
       return { paddingBottom: 0 };
     }

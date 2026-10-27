@@ -243,6 +243,14 @@ jest.mock("../../src/utils/theme", () => {
   };
 });
 
+jest.mock("../../src/components/app-keyboard-provider", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  return {
+    AppKeyboardProvider: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+  };
+});
+
 describe("offline startup", () => {
   const originalDev = (global as typeof globalThis & { __DEV__?: boolean }).__DEV__;
   let consoleWarnSpy: jest.SpyInstance;

@@ -1726,6 +1726,53 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-keyboard-controller (1.22.7):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - react-native-keyboard-controller/common (= 1.22.7)
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
+  - react-native-keyboard-controller/common (1.22.7):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-cxxstableapi
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - react-native-mmkv (3.3.3):
     - hermes-engine
     - RCTRequired
@@ -2827,6 +2874,7 @@ DEPENDENCIES:
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
   - React-mutationobservernativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver`)
   - react-native-external-keyboard (from `../node_modules/react-native-external-keyboard`)
+  - react-native-keyboard-controller (from `../node_modules/react-native-keyboard-controller`)
   - react-native-mmkv (from `../node_modules/react-native-mmkv`)
   - react-native-pager-view (from `../node_modules/react-native-pager-view`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
@@ -3113,6 +3161,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/mutationobserver"
   react-native-external-keyboard:
     :path: "../node_modules/react-native-external-keyboard"
+  react-native-keyboard-controller:
+    :path: "../node_modules/react-native-keyboard-controller"
   react-native-mmkv:
     :path: "../node_modules/react-native-mmkv"
   react-native-pager-view:
@@ -3353,6 +3403,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: b8478c203a5d65f5729a5d72564b5625306246d2
   React-mutationobservernativemodule: 4b42b9a136d149799864720e5201a9ce190d2bef
   react-native-external-keyboard: 4bdefcdb1ce96fe202e2750316ee805ef13d5dda
+  react-native-keyboard-controller: 84028e707b5dfb9fa72f1c253f9a117c6428ad0b
   react-native-mmkv: 96dd2cc19805f257d4ed271eab00cf9955b388ab
   react-native-pager-view: cb4b875f347ac1e720fce98f7ffdb582b1e7ef57
   react-native-safe-area-context: 0b8493ec23174c2d819f3281f80d5505557fcdbe

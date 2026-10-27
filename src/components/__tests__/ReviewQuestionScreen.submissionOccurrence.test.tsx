@@ -34,10 +34,16 @@ let mockUseRealKanaInput = false;
 let mockVoicePermissionsGranted = false;
 let mockScreenFocused = true;
 let mockReviewSafeAreaInsets = { top: 59, right: 0, bottom: 34, left: 0 };
-const mockNativeKeyboardHeight = { value: 0 };
-const mockNativeKeyboardState = { value: 4 };
+const mockNativeKeyboardHeight = mockCreateSharedValue(0);
+const mockNativeKeyboardState = mockCreateSharedValue(4);
+const mockLegacyKeyboardHeight = { value: 0 };
+const mockLegacyKeyboardState = { value: 0 };
 let mockReviewNativeFrame: { pageY: number; height: number } | null = null;
 const mockUseAnimatedKeyboard = jest.fn(() => ({
+  height: mockLegacyKeyboardHeight,
+  state: mockLegacyKeyboardState,
+}));
+const mockUseReviewKeyboard = jest.fn(() => ({
   height: mockNativeKeyboardHeight,
   state: mockNativeKeyboardState,
 }));
@@ -59,6 +65,10 @@ function mockCreateSharedValue(initialValue: unknown) {
   };
   return shared;
 }
+
+jest.mock("../../contexts/ReviewKeyboardContext", () => ({
+  useReviewKeyboard: () => mockUseReviewKeyboard(),
+}));
 
 jest.mock("../../utils/navigation-focus", () => ({
   useOptionalScreenIsFocused: () => mockScreenFocused,
@@ -660,10 +670,13 @@ describe("ReviewQuestionScreen question occurrences", () => {
     mockNativeKeyboardHeight.value = 0;
     mockNativeKeyboardState.value = 4;
     mockUseAnimatedKeyboard.mockClear();
+    mockUseReviewKeyboard.mockClear();
+    mockLegacyKeyboardHeight.value = 0;
+    mockLegacyKeyboardState.value = 0;
     mockReviewNativeFrame = null;
   });
 
-  it("tracks native keyboard progress before first layout without replaying a delayed full animation", () => {
+  it("follows first-open native progress even when the legacy observer has no opening frames", () => {
     const onAnswer = jest.fn();
     const props = { item: radicalItem, questionType: "meaning" as const, onAnswer };
     const screen = render(<ReviewQuestionScreen {...props} />);
@@ -674,12 +687,13 @@ describe("ReviewQuestionScreen question occurrences", () => {
       return style?.padding === 16 && style.flex === 1;
     })!;
 
-    for (const [state, height] of [[1, 180], [2, 300], [3, 120], [4, 0]]) {
-      // The native progress signal reaches the UI before JS receives a layout
-      // or keyboardWillShow callback during the incoming screen transition.
+    expect(StyleSheet.flatten(avoidanceView().props.style).paddingBottom).toBe(0);
+    for (const [state, height] of [[1, 60], [1, 180], [2, 300], [3, 120], [4, 0], [1, 90], [2, 300]]) {
+      // Reanimated's deprecated first-open observer can remain at UNKNOWN/0
+      // until didShow. The maintained observer publishes these native frames
+      // before any JS keyboard or layout callback, without a React rerender.
       mockNativeKeyboardState.value = state;
       mockNativeKeyboardHeight.value = height;
-      screen.rerender(<ReviewQuestionScreen {...props} />);
       const expectedInset = height > 0 ? Math.max(0, height - mockReviewSafeAreaInsets.bottom + 10) : 0;
       expect(StyleSheet.flatten(avoidanceView().props.style).paddingBottom).toBe(expectedInset);
       fireEvent(avoidanceView(), "layout", {
@@ -690,14 +704,15 @@ describe("ReviewQuestionScreen question occurrences", () => {
       expect(screen.getByTestId("answer-input")).toBe(input);
       expect(input.props.value).toBe("gro");
       expect(onAnswer).not.toHaveBeenCalled();
+      expect(mockLegacyKeyboardHeight.value).toBe(0);
     }
+    expect(mockUseAnimatedKeyboard).not.toHaveBeenCalled();
   });
 
-  it("uses an already-visible keyboard until native progress starts and rejects fullscreen hardware-keyboard frames", () => {
-    const metrics = jest.spyOn(Keyboard, "metrics").mockReturnValue({
-      height: 300, width: 402, screenX: 0, screenY: 574,
-    });
-    mockNativeKeyboardState.value = 0;
+  it("uses persistent native progress when mounting over an already-visible keyboard and rejects fullscreen hardware frames", () => {
+    const metrics = jest.spyOn(Keyboard, "metrics");
+    mockNativeKeyboardState.value = 2;
+    mockNativeKeyboardHeight.value = 300;
     const props = { item: radicalItem, questionType: "meaning" as const, onAnswer: jest.fn() };
     const screen = render(<ReviewQuestionScreen {...props} />);
     const bottomInset = () => {
@@ -709,9 +724,9 @@ describe("ReviewQuestionScreen question occurrences", () => {
     };
     try {
       expect(bottomInset()).toBe(300 - mockReviewSafeAreaInsets.bottom + 10);
+      expect(metrics).not.toHaveBeenCalled();
       mockNativeKeyboardState.value = 2;
       mockNativeKeyboardHeight.value = Dimensions.get("window").height;
-      screen.rerender(<ReviewQuestionScreen {...props} />);
       expect(bottomInset()).toBe(0);
       expect(props.onAnswer).not.toHaveBeenCalled();
     } finally {
@@ -734,10 +749,8 @@ describe("ReviewQuestionScreen question occurrences", () => {
   });
 
   it("remeasures an already-visible keyboard's pane on its first layout without waiting for another keyboard event or React render", () => {
-    const metrics = jest.spyOn(Keyboard, "metrics").mockReturnValue({
-      height: 300, width: 402, screenX: 0, screenY: 574,
-    });
-    mockNativeKeyboardState.value = 0;
+    mockNativeKeyboardState.value = 2;
+    mockNativeKeyboardHeight.value = 300;
     const onAnswer = jest.fn();
     const screen = renderQuestion({ onAnswer });
     const input = screen.getByTestId("answer-input");
@@ -754,13 +767,12 @@ describe("ReviewQuestionScreen question occurrences", () => {
       expect(StyleSheet.flatten(view.props.style).paddingBottom).toBe(110);
       fireEvent(view, "layout", { nativeEvent: { layout }, persist: () => {} });
       expect(StyleSheet.flatten(view.props.style).paddingBottom).toBe(110);
-      expect(mockNativeKeyboardState.value).toBe(0);
+      expect(mockNativeKeyboardState.value).toBe(2);
       expect(screen.getByTestId("answer-input")).toBe(input);
       expect(input.props.value).toBe("gro");
       expect(onAnswer).not.toHaveBeenCalled();
     } finally {
       screen.unmount();
-      metrics.mockRestore();
     }
   });
 
@@ -769,6 +781,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
     try {
       const screen = renderQuestion();
       expect(mockUseAnimatedKeyboard).not.toHaveBeenCalled();
+      expect(mockUseReviewKeyboard).not.toHaveBeenCalled();
       expect(screen.getByTestId("answer-input")).toBeTruthy();
       screen.unmount();
     } finally {
