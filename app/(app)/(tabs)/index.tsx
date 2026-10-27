@@ -1193,6 +1193,7 @@ export default function StudyTab() {
           contentWidth < 360 && styles.compactHeader,
           {
             backgroundColor: theme.headerBackground,
+            paddingTop: Math.max(60, insets.top),
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },
