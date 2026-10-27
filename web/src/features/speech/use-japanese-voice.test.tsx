@@ -195,11 +195,33 @@ describe("Japanese voice lifecycle", () => {
     vi.useRealTimers();
   });
 
-  async function renderVoice() {
+  async function renderVoice(options?: { prepare?: boolean }) {
     const voice = await import("./use-japanese-voice");
-    const hook = renderHook(() => voice.useJapaneseVoice());
+    const hook = renderHook(() => voice.useJapaneseVoice(options));
     await waitFor(() => expect(hook.result.current.checked).toBe(true));
     return { ...hook, voice };
+  }
+
+  async function playAndStop(
+    voice: Awaited<ReturnType<typeof renderVoice>>["voice"],
+    text: string,
+    { speed = 1, synthesize = true, sampleCount = 3 } = {},
+  ) {
+    const previousRequests = workers.at(-1)?.postMessage.mock.calls.length ?? 0;
+    const previousSources = audioSources.length;
+    let playback: Promise<boolean> | undefined;
+    act(() => { playback = voice.playJapaneseSentence(text, { speed }); });
+    if (synthesize) {
+      await waitFor(() => expect(workers.at(-1)?.postMessage).toHaveBeenCalledTimes(previousRequests + 1));
+      const activeWorker = workers.at(-1)!;
+      const request = activeWorker.postMessage.mock.calls.at(-1)![0] as JapaneseVoiceWorkerRequest;
+      act(() => activeWorker.emit({ id: request.id, type: "audio", samples: new Float32Array(sampleCount).buffer, sampleRate: 44_100 }));
+    }
+    await waitFor(() => expect(audioSources).toHaveLength(previousSources + 1));
+    await act(async () => {
+      voice.stopJapaneseVoice();
+      await playback;
+    });
   }
 
   it("downloads and verifies the voice without constructing the synthesis worker", async () => {
@@ -279,6 +301,34 @@ describe("Japanese voice lifecycle", () => {
       result.current.stop();
       await playPromise;
     });
+  });
+
+  it("prepares the saved voice once without generating speech or opening audio playback", async () => {
+    storage.cache.seedCompleteVoice();
+    const { result, voice } = await renderVoice({ prepare: true });
+    let preparation: Promise<unknown> | undefined;
+    act(() => {
+      preparation = Promise.all([voice.prepareJapaneseVoice(), voice.prepareJapaneseVoice()]);
+    });
+
+    await waitFor(() => expect(workers[0]?.postMessage).toHaveBeenCalledOnce());
+    const request = workers[0].postMessage.mock.calls[0][0] as JapaneseVoiceWorkerRequest;
+    expect(request.type).toBe("prepare");
+    act(() => workers[0].emit({ id: request.id, type: "progress", progress: 95, message: "Loading voice…" }));
+    expect(result.current.activity).toBe("idle");
+    expect(result.current.message).toBeNull();
+    expect(audioContexts).toHaveLength(0);
+    await act(async () => {
+      workers[0].emit({ id: request.id, type: "ready" });
+      await preparation;
+    });
+  });
+
+  it("does not prepare a voice that has not been downloaded", async () => {
+    const { voice } = await renderVoice({ prepare: true });
+    await act(async () => { await voice.prepareJapaneseVoice(); });
+    expect(workers).toHaveLength(0);
+    expect(audioContexts).toHaveLength(0);
   });
 
   it("does not start stale synthesis when playback is stopped during the saved-voice check", async () => {
@@ -418,5 +468,66 @@ describe("Japanese voice lifecycle", () => {
       await playPromise;
     });
     expect(result.current.activity).toBe("idle");
+  });
+
+  it("replays a context sentence immediately without waiting for synthesis again", async () => {
+    storage.cache.seedCompleteVoice();
+    const { result } = await renderVoice();
+    let firstPlay: Promise<boolean> | undefined;
+    act(() => { firstPlay = result.current.play("学校へ行きます。"); });
+    await waitFor(() => expect(workers[0]?.postMessage).toHaveBeenCalledOnce());
+    const request = workers[0].postMessage.mock.calls[0][0] as JapaneseVoiceWorkerRequest;
+    act(() => workers[0].emit({
+      id: request.id,
+      type: "audio",
+      samples: new Float32Array([0, 0.25, -0.25]).buffer,
+      sampleRate: 44_100,
+    }));
+    await waitFor(() => expect(result.current.activity).toBe("playing"));
+    await act(async () => {
+      audioSources[0].finish();
+      await firstPlay;
+    });
+
+    act(() => { void result.current.play("学校へ行きます。"); });
+
+    await waitFor(() => expect(audioSources).toHaveLength(2));
+    expect(workers[0].postMessage).toHaveBeenCalledOnce();
+    expect(audioSources[1].start).toHaveBeenCalledOnce();
+    act(() => result.current.stop());
+  });
+
+  it("keeps separate audio for each speech speed and reuses each on replay", async () => {
+    storage.cache.seedCompleteVoice();
+    const { voice } = await renderVoice();
+    await playAndStop(voice, "学校へ行きます。", { speed: 0.82 });
+    await playAndStop(voice, "学校へ行きます。", { speed: 1 });
+    await playAndStop(voice, "学校へ行きます。", { speed: 0.82, synthesize: false });
+    expect(workers[0].postMessage).toHaveBeenCalledTimes(2);
+    expect(audioSources[2].buffer).toBe(audioSources[0].buffer);
+    expect(audioSources[2].buffer).not.toBe(audioSources[1].buffer);
+  });
+
+  it("replays generated audio even after its synthesis worker has been released", async () => {
+    storage.cache.seedCompleteVoice();
+    const { voice } = await renderVoice();
+    await playAndStop(voice, "学校へ行きます。");
+    act(() => workers[0].fail());
+    await playAndStop(voice, "学校へ行きます。", { synthesize: false });
+    expect(workers).toHaveLength(1);
+    expect(workers[0].postMessage).toHaveBeenCalledOnce();
+  });
+
+  it("evicts the least recently replayed sentences when audio exceeds the memory limit", async () => {
+    storage.cache.seedCompleteVoice();
+    const { voice } = await renderVoice();
+    const sampleCount = 3 * 1024 * 1024; // Each sentence uses 12 MiB of the 32 MiB budget.
+    await playAndStop(voice, "最初の文です。", { sampleCount });
+    await playAndStop(voice, "二番目の文です。", { sampleCount });
+    await playAndStop(voice, "最初の文です。", { synthesize: false });
+    await playAndStop(voice, "三番目の文です。", { sampleCount });
+    await playAndStop(voice, "最初の文です。", { synthesize: false });
+    await playAndStop(voice, "二番目の文です。", { sampleCount });
+    expect(workers[0].postMessage).toHaveBeenCalledTimes(4);
   });
 });

@@ -34,6 +34,7 @@ let downloadPromise: Promise<void> | null = null;
 let downloadController: AbortController | null = null;
 let worker: Worker | null = null;
 let workerIdleTimer: ReturnType<typeof setTimeout> | null = null;
+let preparePromise: Promise<void> | null = null;
 let requestSequence = 0;
 let audioContext: AudioContext | null = null;
 let audioSource: AudioBufferSourceNode | null = null;
@@ -43,6 +44,10 @@ let playbackSequence = 0;
 const listeners = new Set<() => void>();
 const VOICE_CHECK_TIMEOUT_MS = 10_000;
 const WORKER_IDLE_TIMEOUT_MS = 10 * 60_000;
+// Keep replay audio after worker cleanup without retaining unbounded PCM data.
+const SENTENCE_CACHE_MAX_BYTES = 32 * 1024 * 1024;
+const sentenceCache = new Map<string, { buffer: AudioBuffer; bytes: number }>();
+let sentenceCacheBytes = 0;
 const pending = new Map<string, {
   resolve: (response: JapaneseVoiceWorkerResponse) => void;
   reject: (error: Error) => void;
@@ -111,7 +116,9 @@ function getWorker() {
     const operation = pending.get(response.id);
     if (!operation) return;
     if (response.type === "progress") {
-      emit({ progress: response.progress, message: response.message });
+      if (state.activity === "synthesizing") {
+        emit({ progress: response.progress, message: response.message });
+      }
       return;
     }
     pending.delete(response.id);
@@ -131,7 +138,7 @@ function getWorker() {
   return worker;
 }
 
-function requestVoice(request: { type: "synthesize"; text: string; speed: number }) {
+function requestVoice(request: { type: "prepare" } | { type: "synthesize"; text: string; speed: number }) {
   const id = `voice-${Date.now()}-${requestSequence++}`;
   return new Promise<JapaneseVoiceWorkerResponse>((resolve, reject) => {
     pending.set(id, { resolve, reject });
@@ -142,6 +149,26 @@ function requestVoice(request: { type: "synthesize"; text: string; speed: number
       reject(error instanceof Error ? error : new Error("The Japanese voice worker could not start."));
     }
   });
+}
+
+function cachedSentence(key: string) {
+  const cached = sentenceCache.get(key);
+  if (!cached) return null;
+  sentenceCache.delete(key);
+  sentenceCache.set(key, cached);
+  return cached.buffer;
+}
+
+function rememberSentence(key: string, buffer: AudioBuffer, bytes: number) {
+  if (bytes > SENTENCE_CACHE_MAX_BYTES) return;
+  while (sentenceCacheBytes + bytes > SENTENCE_CACHE_MAX_BYTES) {
+    const oldest = sentenceCache.entries().next().value;
+    if (!oldest) break;
+    sentenceCache.delete(oldest[0]);
+    sentenceCacheBytes -= oldest[1].bytes;
+  }
+  sentenceCache.set(key, { buffer, bytes });
+  sentenceCacheBytes += bytes;
 }
 
 function getAudioContext() {
@@ -217,6 +244,22 @@ export function cancelJapaneseVoiceDownload() {
   downloadController?.abort(new DOMException("Japanese voice download cancelled.", "AbortError"));
 }
 
+export async function prepareJapaneseVoice() {
+  if (preparePromise) return preparePromise;
+  preparePromise = (async () => {
+    await checkJapaneseVoice();
+    if (!state.downloaded) return;
+    try {
+      await requestVoice({ type: "prepare" });
+    } catch {
+      // Playback retries with a fresh worker and reports any error to the user.
+    }
+  })().finally(() => {
+    preparePromise = null;
+  });
+  return preparePromise;
+}
+
 export function stopJapaneseVoice() {
   const wasSynthesizing = state.activity === "synthesizing";
   playbackSequence += 1;
@@ -254,22 +297,27 @@ export async function playJapaneseSentence(text: string, options: { speed?: numb
     return false;
   }
 
-  emit({ activity: "synthesizing", activeSentence: text, progress: null, message: "Creating speech…", error: null });
   try {
     const requestedSpeed = options.speed ?? 1;
     const speed = Number.isFinite(requestedSpeed) ? Math.min(1.3, Math.max(0.7, requestedSpeed)) : 1;
-    const response = await requestVoice({ type: "synthesize", text, speed });
-    if (operation !== playbackSequence || response.type !== "audio") return false;
+    const cacheKey = JSON.stringify([text, speed]);
+    let buffer = cachedSentence(cacheKey);
+    if (!buffer) {
+      emit({ activity: "synthesizing", activeSentence: text, progress: null, message: "Creating speech…", error: null });
+      const response = await requestVoice({ type: "synthesize", text, speed });
+      if (operation !== playbackSequence || response.type !== "audio") return false;
+      const samples = new Float32Array(response.samples);
+      buffer = context.createBuffer(1, samples.length, response.sampleRate);
+      buffer.copyToChannel(samples, 0);
+      rememberSentence(cacheKey, buffer, samples.byteLength);
+    }
     await resumePromise;
     if (operation !== playbackSequence) return false;
-    const samples = new Float32Array(response.samples);
-    const buffer = context.createBuffer(1, samples.length, response.sampleRate);
-    buffer.copyToChannel(samples, 0);
     const source = context.createBufferSource();
     source.buffer = buffer;
     source.connect(context.destination);
     audioSource = source;
-    emit({ activity: "playing", message: null });
+    emit({ activity: "playing", activeSentence: text, progress: null, message: null, error: null });
     await new Promise<void>((resolve) => {
       const finish = () => {
         if (audioEndResolve === finish) audioEndResolve = null;
@@ -298,11 +346,14 @@ export async function playJapaneseSentence(text: string, options: { speed?: numb
   }
 }
 
-export function useJapaneseVoice() {
+export function useJapaneseVoice({ prepare = false }: { prepare?: boolean } = {}) {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   useEffect(() => {
     void checkJapaneseVoice();
   }, []);
+  useEffect(() => {
+    if (prepare && snapshot.downloaded) void prepareJapaneseVoice();
+  }, [prepare, snapshot.downloaded]);
   return {
     ...snapshot,
     download: downloadJapaneseVoice,

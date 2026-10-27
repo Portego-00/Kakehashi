@@ -398,7 +398,7 @@ function UsagePatterns({ patterns }: { patterns: UsagePattern[] }) {
 }
 
 export function ContextSentences({ sentences }: { sentences: ContextSentence[] }) {
-  const voice = useJapaneseVoice();
+  const voice = useJapaneseVoice({ prepare: sentences.length > 0 });
   const downloading = voice.activity === "downloading";
   const downloadState: ButtonState = downloading ? "loading" : voice.error && !voice.downloaded ? "error" : "idle";
   const action = voice.checked && voice.downloaded

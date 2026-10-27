@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildImmersionExamples } from "@/features/study/immersion-kit";
 import { createListRepository } from "@/features/subjects/lists";
+import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
 import type { StudyMaterial, Subject } from "@/types/wanikani";
 import { EmbeddedSubjectHeader } from "./EmbeddedSubjectHeader";
 import { AnimeSentence, ContextSentences, StudyMaterialEditor, SubjectDetail, SubjectDetailPanels, SubjectStickyHeader } from "./SubjectDetail";
@@ -56,7 +57,7 @@ vi.mock("@/features/settings/use-workspace-preferences", () => ({
 }));
 
 vi.mock("@/features/speech/use-japanese-voice", () => ({
-  useJapaneseVoice: () => voiceMock,
+  useJapaneseVoice: vi.fn(() => voiceMock),
 }));
 
 const material: StudyMaterial = {
@@ -191,6 +192,7 @@ describe("normal vocabulary context speech", () => {
       error: null,
     });
     voiceMock.download.mockReset();
+    vi.mocked(useJapaneseVoice).mockClear();
     voiceMock.play.mockReset();
     voiceMock.stop.mockReset();
   });
@@ -208,6 +210,11 @@ describe("normal vocabulary context speech", () => {
     fireEvent.click(first);
     expect(voiceMock.play).toHaveBeenCalledWith("これは普通の例文です。");
     expect(voiceMock.play).not.toHaveBeenCalledWith(contextSentences[0].en);
+  });
+
+  it("prepares a downloaded voice as soon as context sentences appear", () => {
+    render(<ContextSentences sentences={contextSentences} />);
+    expect(useJapaneseVoice).toHaveBeenCalledWith({ prepare: true });
   });
 
   it("requires an explicit voice download before enabling sentence playback", () => {
