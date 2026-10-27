@@ -4,7 +4,15 @@ Production site: https://kakehashiapp.com
 
 Vercel project: **kakehashi-web**, under **portego-00s-projects**.
 
-## Current release: October 25, 2026 — note images and gesture zoom
+## Current release: October 27, 2026 — context-sentence speech startup and replay
+
+Production is **`dpl_EctJwfc5q9Htg6Lh2ajbkeGn3XJY`**, at https://kakehashi-6v2ga164b-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. Context sentences prepare the downloaded Japanese voice before playback is requested. Generated audio is reused for the same sentence and speech speed, with a 32 MiB memory limit and eviction of the least recently used recordings. Cached audio survives synthesis-worker cleanup. Voice downloads remain explicit, and generating an unseen sentence still depends on the device's inference speed.
+
+The complete **1,249-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-27/Kakehashi/context-sentence-tts-prod/upload`. It preserves the verified note-image release and applies only the seven TTS implementation and regression-test changes from commit **`235500f82c82fd2faa2b6f1907bab58fb51b7400`**. Production build and typecheck passed. Lint passed with three existing warnings; the full suite passed **3,262 tests**, with one existing skip. **Four staged** and **four live** desktop/mobile browser checks passed, covering early preparation, playback, stopping, cache reuse, and the explicit-download requirement. These hosted checks use synthetic model responses and real browser audio playback; a separate local real-model browser check measured 31 ms replay startup. All uploaded source hashes were verified, and production was unchanged immediately before promotion. Manifests, logs, and browser screenshots are beside the snapshot. Temporary staging credentials were removed.
+
+The immediate rollback is **`dpl_rGf5igzXUtPKRoU82c7j52A1LSHs`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-25/Kakehashi/note-images-prod/upload`. No environment changes, database migrations, or native release were performed.
+
+## Previous release: October 25, 2026 — note images and gesture zoom
 
 Production is **`dpl_rGf5igzXUtPKRoU82c7j52A1LSHs`**, at https://kakehashi-rml38dx22-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. Meaning and reading notes accept public image URLs, show uncropped previews, and open a viewer with pinch zoom, panning, and removal. Desktop also supports trackpad pinches, double-click zoom, and keyboard controls. The image action is **Add to note**, followed by **Save note**; saving remains disabled until the image form is finished.
 
