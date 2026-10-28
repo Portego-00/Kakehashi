@@ -1,3 +1,5 @@
+$VCEnableLocation=false
+
 source 'https://cdn.cocoapods.org/'
 
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")

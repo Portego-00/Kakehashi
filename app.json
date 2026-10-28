@@ -128,6 +128,7 @@
         "react-native-vision-camera",
         {
           "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera to scan Japanese text.",
+          "enableLocation": false,
           "enableMicrophonePermission": false
         }
       ],
