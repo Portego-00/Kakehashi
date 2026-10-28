@@ -18,6 +18,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassButton } from "../../../src/components/GlassButton";
 import LevelTimingChart from "../../../src/components/LevelTimingChart";
 import LoadingProgressBar from "../../../src/components/LoadingProgressBar";
@@ -44,12 +45,18 @@ type ProgressCategory = 'jlpt' | 'joyo' | 'frequency';
 
 export default function AnalyticsTab() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const username = useAuthStore(state => state.userData?.username);
   const eligible = isPortegoUsername(username);
   const [source, setSource] = useState<"wanikani" | "bunpro">("wanikani");
   const activeSource = eligible ? source : "wanikani";
   return <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      <View style={[styles.header, { backgroundColor: theme.headerBackground }]}>
+      <View style={[styles.header, {
+        backgroundColor: theme.headerBackground,
+        paddingTop: Math.max(60, insets.top),
+        paddingLeft: 16 + insets.left,
+        paddingRight: 16 + insets.right,
+      }]}>
         <View style={styles.headerOverlay} />
         <View style={styles.headerContent}>
           <Text style={[styles.headerTitle, { color: theme.headerText }]}>Analytics</Text>
