@@ -136,9 +136,23 @@ class YouTubeService {
    */
   async searchVideos(query: string, maxResults: number = 20): Promise<YouTubeSearchResult[]> {
     try {
-      let videoIds = getDirectVideoId(query);
-      if (!videoIds) {
-        // Step 1: Search for videos when the user has not selected an exact ID.
+      const directVideoId = getDirectVideoId(query);
+      const fetchDetails = async (videoIds: string) => {
+        const detailsUrl = `${YOUTUBE_API_BASE_URL}/videos?part=contentDetails,snippet&id=${videoIds}&key=${this.getApiKey()}`;
+        const response = await fetch(detailsUrl);
+        if (!response.ok) {
+          throw new Error(`YouTube API error: ${response.status}`);
+        }
+        return response.json();
+      };
+
+      let detailsData = directVideoId ? await fetchDetails(directVideoId) : null;
+      if (
+        !directVideoId ||
+        (directVideoId === query.trim() && !detailsData.items?.length)
+      ) {
+        // An 11-character song title can look like an ID. Only explicit links
+        // stay exact when unavailable; an empty bare-ID lookup falls back to search.
         const searchUrl = `${YOUTUBE_API_BASE_URL}/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&maxResults=${maxResults}&key=${this.getApiKey()}`;
 
         console.log('Searching YouTube for:', query);
@@ -155,19 +169,11 @@ class YouTubeService {
           return [];
         }
 
-        videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
-      }
-      // Step 2: Get video details (including duration) for all results
-      const detailsUrl = `${YOUTUBE_API_BASE_URL}/videos?part=contentDetails,snippet&id=${videoIds}&key=${this.getApiKey()}`;
-
-      const detailsResponse = await fetch(detailsUrl);
-      if (!detailsResponse.ok) {
-        throw new Error(`YouTube API error: ${detailsResponse.status}`);
+        const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+        detailsData = await fetchDetails(videoIds);
       }
 
-      const detailsData = await detailsResponse.json();
-
-      // Step 3: Parse results
+      // Parse details (including duration) for all results.
       const results: YouTubeSearchResult[] = detailsData.items.map((item: any) => {
         const duration = this.parseDuration(item.contentDetails.duration);
         return {

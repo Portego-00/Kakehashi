@@ -82,8 +82,31 @@ describe("YouTube video selection", () => {
 
   it("reports an unavailable exact video without silently choosing a different video", async () => {
     fetchMock.mockResponseOnce(JSON.stringify({ items: [] }));
-    await expect(service.searchVideos(VIDEO_ID)).resolves.toEqual([]);
+    await expect(service.searchVideos(`https://youtu.be/${VIDEO_ID}`)).resolves.toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["Radioactive", "Abracadabra"])("searches an 11-character song title after an empty ID lookup: %s", async (query) => {
+    fetchMock.mockResponses(
+      JSON.stringify({ items: [] }),
+      JSON.stringify({ items: [{ id: { videoId: VIDEO_ID } }] }),
+      JSON.stringify({ items: [video] }),
+    );
+
+    await expect(service.searchVideos(query, 7)).resolves.toEqual([
+      expect.objectContaining({ videoId: VIDEO_ID, duration: 303 }),
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const lookup = new URL(String(fetchMock.mock.calls[0][0]));
+    const search = new URL(String(fetchMock.mock.calls[1][0]));
+    const details = new URL(String(fetchMock.mock.calls[2][0]));
+    expect(lookup.pathname).toBe("/youtube/v3/videos");
+    expect(lookup.searchParams.get("id")).toBe(query);
+    expect(search.pathname).toBe("/youtube/v3/search");
+    expect(search.searchParams.get("q")).toBe(query);
+    expect(search.searchParams.get("videoCategoryId")).toBe("10");
+    expect(search.searchParams.get("maxResults")).toBe("7");
+    expect(details.searchParams.get("id")).toBe(VIDEO_ID);
   });
 
   it("keeps the existing search-then-details flow for a normal song query", async () => {
