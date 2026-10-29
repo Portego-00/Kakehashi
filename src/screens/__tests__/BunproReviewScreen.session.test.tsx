@@ -1,7 +1,7 @@
 import React from "react";
 import { Audio } from "../../utils/expoAvCompat";
 import * as Haptics from "../../utils/haptics";
-import { StyleSheet } from "react-native";
+import { Dimensions, StyleSheet } from "react-native";
 import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import BunproReviewScreen from "../BunproReviewScreen";
 import { getBunproReviewQuizIndex, updateBunproReview } from "../../utils/bunproApi";
@@ -11,6 +11,29 @@ import type { MixedReviewBridge } from "../../types/mixedReviews";
 
 const mockReviewSettings = { autoSwitchKeyboard: false, disableAutoProgressOnCorrect: true, disableAutoProgressOnWrong: true, autoplayVocabularyAudio: false, vocabularyAudioVoice: "female", allowSkippingReviews: false, ankiCardMode: false, ankiCardModeScope: "both", ankiHideAnswerCompletely: false, ankiShowOtherAcceptedAnswersAndUserSynonyms: false, ankiShowReplayAudioButton: false, ankiButtonlessMode: false, ankiGroupQuestions: false, reviewSearchButtonEnabled: false, bunproHideFurigana: false, setBunproHideFurigana: jest.fn() };
 const mockPush = jest.fn();
+let mockAnimatedStyleObserver: (() => void) | undefined;
+let mockReviewNativeFrame: { pageY: number; height: number } | null = null;
+function mockCreateSharedValue(initialValue: number) {
+  let value = initialValue;
+  const observers = new Set<() => void>();
+  const shared = {
+    get value() {
+      if (mockAnimatedStyleObserver) observers.add(mockAnimatedStyleObserver);
+      return value;
+    },
+    set value(next: number) {
+      value = next;
+      for (const observer of observers) observer();
+    },
+    get: (): number => shared.value,
+  };
+  return shared;
+}
+const mockNativeKeyboardHeight = mockCreateSharedValue(0);
+const mockNativeKeyboardState = mockCreateSharedValue(4);
+jest.mock("../../contexts/ReviewKeyboardContext", () => ({
+  useReviewKeyboard: () => ({ height: mockNativeKeyboardHeight, state: mockNativeKeyboardState }),
+}));
 
 it("uses Bunpro's own prompt color and keeps the typed answer when colors change", () => {
   const colors = Object.assign(mockReviewSettings, { reviewPromptTextColor: "#123456", bunproReviewPromptTextColor: "#abcdef" });
@@ -32,7 +55,23 @@ jest.mock("react-native-safe-area-context", () => jest.requireActual("react-nati
 jest.mock("react-native-reanimated", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   const { View } = jest.requireActual<typeof import("react-native")>("react-native");
-  return { __esModule: true, default: { View }, useReducedMotion: () => false, useSharedValue: (value: number) => React.useRef({ value }).current, useAnimatedStyle: (fn: () => object) => fn(), withTiming: (value: number) => value };
+  return {
+    __esModule: true, default: { View }, useReducedMotion: () => false,
+    useSharedValue: (value: number) => React.useRef(mockCreateSharedValue(value)).current,
+    useAnimatedRef: () => React.useRef(null), measure: () => mockReviewNativeFrame,
+    useAnimatedStyle: (factory: () => object) => {
+      const style = React.useRef({});
+      const update = () => {
+        const previousObserver = mockAnimatedStyleObserver;
+        mockAnimatedStyleObserver = update;
+        try { Object.assign(style.current, factory()); }
+        finally { mockAnimatedStyleObserver = previousObserver; }
+      };
+      update();
+      return style.current;
+    },
+    withTiming: (value: number) => value,
+  };
 });
 jest.mock("../../utils/haptics", () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: "success", Error: "error", Warning: "warning" } }));
 jest.mock("../../hooks/use-bunpro-voice-answer", () => ({ useBunproVoiceAnswer: () => ({ listening: false, error: "", start: jest.fn(), stop: jest.fn() }) }));
@@ -85,6 +124,58 @@ function deferred<T>() { let resolve!: (value: T) => void; let reject!: (reason:
 function bridge(active = true): MixedReviewBridge {
   return { active, report: jest.fn(), reportError: jest.fn(), reportProgress: jest.fn(), reportAccuracy: jest.fn(), onAnswer: jest.fn(), previous: null, progress: { completed: 0, total: 2 }, accuracy: { correct: 0, answered: 0 }, onExit: jest.fn(), onWrapUp: jest.fn() };
 }
+
+beforeEach(() => {
+  mockNativeKeyboardHeight.value = 0;
+  mockNativeKeyboardState.value = 4;
+  mockReviewNativeFrame = null;
+});
+
+it("moves the Bunpro answer with native keyboard frames without remounting or losing typed text", () => {
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  const input = view.getByLabelText("Bunpro answer");
+  fireEvent.changeText(input, "ne");
+  const pane = view.getByTestId("bunpro-review-keyboard-pane");
+  for (const height of [60, 180, 300, 120, 0, 90, 300]) {
+    // These native progress changes require neither a JS keyboard event nor a React render.
+    mockNativeKeyboardHeight.value = height;
+    expect(StyleSheet.flatten(pane.props.style).paddingBottom).toBe(height);
+    expect(view.getByLabelText("Bunpro answer")).toBe(input);
+    expect(input.props.value).toBe("ne");
+    expect(updateBunproReview).not.toHaveBeenCalled();
+  }
+  mockNativeKeyboardHeight.value = Dimensions.get("window").height;
+  expect(StyleSheet.flatten(pane.props.style).paddingBottom).toBe(0);
+});
+
+it("remeasures an embedded Bunpro pane when it opens over an already visible keyboard", () => {
+  mockNativeKeyboardHeight.value = 300;
+  const view = render(<BunproReviewScreen initialQueue={[item("1")]} initialReviewSessionId={42} />);
+  const pane = view.getByTestId("bunpro-review-keyboard-pane");
+  expect(StyleSheet.flatten(pane.props.style).paddingBottom).toBe(300);
+  const windowHeight = Dimensions.get("window").height;
+  mockReviewNativeFrame = { pageY: 100, height: windowHeight - 300 };
+  fireEvent(pane, "layout", { nativeEvent: { layout: { x: 0, y: 100, width: 400, height: windowHeight - 300 } } });
+  expect(StyleSheet.flatten(pane.props.style).paddingBottom).toBe(100);
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
+
+it("only avoids the keyboard in the active mixed-review pane and keeps a partial Bunpro answer", () => {
+  const queue = [item("1")];
+  const mixed = bridge();
+  const view = render(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} mixed={mixed} />);
+  const input = view.getByLabelText("Bunpro answer");
+  fireEvent.changeText(input, "ne");
+  mockNativeKeyboardHeight.value = 300;
+  expect(StyleSheet.flatten(view.getByTestId("bunpro-review-keyboard-pane").props.style).paddingBottom).toBe(300);
+  view.rerender(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} mixed={{ ...mixed, active: false }} />);
+  expect(StyleSheet.flatten(view.getByTestId("bunpro-review-keyboard-pane", { includeHiddenElements: true }).props.style).paddingBottom).toBe(0);
+  view.rerender(<BunproReviewScreen initialQueue={queue} initialReviewSessionId={42} mixed={mixed} />);
+  expect(StyleSheet.flatten(view.getByTestId("bunpro-review-keyboard-pane").props.style).paddingBottom).toBe(300);
+  expect(view.getByLabelText("Bunpro answer")).toBe(input);
+  expect(input.props.value).toBe("ne");
+  expect(updateBunproReview).not.toHaveBeenCalled();
+});
 
 beforeEach(() => { mockReviewSettings.bunproHideFurigana = false; mockReviewSettings.setBunproHideFurigana.mockImplementation((hidden: boolean) => { mockReviewSettings.bunproHideFurigana = hidden; }); mockReviewSettings.ankiCardMode = false; mockReviewSettings.ankiCardModeScope = "both"; mockReviewSettings.ankiButtonlessMode = false;  mockReviewSettings.autoplayVocabularyAudio = false; mockReviewSettings.allowSkippingReviews = false; mockReviewSettings.vocabularyAudioVoice = "female"; mockReviewSettings.disableAutoProgressOnCorrect = true; mockReviewSettings.disableAutoProgressOnWrong = true; jest.clearAllMocks(); jest.mocked(updateBunproReview).mockResolvedValue({}); });
 

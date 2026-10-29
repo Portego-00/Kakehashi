@@ -313,6 +313,8 @@ function SettingsScreenContent() {
                   height: 40,
                   paddingVertical: 0,
                   fontSize: 14,
+                  lineHeight: 20,
+                  textAlignVertical: "center",
                   color: theme.textColor,
                 }}
               />

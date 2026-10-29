@@ -6,18 +6,19 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Keyboard,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import type { KanaInputHandle } from "../components/TextToKanaInput";
 import KanaInput from "../components/TextToKanaInput";
+import ReviewKeyboardAvoidingView from "../components/ReviewKeyboardAvoidingView";
 import type {
   BunproJsonApiResource,
   BunproReviewOnlyFilter,
@@ -1159,6 +1160,8 @@ export default function BunproReviewScreen({
   onComplete,
 }: BunproReviewScreenProps = {}) {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { userData } = useAuthStore();
   const autoSwitchKeyboard = useSettingsStore(
     (state) => state.autoSwitchKeyboard,
@@ -2142,7 +2145,11 @@ export default function BunproReviewScreen({
       {!mixed ? <ReviewPreviousAnswerCard answer={previousAnswer} /> : null}
       <BunproReviewShortcuts enabled={shortcutsEnabled && isActive && !reviewSettingsOpen && selfAssessment} questionKey={occurrenceId} onKey={handleShortcut} />
       <BunproReviewSettingsSheet visible={reviewSettingsOpen} onClose={() => setReviewSettingsOpen(false)} />
-      <KeyboardAvoidingView
+      <ReviewKeyboardAvoidingView
+        testID="bunpro-review-keyboard-pane"
+        bottomInset={insets.bottom}
+        windowHeight={windowHeight}
+        enabled={isActive}
         style={styles.content}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
@@ -2398,7 +2405,7 @@ export default function BunproReviewScreen({
             </TouchableOpacity>
           </View>)}
         </View>
-      </KeyboardAvoidingView>
+      </ReviewKeyboardAvoidingView>
     </SafeAreaView>
   );
 }

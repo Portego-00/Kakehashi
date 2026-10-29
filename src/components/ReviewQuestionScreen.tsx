@@ -4,7 +4,6 @@ import { useLearningDisplay } from "../features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { BlurView } from "expo-blur";
-import { useReviewKeyboard } from "../contexts/ReviewKeyboardContext";
 import * as Haptics from "@/src/utils/haptics";
 import { router, useFocusEffect } from "expo-router";
 import {
@@ -38,8 +37,6 @@ import Animated, {
   SlideInDown,
   SlideOutDown,
   interpolate,
-  measure,
-  useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -113,6 +110,7 @@ import {
 } from "../utils/review-multiple-choice";
 import KanjiDetails from "./KanjiDetails";
 import ReviewAnswerChoices from "./review-answer-choices";
+import ReviewKeyboardAvoidingView, { IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO } from "./ReviewKeyboardAvoidingView";
 import ReviewPromptCharacters from "./ReviewPromptCharacters";
 import RadicalDetails from "./RadicalDetails";
 import SrsLevelIcon, { type SrsLevelName } from "./SrsLevelIcon";
@@ -143,7 +141,6 @@ const ANSWERED_ITEM_RADICAL_SIZE = 34;
 const BUTTONLESS_TAP_MOVE_TOLERANCE_PX = 14;
 const BUTTONLESS_SWIPE_TRIGGER_PX = 56;
 const BUTTONLESS_VERTICAL_DOMINANCE_RATIO = 1.2;
-const IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO = 0.9;
 const VOCABULARY_AUDIO_MAX_PLAYBACK_MS = 15000;
 const DARK_MODE_MEANING_BANNER_BG = "#b8b8b8";
 const DARK_MODE_MEANING_BANNER_TEXT = "#1f1f1f";
@@ -998,73 +995,6 @@ const AnsweredItemCharacterDisplay = React.memo(function AnsweredItemCharacterDi
     </Text>
   );
 });
-
-type ReviewKeyboardAvoidingViewProps = React.ComponentProps<typeof KeyboardAvoidingView> & {
-  bottomInset: number;
-  windowHeight: number;
-};
-
-function IosReviewKeyboardAvoidingView({
-  children,
-  enabled = true,
-  keyboardVerticalOffset = 0,
-  onLayout,
-  style,
-  bottomInset,
-  windowHeight,
-}: ReviewKeyboardAvoidingViewProps) {
-  // The root observer is already running before the first quiz opens. Consume
-  // its movement frames instead of starting a private keyboard observer here.
-  const keyboard = useReviewKeyboard();
-  const viewRef = useAnimatedRef<ViewInstance>();
-  const layoutVersion = useSharedValue(0);
-  const lastLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const keyboardStyle = useAnimatedStyle(() => {
-    // A first layout must remeasure even when the keyboard was already visible
-    // and its native observer has no new height/state event to publish.
-    layoutVersion.get();
-    const height = keyboard.height.value;
-    if (!enabled || height <= 0 || height >= windowHeight * IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO) {
-      return { paddingBottom: 0 };
-    }
-
-    // The safe-area fallback is available before the first native layout. Once
-    // mounted, measure the actual screen bottom to support embedded review panes.
-    const frame = measure(viewRef);
-    const viewBottom = frame && frame.height > 0
-      ? Math.min(windowHeight, frame.pageY + frame.height)
-      : windowHeight - bottomInset;
-    return {
-      paddingBottom: Math.max(
-        0,
-        height - (windowHeight - viewBottom) + keyboardVerticalOffset,
-      ),
-    };
-  });
-  const handleLayout = (event: LayoutChangeEvent) => {
-    const layout = event.nativeEvent.layout;
-    const previous = lastLayoutRef.current;
-    if (!previous || previous.x !== layout.x || previous.y !== layout.y ||
-      previous.width !== layout.width || previous.height !== layout.height) {
-      lastLayoutRef.current = layout;
-      layoutVersion.value += 1;
-    }
-    onLayout?.(event);
-  };
-
-  return (
-    <Animated.View ref={viewRef} style={[style, keyboardStyle]} onLayout={handleLayout}>
-      {children}
-    </Animated.View>
-  );
-}
-
-function ReviewKeyboardAvoidingView({ bottomInset, windowHeight, ...props }: ReviewKeyboardAvoidingViewProps) {
-  if (Platform.OS === "ios") {
-    return <IosReviewKeyboardAvoidingView {...props} bottomInset={bottomInset} windowHeight={windowHeight} />;
-  }
-  return <KeyboardAvoidingView {...props} />;
-}
 
 export default function ReviewQuestionScreen({
   item,
