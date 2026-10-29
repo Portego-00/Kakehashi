@@ -67,7 +67,7 @@ import { LyricsQuizResultsModal } from "./LyricsQuizResultsModal";
 import { VocabularyTooltip } from "./VocabularyTooltip";
 import { MusicPlayerLayout, supportsPlayerArrangement } from "./MusicPlayerLayout";
 import { PlaybackPositionSlider } from "./PlaybackPositionSlider";
-import { getFullBleedPlayerVideoGeometry, type PlayerNativeFrames } from "./music-player-geometry";
+import { getFullBleedPlayerVideoGeometry, type PlayerNativeFrame, type PlayerNativeFrames } from "./music-player-geometry";
 
 const GRAMMAR_TOOLTIP_ID_MIN = -9100000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
@@ -408,7 +408,9 @@ export default function MiniPlayer({
   // For iPad and larger screens, use a larger player
   // YouTube player aspect ratio is 16:9
   const isTablet = screenWidth >= 768;
-  const usePlayerArrangement = supportsPlayerArrangement && Boolean(videoId);
+  const canUsePlayerArrangement = supportsPlayerArrangement && Boolean(videoId);
+  const [hasFoldedPlayerLayout, setHasFoldedPlayerLayout] = useState(false);
+  const usePlayerArrangement = canUsePlayerArrangement && hasFoldedPlayerLayout;
   const useRoomyLyrics =
     usePlayerArrangement && screenWidth >= 600 && screenHeight > screenWidth;
   const [videoRegion, setVideoRegion] = useState({
@@ -439,6 +441,18 @@ export default function MiniPlayer({
     screenWidth >= 600 && screenHeight > screenWidth
       ? 0.5
       : Math.min(0.5, ((screenWidth * 9) / 16 + insets.top) / screenHeight);
+
+  const handleNativeGeometryChange = useCallback((part: "primary" | "secondary", rect: PlayerNativeFrame) => {
+    if (!isExpanded || !acceptsVideoLayoutUpdates.current) return;
+    setNativeFrames((current) => {
+      const previous = current[part];
+      if (previous && previous.x === rect.x && previous.y === rect.y &&
+          previous.width === rect.width && previous.height === rect.height) {
+        return current;
+      }
+      return { ...current, [part]: rect };
+    });
+  }, [isExpanded]);
 
   // Extract dominant color from album art
   useEffect(() => {
@@ -1640,22 +1654,10 @@ export default function MiniPlayer({
     >
       <Animated.View style={{ height: "100%", width: "100%" }}>
         <MusicPlayerLayout
-          useArrangement={usePlayerArrangement}
+          useArrangement={canUsePlayerArrangement}
+          onArrangementChange={setHasFoldedPlayerLayout}
           preferredVideoRatio={preferredVideoRatio}
-          onNativeGeometryChange={(part, rect) => {
-            if (!isExpanded || !acceptsVideoLayoutUpdates.current) return;
-            setNativeFrames((current) => {
-              const previous = current[part];
-              if (
-                previous &&
-                previous.x === rect.x && previous.y === rect.y &&
-                previous.width === rect.width && previous.height === rect.height
-              ) {
-                return current;
-              }
-              return { ...current, [part]: rect };
-            });
-          }}
+          onNativeGeometryChange={handleNativeGeometryChange}
           onVideoLayout={({ nativeEvent: { layout } }) => {
             if (
               isExpanded &&

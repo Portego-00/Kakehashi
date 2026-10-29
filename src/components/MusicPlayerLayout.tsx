@@ -8,6 +8,7 @@ export interface MusicPlayerLayoutProps {
   video: ReactNode;
   lyrics: ReactNode;
   useArrangement: boolean;
+  onArrangementChange?: (active: boolean) => void;
   preferredVideoRatio: number;
   onVideoLayout: (event: LayoutChangeEvent) => void;
   onNativeGeometryChange?: (part: "primary" | "secondary", frame: PlayerNativeFrame) => void;
