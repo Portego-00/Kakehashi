@@ -621,7 +621,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
   const initialDetailsTab = preferences.reviewDefaultDetailsTab && preferences.reviewDefaultDetailsTab !== "question" ? preferences.reviewDefaultDetailsTab : currentUsesSelfAssessment && groupedSelfAssessment ? preferences.ankiCombinedDetailsTab : current?.kind ?? "meaning";
   const reviewViewportRef = useMobileReviewViewport<HTMLDivElement>(mixed?.active !== false && phase === "quiz" && !currentUsesSelfAssessment);
   const revealStudyDetails = canRevealStudyDetails(mode, feedback?.status) || Boolean(currentUsesSelfAssessment && ankiRevealed);
-  const answerStopped = Boolean(feedback && feedback.status !== "blocked" && shouldPauseAfterResult(feedback.status, preferences));
+  const answerStopped = Boolean(feedback && feedback.status !== "blocked" && ((hideTypedAnswer && feedback.status === "incorrect") || shouldPauseAfterResult(feedback.status, preferences)));
   const unresolvedCloseAnswer = feedback?.status === "close" && (preferences.pauseOnCorrect || preferences.pauseOnClose);
   const studyDetailsOpenByDefault = Boolean((feedback?.status === "incorrect" && preferences.showDetailsOnWrongAnswer)
     || (answerStopped && preferences.showAnswerStopSubjectDetails && !currentUsesSelfAssessment));
@@ -927,11 +927,11 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
   const autoAdvance = useEffectEvent(() => { void advance(); });
   useEffect(() => {
     if (listDialogOpen || reviewSettingsOpen || mixed?.active === false || !feedback || feedback.status === "blocked") return;
-    if (currentUsesSelfAssessment) return;
+    if (currentUsesSelfAssessment || (hideTypedAnswer && feedback.status === "incorrect")) return;
     if (shouldPauseAfterResult(feedback.status, preferences) || studyDetailsOverrideForCurrent === true || addSynonymMutation.isPending) return;
     const timer = window.setTimeout(autoAdvance, preferences.answerStopBehavior === "never" ? 550 : 350);
     return () => window.clearTimeout(timer);
-  }, [listDialogOpen, reviewSettingsOpen, feedback, lastCorrect, preferences, currentUsesSelfAssessment, studyDetailsOverrideForCurrent, addSynonymMutation.isPending, mixed?.active]);
+  }, [listDialogOpen, reviewSettingsOpen, feedback, lastCorrect, preferences, currentUsesSelfAssessment, studyDetailsOverrideForCurrent, addSynonymMutation.isPending, mixed?.active, hideTypedAnswer]);
 
   useEffect(() => {
     if (mixed?.active === false || phase !== "quiz" || !preferences.keyboardShortcuts) return;
@@ -1273,7 +1273,7 @@ export function CoreStudySession({ mode, pickLessons = false, mixed, reviewPrese
 
         {!selfAssessment && hideTypedAnswer ? <div className={quiz.answerForm}>
           <div className={quiz.promptTypeStrip} data-tone={current.kind}><span>{subjectType}</span><strong id="study-prompt-title" role="heading" aria-level={1}>{current.kind}</strong></div>
-          {reviewChoices.loading ? <p role="status">Loading answer choices…</p> : <ReviewAnswerChoices choices={reviewChoices.choices} selectedAnswer={feedback ? answer : undefined} disabled={Boolean(feedback) || advancingQuestion || mixed?.active === false} isReading={current.kind === "reading"} onSelect={selectChoice} keyboardShortcuts={preferences.keyboardShortcuts && mixed?.active !== false} continueKey={studyKeys.progress} onContinue={feedback && !advancingQuestion && !addSynonymMutation.isPending ? () => void advance() : undefined} />}
+          {reviewChoices.loading ? <p role="status">Loading answer choices…</p> : <ReviewAnswerChoices choices={reviewChoices.choices} selectedAnswer={feedback ? answer : undefined} disabled={Boolean(feedback) || advancingQuestion || mixed?.active === false} isReading={current.kind === "reading"} onSelect={selectChoice} onDontKnow={() => selectChoice({ text: "", isCorrect: false })} keyboardShortcuts={preferences.keyboardShortcuts && mixed?.active !== false} continueKey={studyKeys.progress} onContinue={feedback && !advancingQuestion && !addSynonymMutation.isPending ? () => void advance() : undefined} />}
           {renderedAnswerFeedback}
           {feedback ? <Button className={quiz.primaryButton} tone="primary" disabled={advancingQuestion || addSynonymMutation.isPending} onClick={() => void advance()}>Next<ArrowRight size={18} aria-hidden /></Button> : null}
         </div> : null}

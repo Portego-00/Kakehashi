@@ -10,6 +10,7 @@ import { normalizeNoteImageUrl } from "../../shared/note-images";
 import { containNoteImageTransform, noteImageTouchGeometry, pinchNoteImage, type NoteImageTransform } from "../../shared/note-image-gestures";
 import { useTheme } from "../utils/theme";
 import { registerOpenNoteSubjectPreview } from "../utils/note-subject-preview-state";
+import { showStudyMaterialPermissionAlert } from "../utils/study-material-permission-alert";
 
 function ImagePreview({ url, onReady }: { url: string; onReady?: (ready: boolean) => void }) {
   const { theme } = useTheme();
@@ -177,7 +178,7 @@ function NoteImageViewer({ url, onClose, onRemove }: { url: string; onClose: () 
         <Text style={[styles.viewerText, { fontSize: 14 }]}>Pinch to zoom · {zoomLabel}%</Text>
         {onRemove ? <Pressable accessibilityRole="button" accessibilityLabel="Remove image" disabled={removing} onPress={async () => {
           setRemoving(true);
-          try { await onRemove(); } catch { setRemoving(false); Alert.alert("Image wasn’t removed", "Check your connection and try again."); }
+          try { await onRemove(); } catch (error) { setRemoving(false); if (!showStudyMaterialPermissionAlert(error)) Alert.alert("Image wasn’t removed", "Check your connection and try again."); }
         }} style={styles.action}>{removing ? <ActivityIndicator color="white" /> : <Text style={styles.viewerText}>Remove</Text>}</Pressable> : null}
       </View>
     </View>

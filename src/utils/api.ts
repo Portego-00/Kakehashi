@@ -1865,6 +1865,15 @@ export async function fetchAllPages<T>(
       }
     }
 
+    // A truncated response must not replace a complete collection in cache.
+    // Leave the caller's existing snapshot and sync checkpoint available for
+    // fallback when pagination ends before the advertised total is loaded.
+    if (typeof expectedTotal === "number" && allItems.length < expectedTotal) {
+      throw new Error(
+        `Incomplete collection: received ${allItems.length} of ${expectedTotal} items`
+      );
+    }
+
     const result = {
       ...initialResponse,
       data: allItems,
@@ -2946,7 +2955,7 @@ function studyMaterialApiError(status: number, responseText: string): Error {
   } catch {
     // Proxy/HTML responses aren't useful note-validation messages.
   }
-  return new Error(`API error: ${status}${detail ? `: ${detail}` : ""}`);
+  return new ApiError(status, `API error: ${status}${detail ? `: ${detail}` : ""}`);
 }
 
 // Create a new study material

@@ -234,7 +234,9 @@ export default function SubjectListsFilterCard({
         </Text>
       ) : lists.length === 0 ? (
         <Text style={[styles.stateText, { color: theme.textSecondary }]}>
-          No lists yet. Create one from Manage.
+          {allowEmptySelection
+            ? "No saved lists yet. Lists are optional; you can start without one."
+            : "No lists yet. Create one from Manage."}
         </Text>
       ) : (
         <View style={styles.optionsColumn}>

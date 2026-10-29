@@ -1,4 +1,5 @@
 import { useLearningDisplay } from "../features/translation-packages/display";
+import { showStudyMaterialPermissionAlert } from "../utils/study-material-permission-alert";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
 import { Ionicons } from "@expo/vector-icons";
@@ -1388,6 +1389,7 @@ const SubjectContent = ({
       setNoteModalVisible(false);
     } catch (error) {
       console.error("[LessonDetail] Failed to save note:", error);
+      if (showStudyMaterialPermissionAlert(error)) return;
       Alert.alert(
         "Error",
         `Failed to save note: ${

@@ -76,9 +76,9 @@ const material: StudyMaterial = {
   },
 };
 
-function renderEditor(field: "meaning_synonyms" | "meaning_note" | "reading_note" = "meaning_synonyms") {
+function renderEditor(field: "meaning_synonyms" | "meaning_note" | "reading_note" = "meaning_synonyms", existing = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}><StudyMaterialEditor field={field} subjectId={7} material={material} queryKey={["study-material", 7]} loading={false} /></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><StudyMaterialEditor field={field} subjectId={7} material={existing ? material : undefined} queryKey={["study-material", 7]} loading={false} /></QueryClientProvider>);
 }
 
 const contextSentences = [
@@ -513,6 +513,33 @@ describe("subject detail saved-list action", () => {
 
 describe("subject detail notes", () => {
   beforeEach(() => wkRequestMock.mockReset());
+
+  it.each([[false, 401], [false, 403], [true, 401], [true, 403]])("explains token permissions and retains the draft (existing: %s, status: %s)", async (existing, status) => {
+    wkRequestMock.mockRejectedValueOnce(Object.assign(new Error("Unauthorized. Nice try."), { status }));
+    renderEditor("meaning_note", Boolean(existing));
+    fireEvent.click(screen.getByRole("button", { name: "Edit meaning note" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Meaning note" }), { target: { value: "My unsaved note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+    const dialog = await screen.findByRole("dialog", { name: "Enable saving notes" });
+    expect(dialog).toHaveTextContent("study_materials:create");
+    expect(dialog).toHaveTextContent("study_materials:update");
+    expect(within(dialog).getByRole("link", { name: "Open API token settings" })).toHaveAttribute("href", "https://www.wanikani.com/settings/personal_access_tokens");
+    expect(screen.queryByText("Notes weren’t saved. Check your connection and try again.")).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByRole("textbox", { name: "Meaning note" })).toHaveValue("My unsaved note");
+    wkRequestMock.mockResolvedValueOnce({ ...material, data: { ...material.data, meaning_note: "My unsaved note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit meaning note" })).toBeInTheDocument());
+  });
+
+  it("does not show a permissions popup for a server or connection failure", async () => {
+    wkRequestMock.mockRejectedValueOnce(Object.assign(new Error("Server unavailable"), { status: 503 }));
+    renderEditor("meaning_note");
+    fireEvent.click(screen.getByRole("button", { name: "Edit meaning note" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Check your connection");
+    expect(screen.queryByRole("dialog", { name: "Enable saving notes" })).not.toBeInTheDocument();
+  });
 
   it.each(["meaning_note", "reading_note"] as const)("adds an image to %s without changing its text", async (field) => {
     const original = material.data[field] ?? "";

@@ -1881,12 +1881,13 @@ describe("ReviewQuestionScreen question occurrences", () => {
   });
 
   it.each(["meaning", "reading"] as const)(
-    "hides the multiple choice toggle for %s questions when the setting is off",
+    "keeps the multiple choice switch out of %s questions",
     async (questionType) => {
       const screen = render(
         <ReviewQuestionScreen item={audioItem} questionType={questionType} onAnswer={jest.fn()} />,
       );
       expect(await screen.findByTestId("answer-input")).toBeTruthy();
+      expect(screen.queryByRole("switch", { name: "Multiple choice" })).toBeNull();
       expect(screen.queryByLabelText("Use multiple choice")).toBeNull();
       expect(screen.queryByLabelText("Switch to typing")).toBeNull();
       expect(mockGetAllSubjects).not.toHaveBeenCalled();
@@ -2058,6 +2059,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
       fireEvent(keyboard, "keyUpPress", event);
       fireEvent.press(choice);
     });
+    if (!correct) fireEvent.press(await screen.findByText("Mark Incorrect"));
     await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
     expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", correct, !correct, false);
   });
@@ -2074,7 +2076,9 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(onAnswer).not.toHaveBeenCalled();
     mockScreenFocused = true;
     screen.rerender(<ReviewQuestionScreen {...props} />);
+    const firstIsCorrect = screen.getAllByRole("button").some(button => button.props.accessibilityLabel === "1. ねこ");
     fireEvent(screen.getByTestId("multiple-choice-keyboard"), "keyUpPress", { nativeEvent: { unicodeChar: "1", hasNoModifiers: true } });
+    if (!firstIsCorrect) fireEvent.press(await screen.findByText("Mark Incorrect"));
     await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
   });
 
@@ -2143,6 +2147,7 @@ describe("ReviewQuestionScreen question occurrences", () => {
     const wrong = screen.getAllByRole("button").find((button) => /^\d\. /.test(button.props.accessibilityLabel) && !button.props.accessibilityLabel.endsWith("ねこ"));
     expect(wrong).toBeDefined();
     fireEvent.press(wrong!);
+    fireEvent.press(await screen.findByText("Mark Incorrect"));
     await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
     expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false);
   });
@@ -2159,6 +2164,56 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(onAnswer).not.toHaveBeenCalled();
     fireEvent.press(screen.getByText("Mark Incorrect"));
     await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false));
+  });
+
+  it.each([false, true])("records I don't know once with inline details %s", async (details) => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    mockSettings.disableAutoProgressOnWrong = false;
+    mockSettings.showAnswerStopSubjectDetails = details;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="meaning" onAnswer={onAnswer} showHeader={false} />);
+    const unknown = await screen.findByRole("button", { name: "I don't know" });
+    fireEvent.press(unknown);
+    fireEvent.press(unknown);
+    const wrong = await screen.findByText(details ? "Mark Wrong" : "Mark Incorrect");
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(screen.queryByText("Add as Synonym")).toBeNull();
+    fireEvent.press(wrong);
+    fireEvent.press(wrong);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(audioItem, "meaning", false, true, false);
+  });
+
+  it.each([false, true])("honors stop on correct %s for multiple choice", async (pause) => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    mockSettings.disableAutoProgressOnCorrect = pause;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} showHeader={false} />);
+    const choice = await screen.findByRole("button", { name: /\d\. ねこ$/ });
+    fireEvent.press(choice);
+    fireEvent.press(choice);
+    if (pause) {
+      const next = await screen.findByText("Continue");
+      expect(onAnswer).not.toHaveBeenCalled();
+      fireEvent.press(next);
+    }
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", true, false, false);
+  });
+
+  it.each([false, true])("can mark an accidentally correct choice wrong with inline details %s", async (details) => {
+    mockSettings.reviewMultipleChoiceEnabled = true;
+    mockSettings.disableAutoProgressOnCorrect = true;
+    mockSettings.showAnswerStopSubjectDetails = details;
+    const onAnswer = jest.fn();
+    const screen = render(<ReviewQuestionScreen item={audioItem} questionType="reading" onAnswer={onAnswer} showHeader={false} />);
+    fireEvent.press(await screen.findByRole("button", { name: /\d\. ねこ$/ }));
+    const wrong = await screen.findByText("Mark Wrong");
+    expect(onAnswer).not.toHaveBeenCalled();
+    fireEvent.press(wrong);
+    fireEvent.press(wrong);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false);
   });
 
   it("keeps Anki reveal controls when multiple choice is also enabled", async () => {

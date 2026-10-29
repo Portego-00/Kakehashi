@@ -120,6 +120,16 @@ app text keep their own sizes. On the web, you can also change **Question text
 size** from the review session's settings button, including on a phone with the
 keyboard open.
 
+## Multiple choice controls
+
+Turn **Multiple choice** on or off in Settings. Anki questions keep their
+selected answer mode.
+
+Choose **I don't know** to reveal the answer and count a mistake. Correct
+multiple-choice answers follow **Stop on correct**: with it off, reviews advance
+automatically; with it on, use **Mark Wrong** on mobile or **Mark Incorrect** on
+the web to correct an accidentally correct selection before continuing.
+
 ## Review keyboard shortcuts
 
 In the native app, including on a Mac with a keyboard, press **D** to open

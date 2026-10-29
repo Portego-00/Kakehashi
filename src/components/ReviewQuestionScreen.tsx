@@ -1,5 +1,6 @@
 import type { TextInputInstance, ViewInstance } from "react-native";
 import { scheduleIdleTask } from "../utils/scheduleIdleTask";
+import { showStudyMaterialPermissionAlert } from "../utils/study-material-permission-alert";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
@@ -3161,7 +3162,7 @@ export default function ReviewQuestionScreen({
         if (!mountedRef.current) return;
 
         // If pause on wrong is enabled, show the correct answer and wait for user action
-        if (disableAutoProgressOnWrong) {
+        if (disableAutoProgressOnWrong || choice) {
           setIsPausedOnWrong(true);
           setIsPausedOnCloseAnswer(false);
           setIsPausedOnCorrect(false);
@@ -3762,6 +3763,7 @@ export default function ReviewQuestionScreen({
       setStudyMaterialNoteModalVisible(false);
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (showStudyMaterialPermissionAlert(error)) return;
       Alert.alert(
         "Error",
         `Failed to save note: ${
@@ -4035,6 +4037,9 @@ export default function ReviewQuestionScreen({
         }),
       );
     } else if (isPausedOnCorrect) {
+      if (currentSelectedChoice !== undefined) buttons.push(
+        renderPausedDetailsActionButton({ label: "Mark Wrong", iconName: "close", color: "#f44336", onPress: handleProgressAsWrong }),
+      );
       buttons.push(
         renderPausedDetailsActionButton({
           label: "Continue",
@@ -4063,7 +4068,7 @@ export default function ReviewQuestionScreen({
       );
     }
 
-    if (item.subject.id > 0 && showAddSynonymButton && isPausedOnWrong && questionType === "meaning") {
+    if (item.subject.id > 0 && currentSelectedChoice !== "" && showAddSynonymButton && isPausedOnWrong && questionType === "meaning") {
       buttons.push(
         renderPausedDetailsActionButton({
           label: isAddingSynonym ? "Adding" : "Synonym",
@@ -4353,7 +4358,7 @@ export default function ReviewQuestionScreen({
 
   // Handler for adding wrong answer as a synonym and marking correct
   const handleAddAsSynonym = async () => {
-    if (!apiToken || item.subject.id <= 0 || !wrongAnswerText || isAddingSynonym) return;
+    if (!apiToken || item.subject.id <= 0 || !wrongAnswerText || currentSelectedChoice === "" || isAddingSynonym) return;
 
     setIsAddingSynonym(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -4454,6 +4459,11 @@ export default function ReviewQuestionScreen({
     };
 
     if (isPausedOnCorrect) {
+      if (currentSelectedChoice !== undefined && doesReviewShortcutMatchKey(pressedKey, resolvedReviewIncorrectKeyboardShortcuts.markIncorrect)) {
+        suppressSubmitTemporarily();
+        handleProgressAsWrong();
+        return true;
+      }
       if (
         canReplayPausedAudio &&
         doesReviewShortcutMatchKey(
@@ -6977,7 +6987,7 @@ export default function ReviewQuestionScreen({
                     </Text>
                   </TouchableOpacity>
 
-                  {item.subject.id > 0 && showAddSynonymButton && questionType === "meaning" && (
+                  {item.subject.id > 0 && currentSelectedChoice !== "" && showAddSynonymButton && questionType === "meaning" && (
                     <TouchableOpacity
                       style={[styles.pausedSecondaryAction, styles.pausedButtonSynonym]}
                       onPress={handleAddAsSynonym}
@@ -7128,6 +7138,19 @@ export default function ReviewQuestionScreen({
                 </View>
 
                 <View style={styles.pausedSecondaryActions}>
+                  {currentSelectedChoice !== undefined && (
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mark Wrong"
+                      style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]} onPress={handleProgressAsWrong}>
+                      <Ionicons name="close" size={16} color="#f44336" />
+                      <Text style={[styles.pausedSecondaryActionText, { color: "#f44336" }]}>Mark Wrong</Text>
+                    </TouchableOpacity>
+                  )}
+                  {currentSelectedChoice !== undefined && (
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Continue"
+                      style={styles.pausedSecondaryAction} onPress={handleProgressAsCorrect}>
+                      <Text style={[styles.pausedSecondaryActionText, { color: "#4caf50" }]}>Continue</Text>
+                    </TouchableOpacity>
+                  )}
                   {canReplayPausedAudio && (
                     <TouchableOpacity
                       style={[
@@ -7236,8 +7259,9 @@ export default function ReviewQuestionScreen({
                         disabled={answered || currentSelectedChoice !== undefined || navigatingToDetail}
                         isReading={questionType === "reading"}
                         fontSize={Math.max(18, reviewAnswerInputFontSize)}
-                        maxHeight={Math.max(160, windowHeight * 0.42)}
+                        maxHeight={Math.max(160, windowHeight * 0.42 - 44)}
                         onSelect={(choice) => { void handleSubmitAnswer({ source: "choice", answer: choice.text, choice }); }}
+                        onDontKnow={() => { void handleSubmitAnswer({ source: "choice", answer: "I don't know", choice: { text: "", isCorrect: false } }); }}
                       />
                     )}
                   </View>

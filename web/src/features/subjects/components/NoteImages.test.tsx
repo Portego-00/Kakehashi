@@ -85,6 +85,15 @@ describe("note images", () => {
     expect(screen.getByRole("button", { name: "Remove image" })).toBeEnabled();
   });
 
+  it("explains note permissions when removing an image is forbidden", async () => {
+    render(<NoteImageGallery images={["https://example.com/a.png"]} onRemove={vi.fn().mockRejectedValue(Object.assign(new Error("Forbidden"), { status: 403 }))} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open note image 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove image" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("study_materials:update");
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Remove image" })).toBeEnabled();
+  });
+
   it("closes only the image viewer when Escape is used inside another dialog", () => {
     const parentCancel = vi.fn();
     render(<dialog open aria-label="Subject details" onCancel={parentCancel}><NoteImageGallery images={["https://example.com/a.png"]} /></dialog>);

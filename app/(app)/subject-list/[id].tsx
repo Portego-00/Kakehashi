@@ -88,6 +88,7 @@ const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 const DEFAULT_ACTIVE_SRS_STAGES = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+const SUBJECT_PAGE_SIZE = 250;
 const HIDE_MEANINGS_STORAGE_KEY = "subject_list_hide_meanings";
 const AUDIO_VOICE_STORAGE_KEY = "subject_list_audio_voice";
 const AUDIO_VOICE_SECTIONS = [{
@@ -156,6 +157,8 @@ export default function SubjectListEditorScreen() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<SubjectListEditorTab>("browse");
+  const [browseSubjectLimit, setBrowseSubjectLimit] = useState(SUBJECT_PAGE_SIZE);
+  const [selectedSubjectLimit, setSelectedSubjectLimit] = useState(SUBJECT_PAGE_SIZE);
   const [showFilters, setShowFilters] = useState(false);
   const [showSelectedSortModal, setShowSelectedSortModal] = useState(false);
   const [hideMeanings, setHideMeanings] = useState<boolean | null>(null);
@@ -184,6 +187,18 @@ export default function SubjectListEditorScreen() {
   const [isCacheMissing, setIsCacheMissing] = useState(false);
   const [isRebuildingCache, setIsRebuildingCache] = useState(false);
   const [cacheRebuildProgress, setCacheRebuildProgress] = useState(0);
+
+  const updateSearchQuery = (query: string) => {
+    setSearchQuery(query);
+    setBrowseSubjectLimit(SUBJECT_PAGE_SIZE);
+    setSelectedSubjectLimit(SUBJECT_PAGE_SIZE);
+  };
+
+  const updateFilters = useCallback((nextFilters: React.SetStateAction<SearchFilters>) => {
+    setFilters(nextFilters);
+    setBrowseSubjectLimit(SUBJECT_PAGE_SIZE);
+    setSelectedSubjectLimit(SUBJECT_PAGE_SIZE);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -247,6 +262,7 @@ export default function SubjectListEditorScreen() {
   const updateSelectedSubjectSortMode = useCallback(
     (nextMode: SubjectListItemSortMode) => {
       setSelectedSubjectSortMode(nextMode);
+      setSelectedSubjectLimit(SUBJECT_PAGE_SIZE);
       AsyncStorage.setItem(SUBJECT_LIST_ITEM_SORT_STORAGE_KEY, nextMode).catch(
         (error) => {
           console.warn("Failed to save subject list sort preference:", error);
@@ -259,6 +275,8 @@ export default function SubjectListEditorScreen() {
   const loadList = useCallback(async () => {
     if (!id) return;
     setIsLoadingList(true);
+    setBrowseSubjectLimit(SUBJECT_PAGE_SIZE);
+    setSelectedSubjectLimit(SUBJECT_PAGE_SIZE);
     try {
       const lists = await getSubjectLists();
       const found = lists.find((entry) => entry.id === id);
@@ -432,28 +450,31 @@ export default function SubjectListEditorScreen() {
   });
 
   // Keep bulk selection in sync with the current rank before limiting visible rows.
-  const { filteredSubjects, matchingSubjectIds } = useMemo(() => {
-    const matchingSubjects = hasActiveFrequencyFilter
+  const matchingBrowseSubjects = useMemo(() =>
+    hasActiveFrequencyFilter
       ? isScanningFrequencyCache || !canUseFrequencyResults
         ? []
         : subjectsMatchingNonFrequencyFilters.filter((subject) =>
             frequencyRanks.has(subject.id) &&
             matchesMaximumFrequencyRank(frequencyRanks.get(subject.id), filters.maxFrequencyRank),
           )
-      : subjectsMatchingNonFrequencyFilters;
-
-    return {
-      filteredSubjects: matchingSubjects.slice(0, 250),
-      matchingSubjectIds: matchingSubjects.map((subject) => subject.id),
-    };
-  }, [
+      : subjectsMatchingNonFrequencyFilters,
+  [
     canUseFrequencyResults, filters.maxFrequencyRank, frequencyRanks,
     hasActiveFrequencyFilter, isScanningFrequencyCache, subjectsMatchingNonFrequencyFilters,
   ]);
+  const matchingSubjectIds = useMemo(
+    () => matchingBrowseSubjects.map((subject) => subject.id),
+    [matchingBrowseSubjects],
+  );
+  const filteredSubjects = useMemo(
+    () => matchingBrowseSubjects.slice(0, browseSubjectLimit),
+    [matchingBrowseSubjects, browseSubjectLimit],
+  );
 
   const clearFrequencyFilter = () => {
     resetFrequencyLookupState();
-    setFilters((previous) => ({ ...previous, maxFrequencyRank: null }));
+    updateFilters((previous) => ({ ...previous, maxFrequencyRank: null }));
   };
   const hasUnsavedChanges = useMemo(() => {
     const normalizedName = listName.trim();
@@ -577,7 +598,10 @@ export default function SubjectListEditorScreen() {
     subjectSrsStageMap,
   ]);
 
-  const selectedSubjects = useMemo(() => matchingListSubjects.slice(0, 250), [matchingListSubjects]);
+  const selectedSubjects = useMemo(
+    () => matchingListSubjects.slice(0, selectedSubjectLimit),
+    [matchingListSubjects, selectedSubjectLimit],
+  );
   const allMatchingActionSelected = matchingListSubjects.length > 0 &&
     matchingListSubjects.every((subject) => actionSubjectIds.has(subject.id));
   const hasListFilters = searchQuery.trim().length > 0 || filters.vocabularyTypes.length > 0;
@@ -654,6 +678,16 @@ export default function SubjectListEditorScreen() {
 
   const activeTabItemCount =
     activeTab === "browse" ? filteredSubjects.length : selectedSubjects.length;
+  const activeTabMatchCount =
+    activeTab === "browse" ? matchingBrowseSubjects.length : matchingListSubjects.length;
+  const hasMoreSubjects = activeTabItemCount < activeTabMatchCount;
+  const loadMoreSubjects = () => {
+    if (activeTab === "browse") {
+      setBrowseSubjectLimit((previous) => previous + SUBJECT_PAGE_SIZE);
+    } else {
+      setSelectedSubjectLimit((previous) => previous + SUBJECT_PAGE_SIZE);
+    }
+  };
 
   useLayoutEffect(() => {
     if (pendingTabScrollRestoreRef.current !== activeTab) {
@@ -1444,7 +1478,7 @@ export default function SubjectListEditorScreen() {
             <Ionicons name="search" size={18} color={theme.textSecondary} />
             <TextInput
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={updateSearchQuery}
               placeholder={
                 activeTab === "browse"
                   ? "Search subjects..."
@@ -1454,7 +1488,7 @@ export default function SubjectListEditorScreen() {
               style={[styles.searchInput, { color: theme.textColor }]}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <TouchableOpacity onPress={() => updateSearchQuery("")}>
                 <Ionicons
                   name="close-circle"
                   size={20}
@@ -1638,6 +1672,22 @@ export default function SubjectListEditorScreen() {
             onScroll={handleListScroll}
             scrollEventThrottle={16}
             ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+            ListFooterComponent={hasMoreSubjects ? (
+              <View style={styles.loadMoreContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.loadMoreButton,
+                    { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Load more"
+                  accessibilityHint={`${activeTabItemCount} of ${activeTabMatchCount} subjects shown`}
+                  onPress={loadMoreSubjects}
+                >
+                  <Text style={[styles.loadMoreText, { color: theme.primary }]}>Load more</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
@@ -1765,7 +1815,7 @@ export default function SubjectListEditorScreen() {
           currentFilters={filters}
           onClose={() => setShowFilters(false)}
           onApply={(nextFilters) => {
-            setFilters(nextFilters);
+            updateFilters(nextFilters);
             setShowFilters(false);
           }}
           showJlptFilters
@@ -1833,7 +1883,7 @@ export default function SubjectListEditorScreen() {
           subjects={allSubjects ?? []}
           onClose={() => setShowFilters(false)}
           onApply={(values) => {
-            setFilters((previous) => ({
+            updateFilters((previous) => ({
               ...previous,
               vocabularyTypes: values.vocabularyTypes,
             }));
@@ -1969,6 +2019,21 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 12,
+  },
+  loadMoreContainer: {
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  loadMoreButton: {
+    minHeight: 44,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  loadMoreText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   itemContainer: {
     borderWidth: 1,

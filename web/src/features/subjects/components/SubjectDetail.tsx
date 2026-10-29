@@ -34,6 +34,8 @@ import { EmbeddedSubjectHeader } from "./EmbeddedSubjectHeader";
 import { StrokeOrder } from "./StrokeOrder";
 import { MediaContextSource, useYouGlishAccess } from "./MediaContextSource";
 import { NoteImageComposer, NoteImageGallery } from "./NoteImages";
+import { StudyMaterialPermissionDialog } from "./StudyMaterialPermissionDialog";
+import { isStudyMaterialPermissionError, STUDY_MATERIAL_PERMISSION_SUMMARY } from "../../../../../shared/study-material-permissions";
 import { joinNoteImages, splitNoteImages } from "../../../../../shared/note-images";
 import styles from "../subjects.module.css";
 
@@ -775,6 +777,7 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
   const [synonymDraft, setSynonymDraft] = useState("");
   const [editing, setEditing] = useState(false);
   const [addingImage, setAddingImage] = useState(false);
+  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
   const [buttonState, setButtonState] = useState<ButtonState>("idle");
   const note = splitNoteImages(field === "meaning_note" ? meaningNote : readingNote);
   const savedNote = splitNoteImages(field === "meaning_synonyms" ? "" : material?.data[field] ?? "");
@@ -798,8 +801,12 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
       setButtonState("success");
       setEditing(false);
       setAddingImage(false);
+      setPermissionDialogOpen(false);
     },
-    onError: () => setButtonState("error"),
+    onError: (error) => {
+      setButtonState("error");
+      if (isStudyMaterialPermissionError(error)) setPermissionDialogOpen(true);
+    },
   });
 
   const resetDraft = () => {
@@ -809,6 +816,7 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
     setSynonymDraft("");
     setButtonState("idle");
     setAddingImage(false);
+    setPermissionDialogOpen(false);
   };
   const startEditing = () => {
     resetDraft();
@@ -870,7 +878,7 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
         {addingImage ? <NoteImageComposer disabled={buttonState === "loading"} onCancel={() => setAddingImage(false)} onAdd={(url) => { updateNote(joinNoteImages(note.text, [...note.images, url])); setAddingImage(false); }} />
           : <div><Button type="button" tone="ghost" size="small" disabled={buttonState === "loading"} onClick={() => setAddingImage(true)}><ImagePlus size={16} aria-hidden />Add image</Button></div>}
       </>}
-      {buttonState === "error" ? <p className={styles.notesError} role="alert">Notes weren’t saved. Check your connection and try again.</p> : null}
+      {buttonState === "error" ? <p className={styles.notesError} role="alert">{isStudyMaterialPermissionError(mutation.error) ? STUDY_MATERIAL_PERMISSION_SUMMARY : "Notes weren’t saved. Check your connection and try again."}</p> : null}
       <div className={styles.notesActions}><Button type="submit" tone="primary" state={buttonState} disabled={addingImage}><Save size={16} aria-hidden />{buttonState === "error" ? "Try again" : field === "meaning_synonyms" ? "Save synonyms" : "Save note"}</Button></div>
     </form> : field === "meaning_synonyms" ? <span>{material?.data.meaning_synonyms.length ? material.data.meaning_synonyms.join(", ") : <span className={styles.emptyNote}>None added</span>}</span>
       : <div>
@@ -881,7 +889,9 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
         }} />
       </div>;
 
-  return field === "meaning_synonyms"
+  return <>{field === "meaning_synonyms"
     ? <div className={styles.synonymRow}><div>{content}</div>{action}</div>
-    : <DetailSection title={title} action={action}>{content}</DetailSection>;
+    : <DetailSection title={title} action={action}>{content}</DetailSection>}
+    <StudyMaterialPermissionDialog open={permissionDialogOpen} onClose={() => setPermissionDialogOpen(false)} />
+  </>;
 }

@@ -890,18 +890,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           return acc;
         }, {} as Record<number, any>);
 
-        // Get learned kanji count
-        const learnedKanjiCount = allSubjects.filter((s) => {
-          const assignment = assignments.data.find(
-            (a) => a.data.subject_id === s.id
-          );
-          return (
-            s.data.characters &&
-            assignment &&
-            assignment.data.srs_stage >= 5 &&
-            s.object === "kanji"
-          );
-        }).length;
+        // Assignments carry both type and SRS stage. Missing subject details
+        // must not make saved progress appear to disappear.
+        const learnedKanjiCount = assignments.data.filter(
+          (assignment) => assignment.data.subject_type === "kanji" &&
+            assignment.data.srs_stage >= 5
+        ).length;
 
         // Store learned kanji count for SWR pattern in header
         setLearnedKanjiCount(learnedKanjiCount);

@@ -4,7 +4,23 @@ Production site: https://kakehashiapp.com
 
 Vercel project: **kakehashi-web**, under **portego-00s-projects**.
 
-## Current release: October 27, 2026 — context-sentence speech startup and replay
+## Current release: October 29, 2026 — note-saving permission guidance
+
+Production is **`dpl_2JnjaTHEd66CoxVp2QYK6GzvxibT`**, at https://kakehashi-adh3hch6h-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. When WaniKani rejects a note write with 401 or 403, a popup explains that the API token needs **`study_materials:create`** and **`study_materials:update`**, links directly to token settings, and keeps unsaved text and images for retry. Image-removal errors also show the permission guidance. Other save failures retain their existing error handling.
+
+The complete **1,253-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-29/Kakehashi/note-permissions-prod-v2/upload`. It preserves the verified radical-hover release and earlier context-sentence speech changes, applying only nine permission-guidance implementation, test, and upload-configuration paths. Build and typecheck passed. Lint passed with three existing warnings; the full web suite passed **3,268 tests**, with one existing skip. **Six local**, **six staged**, and **six live desktop/mobile browser checks** passed, covering rejected creation and updates, the settings link, retained image/text drafts, successful retry, and existing image gestures and removal. These browser checks use mocked WaniKani account and write responses, preserving real notes. All uploaded source hashes were verified. Manifests, validation logs, and hosted screenshots are beside the snapshot; local screenshots are in the sibling `note-permissions-prod/local-proof` folder. The temporary staging cookie was removed.
+
+The immediate rollback is **`dpl_CLrr3WU94WNNihedfFNz1Xhxw7Nc`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-29/Kakehashi/radical-hover-prod/upload`. The corresponding mobile permission popup is implemented in the working folder for the next native release. No environment changes, database migrations, native release, Git commit, or Git push were performed.
+
+## Previous release: October 29, 2026 — SVG radical hover underline
+
+Production is **`dpl_CLrr3WU94WNNihedfFNz1Xhxw7Nc`**, at https://kakehashi-8rrlfdj78-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. SVG radicals in the current-level widget now show an underline on hover, matching the existing feedback for character radicals. The original text-decoration rule did not draw beneath images; a positioned line now uses the tile's inherited foreground color without moving the artwork. Touch behavior, centering, theme tinting, and image fallbacks are preserved.
+
+The complete **1,249-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-29/Kakehashi/radical-hover-prod/upload`. It preserves the verified previous production source and changes only the dashboard stylesheet and radical artwork browser test. The build, typecheck, targeted lint, and **24 focused unit tests** passed. **Ten local browser checks** passed after retrying one screenshot timeout; **ten staged checks** passed, with two hover cases intentionally skipped on touch devices. The browser checks compare painted pixels before and after hovering Yurt, Creeper, and a normal character radical in light and dark themes, and retain the earlier visibility and alignment checks. **Two live hover checks** passed using real WaniKani SVGs and mocked account data. All uploaded source hashes were verified before promotion. Live screenshots are in `/Users/pedroortego/.codex/visualizations/2026/10/25/01a17298-e4fe-7f40-a99d-c5a7f0e40eba/radical-hover-production-proof`; manifests and hosted validation logs are beside the snapshot. Temporary private staging files were removed.
+
+The immediate rollback is **`dpl_EctJwfc5q9Htg6Lh2ajbkeGn3XJY`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-27/Kakehashi/context-sentence-tts-prod/upload`. No environment changes, database migrations, native release, Git commit, or Git push were performed.
+
+## Previous release: October 27, 2026 — context-sentence speech startup and replay
 
 Production is **`dpl_EctJwfc5q9Htg6Lh2ajbkeGn3XJY`**, at https://kakehashi-6v2ga164b-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. Context sentences prepare the downloaded Japanese voice before playback is requested. Generated audio is reused for the same sentence and speech speed, with a 32 MiB memory limit and eviction of the least recently used recordings. Cached audio survives synthesis-worker cleanup. Voice downloads remain explicit, and generating an unseen sentence still depends on the device's inference speed.
 

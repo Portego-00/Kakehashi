@@ -30,6 +30,7 @@ import {
   type FormattedNoteEditorHandle,
 } from "../../../src/components/formatted-note";
 import { parseFormattedNote } from "../../../src/utils/note-formatting";
+import { showStudyMaterialPermissionAlert } from "../../../src/utils/study-material-permission-alert";
 import { joinNoteImages, splitNoteImages } from "../../../shared/note-images";
 import { getNoteVisualEditorRunsSignature } from "../../../src/components/note-visual-editor-model";
 import { useSubjectLists } from "../../../src/hooks/useSubjectLists";
@@ -690,6 +691,7 @@ export default function SubjectDetailsScreen() {
       if (!imageUpdate) setShowNoteModal(false);
     } catch (error) {
       if (imageUpdate) throw error;
+      if (showStudyMaterialPermissionAlert(error)) return;
       Alert.alert(
         "Error",
         `Failed to save note: ${
