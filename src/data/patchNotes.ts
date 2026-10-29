@@ -56,6 +56,18 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.6.0",
+    date: "2026-10-29",
+    changes: [
+      {
+        type: "feature",
+        title: "iPhone Duo Support",
+        description:
+          "Layouts adapt as you open, close, and rotate iPhone Duo. In the partially folded song player, video sits above the hinge with lyrics and playback controls below.",
+      },
+    ],
+  },
+  {
     version: "1.5.8",
     date: "2026-10-23",
     changes: [

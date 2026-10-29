@@ -464,6 +464,7 @@ function ReadyCustomSrsSession({
   const [lessonIndex, setLessonIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [choiceOccurrence, setChoiceOccurrence] = useState(0);
+  const choiceCorrectionRef = useRef<string | null>(null);
   const choiceSubmissionRef = useRef<string | null>(null);
   const [feedback, setFeedback] = useState<AnswerResult | null>(null);
   const [detailsOverride, setDetailsOverride] = useState<boolean | null>(null);
@@ -782,7 +783,7 @@ function ReadyCustomSrsSession({
     <div className={studyStyles.answerArea}>
       {hideTypedAnswer ? <div className={studyStyles.answerForm}>
         <div className={studyStyles.promptTypeStrip} data-tone={currentKind}><span>Vocabulary</span><strong>{promptLabel}</strong></div>
-        {reviewChoices.loading ? <p role="status">Loading answer choices…</p> : <ReviewAnswerChoices choices={reviewChoices.choices} selectedAnswer={feedback ? answer : undefined} disabled={Boolean(feedback) || committing} isReading={isReadingQuestion} keyboardShortcuts={studySettings.keyboardShortcuts} onSelect={selectChoice} onContinue={feedback && !committing ? () => void advanceQuiz() : undefined} />}
+        {reviewChoices.loading ? <p role="status">Loading answer choices…</p> : <ReviewAnswerChoices choices={reviewChoices.choices} selectedAnswer={feedback ? answer : undefined} disabled={Boolean(feedback) || committing} isReading={isReadingQuestion} keyboardShortcuts={studySettings.keyboardShortcuts} onSelect={selectChoice} onDontKnow={() => selectChoice({ text: "", isCorrect: false })} onContinue={feedback && !committing ? () => void advanceQuiz() : undefined} />}
         {feedback ? <Button id="custom-study-advance" className={studyStyles.primaryButton} tone="primary" disabled={committing} onClick={() => void advanceQuiz()}>{nextButtonLabel}<ArrowRight size={18} aria-hidden /></Button> : null}
       </div> : <form
         className={studyStyles.answerForm}
@@ -846,6 +847,13 @@ function ReadyCustomSrsSession({
       {studySettings.reviewMultipleChoiceEnabled && !hideTypedAnswer && !feedback ? <p className={studyStyles.keyboardHint}>Not enough distinct choices for this question. Type your answer.</p> : null}
 
       <div className={coreStyles.studyTools} aria-label="Answer controls">
+        {hideTypedAnswer && (feedback?.status === "correct" || feedback?.status === "close") ? <Button type="button" tone="ghost" disabled={committing} onClick={() => {
+          if (!currentWord || !currentKind || committingRef.current || choiceCorrectionRef.current === choiceQuestionKey) return;
+          choiceCorrectionRef.current = choiceQuestionKey;
+          setFeedback({ status: "incorrect", message: "Marked incorrect.", canonical: acceptedAnswer });
+          setIncorrectByWord((counts) => ({ ...counts, [currentWord.id]: (counts[currentWord.id] ?? 0) + 1 }));
+          setIncorrectByQuestion((counts) => ({ ...counts, [currentWord.id]: { ...counts[currentWord.id], [currentKind]: (counts[currentWord.id]?.[currentKind] ?? 0) + 1 } }));
+        }}><X size={17} aria-hidden />Mark Incorrect</Button> : null}
         <Button className={coreStyles.toolButton} type="button" tone="ghost" disabled={!canShowDetails || committing} aria-controls="custom-study-item-details" aria-expanded={detailsOpen} onClick={() => setDetailsOverride(!detailsOpen)}><Info size={17} aria-hidden /><span>Info</span></Button>
       </div>
 

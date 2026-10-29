@@ -65,7 +65,7 @@ export async function saveNewsToCache(
     if (sourceItems.length === 0) continue;
 
     const cacheFile = new File(cacheDir, getSourceCacheFileName(source));
-    cacheFile.write(JSON.stringify(sourceItems, null, 2));
+    await cacheFile.write(JSON.stringify(sourceItems, null, 2));
   }
 }
 

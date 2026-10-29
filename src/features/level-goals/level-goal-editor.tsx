@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -69,7 +70,7 @@ export function LevelGoalEditor({
   const [error, setError] = useState("");
   const [calendar, setCalendar] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const ruler = useRef<ScrollView>(null);
+  const ruler = useRef<ScrollViewInstance>(null);
   const [rulerWidth, setRulerWidth] = useState(0);
   useEffect(() => {
     ruler.current?.scrollTo({

@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { cleanupAsync, fireEvent, render, waitFor } from "@testing-library/react-native";
 import CrosswordSessionScreen from "../(app)/crossword-session";
 import type { CrosswordPuzzle } from "../../src/utils/crosswordGenerator";
 import { loadExtraStudySessionState } from "../../src/utils/extraStudySessionPersistence";
@@ -50,7 +50,7 @@ beforeEach(() => {
     completedWordIds: ["please"], attemptsByWordId: {}, elapsedMs: 0,
   });
 });
-afterEach(cleanup);
+afterEach(cleanupAsync);
 
 it("checks the displayed grid when the final kana is supplied by a crossing", async () => {
   const view = render(<CrosswordSessionScreen />);

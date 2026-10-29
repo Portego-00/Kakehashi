@@ -23,7 +23,7 @@ export function useSession() {
 export function SessionProvider({ children }: PropsWithChildren) {
   const { apiToken, isLoading, isAuthenticated, setApiToken, logout, loadStoredToken } = useAuthStore();
   const segments = useSegments();
-  const appState = useRef(AppState.currentState);
+  const appState = useRef(AppState.currentState ?? "active");
   const hasInitiallyLoaded = useRef(false);
   const hasReloadedThisForeground = useRef(false);
   const isReloadingToken = useRef(false);

@@ -215,7 +215,22 @@ describe("FormattedNote", () => {
     fireEvent.press(screen.getByLabelText("Open note image 1"));
     expect(screen.queryByRole("button", { name: "Zoom in" })).toBeNull();
     const gesture = responderSpy.mock.calls.at(-1)![0];
-    const touches = (distance: number) => ({ nativeEvent: { touches: [{ pageX: 150 - distance / 2, pageY: 200 }, { pageX: 150 + distance / 2, pageY: 200 }] } }) as GestureResponderEvent;
+    const touches = (distance: number): GestureResponderEvent => {
+      const point = (pageX: number, identifier: number): GestureResponderEvent["nativeEvent"] => ({
+        pageX, pageY: 200, locationX: pageX, locationY: 200,
+        identifier, target: 1, timestamp: 0, touches: [], changedTouches: [],
+      });
+      const points = [point(150 - distance / 2, 0), point(150 + distance / 2, 1)];
+      return {
+        nativeEvent: { ...points[0], touches: points, changedTouches: points },
+        bubbles: true, cancelable: true, currentTarget: 1, target: 1,
+        defaultPrevented: false, eventPhase: 3, isTrusted: true, timeStamp: 0,
+        type: "touchMove", dispatchConfig: { registrationName: "onPanResponderMove" },
+        preventDefault: jest.fn(), isDefaultPrevented: () => false,
+        stopPropagation: jest.fn(), isPropagationStopped: () => false, persist: jest.fn(),
+        touchHistory: { indexOfSingleActiveTouch: -1, mostRecentTimeStamp: 0, numberActiveTouches: 2, touchBank: [] },
+      };
+    };
     const state = {} as PanResponderGestureState;
     act(() => gesture.onPanResponderGrant?.(touches(100), state));
     act(() => gesture.onPanResponderMove?.(touches(200), state));
@@ -462,15 +477,15 @@ describe("FormattedNote", () => {
     )!;
 
     fireEvent(frame, "layout", { nativeEvent: { layout: { height: 318 } } });
-    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(314);
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style)?.height).toBe(314);
     expect(mockVisualEditorProps?.appearance.minHeight).toBe(314);
 
     fireEvent(frame, "layout", { nativeEvent: { layout: { height: 158 } } });
-    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(154);
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style)?.height).toBe(154);
     expect(mockVisualEditorProps?.appearance.minHeight).toBe(154);
 
     fireEvent(frame, "layout", { nativeEvent: { layout: { height: 0 } } });
-    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(154);
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style)?.height).toBe(154);
   });
 
   it("unlinks a visual selection from the toolbar and removes a whole link explicitly", async () => {

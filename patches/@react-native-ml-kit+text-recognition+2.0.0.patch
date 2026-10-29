@@ -1,0 +1,65 @@
+diff --git a/node_modules/@react-native-ml-kit/text-recognition/RNMLKitTextRecognition.podspec b/node_modules/@react-native-ml-kit/text-recognition/RNMLKitTextRecognition.podspec
+index 421bcfc..7c0e8d0 100644
+--- a/node_modules/@react-native-ml-kit/text-recognition/RNMLKitTextRecognition.podspec
++++ b/node_modules/@react-native-ml-kit/text-recognition/RNMLKitTextRecognition.podspec
+@@ -21,6 +21,13 @@ Pod::Spec.new do |s|
+   s.requires_arc = true
+ 
+   s.dependency "React"
++  # Google's ML Kit binaries do not contain an arm64 iOS Simulator slice.
++  # Keep this opt-in local to simulator builds; device builds retain real OCR.
++  if ENV['KAKEHASHI_IOS_SIMULATOR'] == '1'
++    s.pod_target_xcconfig = {
++      'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) KAKEHASHI_MLKIT_SIMULATOR_ONLY=1'
++    }
++  else
+   # To recognize Latin script
+   s.dependency 'GoogleMLKit/TextRecognition', '8.0.0'
+   # To recognize Chinese script
+@@ -31,5 +38,6 @@ Pod::Spec.new do |s|
+   s.dependency 'GoogleMLKit/TextRecognitionJapanese', '8.0.0'
+   # To recognize Korean script
+   s.dependency 'GoogleMLKit/TextRecognitionKorean', '8.0.0'
++  end
+ end
+ 
+diff --git a/node_modules/@react-native-ml-kit/text-recognition/ios/TextRecognition.m b/node_modules/@react-native-ml-kit/text-recognition/ios/TextRecognition.m
+index d23fb71..6a47b8d 100644
+--- a/node_modules/@react-native-ml-kit/text-recognition/ios/TextRecognition.m
++++ b/node_modules/@react-native-ml-kit/text-recognition/ios/TextRecognition.m
+@@ -1,4 +1,29 @@
+ #import "TextRecognition.h"
++#import <TargetConditionals.h>
++
++#if defined(KAKEHASHI_MLKIT_SIMULATOR_ONLY) && !TARGET_OS_SIMULATOR
++#error "KAKEHASHI_IOS_SIMULATOR is for iOS Simulator builds only. Run pod install without it before building for a physical device."
++#endif
++
++#if TARGET_OS_SIMULATOR && defined(KAKEHASHI_MLKIT_SIMULATOR_ONLY)
++
++@implementation TextRecognition
++
++RCT_EXPORT_MODULE()
++
++RCT_EXPORT_METHOD(recognize: (nonnull NSString*)url
++                  script:(NSString*)script
++                  resolver:(RCTPromiseResolveBlock)resolve
++                  rejecter:(RCTPromiseRejectBlock)reject)
++{
++    reject(@"ERR_OCR_UNAVAILABLE_SIMULATOR",
++           @"Google ML Kit OCR is unavailable in iOS Simulator. Use a physical device to scan text.",
++           nil);
++}
++
++@end
++
++#else
+ 
+ @import MLKitVision.MLKVisionImage;
+ @import MLKitTextRecognition;
+@@ -131,3 +156,5 @@ RCT_EXPORT_METHOD(recognize: (nonnull NSString*)url
+ }
+ 
+ @end
++
++#endif

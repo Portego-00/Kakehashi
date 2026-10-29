@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, cleanupAsync, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { Alert, Platform } from "react-native";
 import SubjectListEditorScreen from "../(app)/subject-list/[id]";
@@ -35,7 +35,7 @@ jest.mock("../../src/utils/store", () => ({
   }),
   useSettingsStore: (selector: (state: typeof mockSettings) => unknown) => selector(mockSettings),
 }));
-jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
+jest.mock("expo-router/react-navigation", () => ({ useIsFocused: () => true }));
 jest.mock("../../src/hooks/useVocabularyFrequencyRanks", () => ({
   useVocabularyFrequencyRanks: () => ({ ranks: new Map(), canUseResults: true, dataReady: true }),
 }));
@@ -125,7 +125,8 @@ describe("list action selection", () => {
 
   beforeEach(() => {
     mockTranslations = false;
-    jest.useFakeTimers();
+    // Let React and animation worklets flush microtasks while UI delays stay controlled.
+    jest.useFakeTimers({ doNotFake: ["setImmediate", "queueMicrotask"] });
     jest.clearAllMocks();
     mockSettings.vocabularyAudioVoice = "both";
     storage.clear();
@@ -142,8 +143,8 @@ describe("list action selection", () => {
     jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
   });
 
-  afterEach(() => {
-    cleanup();
+  afterEach(async () => {
+    await cleanupAsync();
     jest.useRealTimers();
     jest.restoreAllMocks();
   });
@@ -197,7 +198,7 @@ describe("list action selection", () => {
     expect(screen.getByText("Two")).toBeTruthy();
     expect(storage.get("subject_list_hide_meanings")).toBe("false");
     pressListOption(screen, "Hide Meanings");
-    screen.unmount();
+    await screen.unmountAsync();
 
     const reopened = render(<SubjectListEditorScreen />);
     await waitFor(() => expect(reopened.getByText("In List (4)")).toBeTruthy());

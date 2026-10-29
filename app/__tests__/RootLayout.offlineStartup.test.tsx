@@ -1,6 +1,6 @@
-import { act, cleanup, render, waitFor } from "@testing-library/react-native";
+import { act, cleanupAsync, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { InteractionManager } from "react-native";
+import * as idleTasks from "../../src/utils/scheduleIdleTask";
 
 const mockCheckForUpdateAsync = jest.fn<Promise<{ isAvailable: boolean; isRollBackToEmbedded: boolean }>, []>(
   () => new Promise<never>(() => undefined)
@@ -243,10 +243,18 @@ jest.mock("../../src/utils/theme", () => {
   };
 });
 
+jest.mock("../../src/components/app-keyboard-provider", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  return {
+    AppKeyboardProvider: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+  };
+});
+
 describe("offline startup", () => {
   const originalDev = (global as typeof globalThis & { __DEV__?: boolean }).__DEV__;
   let consoleWarnSpy: jest.SpyInstance;
-  let interactionManagerSpy: jest.SpyInstance;
+  let idleTaskSpy: jest.SpyInstance;
   let consoleErrorSpy: jest.SpyInstance;
 
   beforeAll(() => {
@@ -263,17 +271,17 @@ describe("offline startup", () => {
     mockReloadAsync.mockReset().mockResolvedValue(undefined);
     consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
-    interactionManagerSpy = jest
-      .spyOn(InteractionManager, "runAfterInteractions")
+    idleTaskSpy = jest
+      .spyOn(idleTasks, "scheduleIdleTask")
       .mockImplementation(() => ({ cancel: jest.fn() }) as never);
   });
 
-  afterEach(() => {
-    cleanup();
+  afterEach(async () => {
+    await cleanupAsync();
     jest.clearAllTimers();
     jest.useRealTimers();
     mockAuthState.needsPostLoginCaching = false;
-    interactionManagerSpy.mockRestore();
+    idleTaskSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
   });

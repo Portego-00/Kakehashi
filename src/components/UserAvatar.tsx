@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   imageFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   hiddenImage: {
     opacity: 0,

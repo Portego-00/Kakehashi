@@ -319,10 +319,10 @@ export const VocabularyTooltip: React.FC<VocabularyTooltipProps> = ({
 
 const styles = StyleSheet.create({
   tooltipOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   tooltipBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 0,
   },
   tooltipPopup: {

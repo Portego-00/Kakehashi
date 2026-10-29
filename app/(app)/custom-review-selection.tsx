@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import { router, useLocalSearchParams } from "expo-router";
 import React, {
   useCallback,
@@ -1952,7 +1952,7 @@ export default function CustomReviewSelectionScreen() {
                   </TouchableOpacity>
                 ) : null}
               </View>
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>

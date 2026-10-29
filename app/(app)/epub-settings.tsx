@@ -1,6 +1,6 @@
 import { SettingsIcon as Ionicons } from "../../src/ui/settings/settings-icon";
 
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useState } from "react";

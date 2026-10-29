@@ -319,7 +319,7 @@ export default function IssueList({
           <View style={styles.centerEmpty}>
             <Text style={{ color: theme.textSecondary }}>No issues found.</Text>
           </View>
-        ) : null
+        ) : undefined
       }
     />
   );

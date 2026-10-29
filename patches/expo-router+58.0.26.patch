@@ -1,0 +1,12 @@
+diff --git a/node_modules/expo-router/build/native-tabs/NativeBottomTabsNavigator.js b/node_modules/expo-router/build/native-tabs/NativeBottomTabsNavigator.js
+--- a/node_modules/expo-router/build/native-tabs/NativeBottomTabsNavigator.js
++++ b/node_modules/expo-router/build/native-tabs/NativeBottomTabsNavigator.js
+@@ -189,7 +189,7 @@
+         value: true,
+         children: /*#__PURE__*/ (0, _react().createElement)(_NativeTabsView.NativeTabsView, {
+             ...nativeTabsViewProps,
+-            key: tabConfigurationKey,
++            // Preserve the native host and its screen state when visible tabs change.
+             focusedIndex: focusedIndex,
+             // Provenance should only be sent with updates, and updates
+             // on JS side are only triggered by rerender, so passing ref

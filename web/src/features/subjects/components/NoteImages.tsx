@@ -5,6 +5,7 @@ import { ImagePlus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { normalizeNoteImageUrl } from "../../../../../shared/note-images";
+import { isStudyMaterialPermissionError, STUDY_MATERIAL_PERMISSION_SUMMARY } from "../../../../../shared/study-material-permissions";
 import { containNoteImageTransform, INITIAL_NOTE_IMAGE_TRANSFORM, noteImageTouchGeometry, pinchNoteImage, type NoteImageTransform } from "../../../../../shared/note-image-gestures";
 import styles from "../note-images.module.css";
 
@@ -195,7 +196,7 @@ function ImageViewer({ url, onClose, onRemove }: { url: string; onClose: () => v
         </div>
         {onRemove ? <Button type="button" tone="danger" state={saving ? "loading" : "idle"} onClick={async () => {
           setSaving(true); setError("");
-          try { await onRemove(); } catch { setError("The image wasn’t removed. Check your connection and try again."); setSaving(false); }
+          try { await onRemove(); } catch (error) { setError(isStudyMaterialPermissionError(error) ? STUDY_MATERIAL_PERMISSION_SUMMARY : "The image wasn’t removed. Check your connection and try again."); setSaving(false); }
         }}><Trash2 size={16} aria-hidden />Remove image</Button> : null}
       </div>
     </div>

@@ -17,7 +17,7 @@ it('saves an offset per video and resets timing', async () => {
 it('does not carry an offset to a new video or accept a stale load', async () => {
   let finishFirst!: (value: string) => void;
   jest.mocked(AsyncStorage.getItem).mockImplementation(key => key.endsWith('a') ? new Promise(resolve => { finishFirst = resolve; }) : Promise.resolve('-300'));
-  const { result, rerender } = renderHook(({ video }) => useSubtitleTiming(video), { initialProps: { video: 'a' } });
+  const { result, rerender } = renderHook(({ video }: { video: string }) => useSubtitleTiming(video), { initialProps: { video: 'a' } });
   await waitFor(() => expect(AsyncStorage.getItem).toHaveBeenCalled());
   rerender({ video: 'b' });
   await waitFor(() => expect(result.current.offsetMs).toBe(-300));

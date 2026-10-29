@@ -229,6 +229,8 @@ export default function PitchAccentVisualization({
                     {mora}
                   </Text>
                 ))}
+                {/* Reserve a blank mora for the following particle's marker. */}
+                <View style={{ width: pointSpacing }} />
               </View>
             </View>
           </View>

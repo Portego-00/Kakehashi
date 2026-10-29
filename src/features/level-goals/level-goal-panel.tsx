@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   FadeInDown,

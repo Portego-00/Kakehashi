@@ -7,6 +7,7 @@ import {
 } from '../reviewAvailabilityNotifications';
 
 jest.mock('expo-notifications', () => ({
+  SchedulableTriggerInputTypes: { TIME_INTERVAL: 'timeInterval' },
   cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
   dismissNotificationAsync: jest.fn(() => Promise.resolve()),
   getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
@@ -164,7 +165,7 @@ describe('combined review availability notifications', () => {
       reviewCount: 12,
       newReviews: 5,
     }).request;
-    pending.trigger = { type: 'timeInterval', repeats: false, seconds: 3600 };
+    pending.trigger = { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, repeats: false, seconds: 3600 };
     mockedNotifications.getAllScheduledNotificationsAsync.mockResolvedValue([pending]);
     mockedNotifications.getPresentedNotificationsAsync.mockResolvedValue([
       notification(REVIEW_AVAILABILITY_NOTIFICATION_IDENTIFIER, { reviewCount: 7 }),

@@ -1,5 +1,5 @@
 import React from "react";
-import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
+import { act, cleanupAsync, fireEvent, render } from "@testing-library/react-native";
 import {
   StudyPacePlanner,
   StudyPacePlannerSetting,
@@ -99,8 +99,8 @@ it("requires the Home customization toggle for every account", () => {
   expect(setting.getByLabelText("Plan your pace")).toBeTruthy();
   expect(planner.getByLabelText("Plan your pace")).toBeTruthy();
 });
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await cleanupAsync();
   jest.useRealTimers();
 });
 it("links pace and lessons, keeps workload independent of session size, and applies actual settings", () => {

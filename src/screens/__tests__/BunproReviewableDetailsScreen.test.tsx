@@ -28,7 +28,7 @@ jest.mock("../../components/bunpro/BunproContext", () => ({ BunproContext: ({ qu
 
 beforeEach(() => {
   jest.clearAllMocks(); mockTab = undefined; mockFocused = true;
-  jest.mocked(getBunproReviewableDetails).mockResolvedValue({ data: { id: "1", type: "grammar_point", attributes: { title: "Test subject", meaning: "A test", casual_structure: "Standard structure", polite_structure: "Polite structure", nuance_translation: "A useful nuance", level: "JLPT5" } }, included: [{ id: "q1", type: "study_question", attributes: { content: "Sentence ____.", answer: "です", translation: "Example translation" } }] });
+  jest.mocked(getBunproReviewableDetails).mockResolvedValue({ data: { id: "1", type: "grammar_point", attributes: { id: 1, slug: "test", title: "Test subject", meaning: "A test", casual_structure: "Standard structure", polite_structure: "Polite structure", nuance_translation: "A useful nuance", level: "JLPT5" } }, included: [{ id: "q1", type: "study_question", attributes: { id: 1, content: "Sentence ____.", answer: "です", translation: "Example translation" } }] });
 });
 
 it.each(["grammar", "vocab"])("restores the native %s information layout and tabs", async kind => {

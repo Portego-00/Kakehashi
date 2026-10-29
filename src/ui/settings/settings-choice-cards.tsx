@@ -1,3 +1,4 @@
+import type { ViewInstance } from "react-native";
 import React, { useCallback, useRef, useState } from "react";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import {
@@ -40,7 +41,7 @@ export function SettingsChoiceCards<T extends string>({
 }) {
   const { width, fontScale } = useWindowDimensions();
   const [contentWidth, setContentWidth] = useState(Math.max(0, width - 48));
-  const ref = useRef<View>(null);
+  const ref = useRef<ViewInstance>(null);
   const measure = useCallback(
     (callback: (y: number) => void) =>
       ref.current?.measureInWindow((_x, y) => callback(y)),

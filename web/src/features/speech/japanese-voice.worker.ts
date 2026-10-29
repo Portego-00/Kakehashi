@@ -35,6 +35,10 @@ function errorMessage(error: unknown) {
 async function handleRequest(request: JapaneseVoiceWorkerRequest) {
   try {
     const engine = await loadEngine(request.id);
+    if (request.type === "prepare") {
+      post({ id: request.id, type: "ready" });
+      return;
+    }
     const samples = await engine.synthesize(request.text, (progress, message) => post({
       id: request.id,
       type: "progress",

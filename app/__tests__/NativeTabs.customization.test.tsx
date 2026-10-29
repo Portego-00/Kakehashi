@@ -23,7 +23,7 @@ jest.mock('../../src/utils/store', () => {
     })),
   };
 });
-jest.mock('expo-router/unstable-native-tabs', () => {
+jest.mock('expo-router/native-tabs', () => {
   const React = require('react');
   const { View } = require('react-native');
   const NativeTabs = ({ children }: { children: React.ReactNode }) => {
@@ -47,7 +47,7 @@ jest.mock('expo-router', () => {
   Tabs.Screen = function MockTabScreen() { return null; };
   return { Tabs, router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() }, useSegments: () => mockSegments };
 });
-jest.mock('@react-navigation/native', () => ({ useIsFocused: () => mockFocused }));
+jest.mock('expo-router/react-navigation', () => ({ useIsFocused: () => mockFocused }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('../../src/utils/nativeTabs', () => ({ supportsNativeTabs: () => mockNativeTabs }));
 jest.mock('../../src/hooks/useFeatureFlags', () => ({ useFeatureFlag: () => true }));

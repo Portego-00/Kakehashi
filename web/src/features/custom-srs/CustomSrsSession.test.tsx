@@ -153,6 +153,30 @@ describe("custom vocabulary lesson and review sessions", () => {
     expect(screen.getByText("Correct", { exact: true })).toBeInTheDocument();
   });
 
+  it.each(["unknown", "corrected"])("saves a %s choice as one custom SRS mistake", async (action) => {
+    localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true } }));
+    const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Hiragana", description: "Words", script: "hiragana", words: [cat] };
+    hook.state = stateFor(pack, { [cat.id]: { stage: 1, availableAt: "2020-01-01T00:00:00.000Z" } });
+    hook.submitReview.mockResolvedValue(hook.state);
+    renderSession("reviews", [pack]);
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    if (action === "unknown") fireEvent.click(screen.getByRole("button", { name: "I don't know" }));
+    else {
+      fireEvent.click(within(group).getByRole("button", { name: /^\d\. Cat$/ }));
+      const wrong = screen.getByRole("button", { name: "Mark Incorrect" });
+      fireEvent.click(wrong);
+      fireEvent.click(wrong);
+    }
+    expect(screen.getByText("Incorrect", { exact: true })).toBeInTheDocument();
+    expect(hook.submitReview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    const retry = await screen.findByRole("group", { name: "Answer choices" });
+    fireEvent.click(within(retry).getByRole("button", { name: /^\d\. Cat$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(hook.submitReview).toHaveBeenCalledTimes(1));
+    expect(hook.submitReview.mock.calls[0].slice(0, 2)).toEqual([cat.id, 1]);
+  });
+
   it("answers custom vocabulary with choices, retries a wrong choice, and saves one mistake", async () => {
     localStorage.setItem(settingsStorageKey("custom-study-test"), JSON.stringify({ ...DEFAULT_WEB_SETTINGS, study: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true } }));
     const pack: CustomVocabularyPack = { id: "everyday-hiragana", title: "Hiragana", description: "Words", script: "hiragana", words: [cat] };

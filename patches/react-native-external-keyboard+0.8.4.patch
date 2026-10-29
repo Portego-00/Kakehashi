@@ -1,21 +1,36 @@
+diff --git a/node_modules/react-native-external-keyboard/ios/Extensions/RCTCustomScrollView+RNCEKVExternalKeyboard.mm b/node_modules/react-native-external-keyboard/ios/Extensions/RCTCustomScrollView+RNCEKVExternalKeyboard.mm
+--- a/node_modules/react-native-external-keyboard/ios/Extensions/RCTCustomScrollView+RNCEKVExternalKeyboard.mm
++++ b/node_modules/react-native-external-keyboard/ios/Extensions/RCTCustomScrollView+RNCEKVExternalKeyboard.mm
+@@ -9 +9 @@
+-#import "RCTScrollView.h"
++#import <React/RCTScrollView.h>
+diff --git a/node_modules/react-native-external-keyboard/ios/Extensions/RCTEnhancedScrollView+RNCEKVExternalKeyboard.mm b/node_modules/react-native-external-keyboard/ios/Extensions/RCTEnhancedScrollView+RNCEKVExternalKeyboard.mm
+--- a/node_modules/react-native-external-keyboard/ios/Extensions/RCTEnhancedScrollView+RNCEKVExternalKeyboard.mm
++++ b/node_modules/react-native-external-keyboard/ios/Extensions/RCTEnhancedScrollView+RNCEKVExternalKeyboard.mm
+@@ -11 +11 @@
+-#import "RCTEnhancedScrollView.h"
++#import <React/RCTEnhancedScrollView.h>
+@@ -13 +13 @@
+-#import "RCTScrollViewComponentView.h"
++#import <React/RCTScrollViewComponentView.h>
+diff --git a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardLockView/RNCEKVExternalKeyboardLockView.mm b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardLockView/RNCEKVExternalKeyboardLockView.mm
+--- a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardLockView/RNCEKVExternalKeyboardLockView.mm
++++ b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardLockView/RNCEKVExternalKeyboardLockView.mm
+@@ -22 +22 @@
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
 diff --git a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardView.mm b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardView.mm
-index 20ab840..6e77a3c 100644
 --- a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardView.mm
 +++ b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardView.mm
-@@ -250,7 +250,9 @@ using namespace facebook::react;
-   NSString *FOCUS = @"focus";
-   if ([commandName isEqual:FOCUS]) {
-     [self focus];
+@@ -20 +20 @@
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+@@ -253 +253,3 @@
+-  }
 +    return;
-   }
++  }
 +  [super handleCommand:commandName args:args];
- }
- 
- - (void)updateProps:(Props::Shared const &)props
-@@ -387,6 +389,13 @@ Class<RCTComponentViewProtocol> ExternalKeyboardViewCls(void) {
-   return [_focusDelegate canBecomeFocused];
- }
- 
+@@ -389,0 +392,7 @@
 +- (BOOL)canBecomeFirstResponder {
 +  if (self.hasOnPressUp || self.hasOnPressDown) {
 +    return self.canBeFocused;
@@ -23,18 +38,65 @@ index 20ab840..6e77a3c 100644
 +  return [super canBecomeFirstResponder];
 +}
 +
- - (void)focus {
-   UIViewController *viewController = self.reactViewController;
-   [self updateFocus:viewController];
-@@ -400,6 +409,11 @@ Class<RCTComponentViewProtocol> ExternalKeyboardViewCls(void) {
-   UIView *focusingView = self; // [_focusDelegate getFocusingView];
- 
-   if (self.superview != nil && controller != nil) {
+@@ -402,0 +412,5 @@
 +    // UIKit focus alone does not route hardware keys on iPad or iOS apps on Mac.
 +    // Key handlers need a first responder, including when Full Keyboard Access is off.
 +    if (self.canBeFocused && (self.hasOnPressUp || self.hasOnPressDown)) {
 +      [self becomeFirstResponder];
 +    }
-     controller.rncekvCustomFocusView = focusingView;
-     dispatch_async(dispatch_get_main_queue(), ^{
-       [controller setNeedsFocusUpdate];
+diff --git a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardViewManager.mm b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardViewManager.mm
+--- a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardViewManager.mm
++++ b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVExternalKeyboardView/RNCEKVExternalKeyboardViewManager.mm
+@@ -5 +5 @@
+-#import "RCTBridge.h"
++#import <React/RCTBridge.h>
+diff --git a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVKeyboardFocusGroupView/RNCEKVKeyboardFocusGroup.mm b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVKeyboardFocusGroupView/RNCEKVKeyboardFocusGroup.mm
+--- a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVKeyboardFocusGroupView/RNCEKVKeyboardFocusGroup.mm
++++ b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVKeyboardFocusGroupView/RNCEKVKeyboardFocusGroup.mm
+@@ -23 +23 @@
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+diff --git a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVKeyboardFocusGroupView/RNCEKVKeyboardFocusGroupManager.mm b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVKeyboardFocusGroupView/RNCEKVKeyboardFocusGroupManager.mm
+--- a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVKeyboardFocusGroupView/RNCEKVKeyboardFocusGroupManager.mm
++++ b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVKeyboardFocusGroupView/RNCEKVKeyboardFocusGroupManager.mm
+@@ -12 +12 @@
+-#import "RCTBridge.h"
++#import <React/RCTBridge.h>
+diff --git a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVTextInputFocusWrapper/RNCEKVTextInputFocusWrapper.mm b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVTextInputFocusWrapper/RNCEKVTextInputFocusWrapper.mm
+--- a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVTextInputFocusWrapper/RNCEKVTextInputFocusWrapper.mm
++++ b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVTextInputFocusWrapper/RNCEKVTextInputFocusWrapper.mm
+@@ -7 +6,0 @@
+-#import "RCTBaseTextInputView.h"
+@@ -28 +27 @@
+-#import "RCTFabricComponentsPlugins.h"
++#import <React/RCTFabricComponentsPlugins.h>
+diff --git a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVTextInputFocusWrapper/RNCEKVTextInputFocusWrapperManager.mm b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVTextInputFocusWrapper/RNCEKVTextInputFocusWrapperManager.mm
+--- a/node_modules/react-native-external-keyboard/ios/Views/RNCEKVTextInputFocusWrapper/RNCEKVTextInputFocusWrapperManager.mm
++++ b/node_modules/react-native-external-keyboard/ios/Views/RNCEKVTextInputFocusWrapper/RNCEKVTextInputFocusWrapperManager.mm
+@@ -5 +5 @@
+-#import "RCTBridge.h"
++#import <React/RCTBridge.h>
+diff --git a/node_modules/react-native-external-keyboard/lib/typescript/src/types/BaseKeyboardView.d.ts b/node_modules/react-native-external-keyboard/lib/typescript/src/types/BaseKeyboardView.d.ts
+--- a/node_modules/react-native-external-keyboard/lib/typescript/src/types/BaseKeyboardView.d.ts
++++ b/node_modules/react-native-external-keyboard/lib/typescript/src/types/BaseKeyboardView.d.ts
+@@ -1 +1 @@
+-import type { View, ViewProps, NativeSyntheticEvent, ColorValue } from 'react-native';
++import type { ViewInstance, ViewProps, NativeSyntheticEvent, ColorValue } from 'react-native';
+@@ -17 +17 @@
+-export type BaseKeyboardViewType = Partial<View> & KeyboardFocus;
++export type BaseKeyboardViewType = Partial<ViewInstance> & KeyboardFocus;
+@@ -30 +30 @@
+-    viewRef?: RefObject<View>;
++    viewRef?: RefObject<ViewInstance>;
+diff --git a/node_modules/react-native-external-keyboard/src/types/BaseKeyboardView.ts b/node_modules/react-native-external-keyboard/src/types/BaseKeyboardView.ts
+--- a/node_modules/react-native-external-keyboard/src/types/BaseKeyboardView.ts
++++ b/node_modules/react-native-external-keyboard/src/types/BaseKeyboardView.ts
+@@ -2 +2 @@
+-  View,
++  ViewInstance,
+@@ -18 +18 @@
+-export type BaseKeyboardViewType = Partial<View> & KeyboardFocus;
++export type BaseKeyboardViewType = Partial<ViewInstance> & KeyboardFocus;
+@@ -34 +34 @@
+-  viewRef?: RefObject<View>;
++  viewRef?: RefObject<ViewInstance>;

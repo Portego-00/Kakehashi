@@ -26,7 +26,7 @@ const makeAssignmentsCollection = (assignments: any[]) => ({
   url: "https://api.wanikani.com/v2/assignments",
   pages: {
     per_page: 500,
-    next_url: null,
+    next_url: null as string | null,
     previous_url: null,
   },
   total_count: assignments.length,
@@ -242,6 +242,84 @@ describe("api offline assignment fallbacks", () => {
     expect(result.data[0].data.srs_stage).toBe(9);
   });
 
+  it("keeps the complete progress cache when a refresh ends with fewer rows than reported", async () => {
+    const cachedAssignments = makeAssignmentsCollection(
+      Array.from({ length: 350 }, (_, index) => makeAssignment(index + 1, {
+        srs_stage: 5,
+      })),
+    );
+    (global.fetch as jest.Mock).mockImplementationOnce(() => mockResponse({
+      ...cachedAssignments,
+      data: cachedAssignments.data.slice(0, 86),
+    }));
+    const { api, getCanonicalAssignmentCollection, getPermanentAssignmentData } = loadApi({
+      cachedAssignments,
+      permanentAssignments: cachedAssignments.data,
+      statefulCanonicalAssignmentCache: true,
+    });
+
+    const result = await api.getAssignmentsOptimized("test-token", {}, {
+      forceFullRefresh: true,
+    });
+
+    expect(result.data.length).toBe(350);
+    expect(getCanonicalAssignmentCollection()?.data).toHaveLength(350);
+    expect(getPermanentAssignmentData()).toHaveLength(350);
+  });
+
+  it("rejects incomplete progress when no saved collection is available", async () => {
+    (global.fetch as jest.Mock).mockImplementationOnce(() => mockResponse({
+      ...makeAssignmentsCollection([makeAssignment(1)]),
+      total_count: 2,
+    }));
+    const { api, saveAssignmentsToPermanentStorageMock } = loadApi();
+
+    await expect(api.getAssignmentsOptimized("test-token")).rejects.toThrow(
+      "Incomplete collection: received 1 of 2 items",
+    );
+    expect(saveAssignmentsToPermanentStorageMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["first", "later"])("keeps saved progress when the %s assignment page is rate limited", async (page) => {
+    const cachedAssignments = makeAssignmentsCollection([
+      makeAssignment(1, { srs_stage: 5 }),
+      makeAssignment(2, { srs_stage: 9 }),
+    ]);
+    if (page === "later") {
+      (global.fetch as jest.Mock).mockImplementationOnce(() => mockResponse({
+        ...cachedAssignments,
+        data: [cachedAssignments.data[0]],
+        pages: {
+          ...cachedAssignments.pages,
+          next_url: "https://api.wanikani.com/v2/assignments?page_after_id=1",
+        },
+      }));
+    }
+    (global.fetch as jest.Mock).mockImplementation(async () => ({
+      ok: false, status: 429,
+      headers: { get: () => null },
+      text: async () => "Rate Limit Exceeded",
+    }));
+    const { api, getCanonicalAssignmentCollection, getPermanentAssignmentData,
+      saveAssignmentsToPermanentStorageMock } = loadApi({
+      cachedAssignments,
+      permanentAssignments: cachedAssignments.data,
+      statefulCanonicalAssignmentCache: true,
+    });
+
+    const result = await api.getAssignmentsOptimized("test-token", {}, {
+      forceFullRefresh: true,
+    });
+
+    expect(result.data).toEqual(cachedAssignments.data);
+    expect(getCanonicalAssignmentCollection()?.data).toEqual(cachedAssignments.data);
+    expect(getPermanentAssignmentData()).toEqual(cachedAssignments.data);
+    expect(saveAssignmentsToPermanentStorageMock).not.toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { saveDataUpdatedAt } = require("../cache");
+    expect(saveDataUpdatedAt).not.toHaveBeenCalled();
+  });
+
   it("does not let an older full refresh restore a locally submitted review", async () => {
     const reviewedAssignment = makeAssignment(1, {
       srs_stage: 1,
@@ -316,7 +394,7 @@ describe("api offline assignment fallbacks", () => {
       (assignment: any) => assignment.id === reviewedAssignment.id
     );
     const cachedReviewedAssignment =
-      getCanonicalAssignmentCollection().data.find(
+      getCanonicalAssignmentCollection()?.data.find(
         (assignment: any) => assignment.id === reviewedAssignment.id
       );
     const permanentReviewedAssignment = getPermanentAssignmentData().find(

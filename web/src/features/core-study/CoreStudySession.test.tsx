@@ -303,6 +303,46 @@ describe("core study prompt layout", () => {
     await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.find(([endpoint]) => endpoint === "reviews")?.[1]).toMatchObject({ body: { review: { assignment_id: 100, incorrect_meaning_answers: 1, incorrect_reading_answers: 0 } } }));
   });
 
+  it.each([false, true])("honors stop on correct %s for multiple choice", async (pause) => {
+    enableChoices();
+    fixtures.settings.study.pauseOnCorrect = pause;
+    renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. River$/ }));
+    if (pause) {
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 650)); });
+      expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+    await screen.findByRole("heading", { name: "reading" }, { timeout: 2000 });
+  });
+
+  it.each(["unknown", "corrected"])("saves one mistake for a %s choice using the configured answer pauses", async (action) => {
+    enableChoices();
+    fixtures.settings.study.pauseOnCorrect = action === "corrected";
+    fixtures.settings.study.pauseOnWrong = false;
+    renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    if (action === "unknown") {
+      const unknown = screen.getByRole("button", { name: "I don't know" });
+      act(() => { fireEvent.click(unknown); fireEvent.click(unknown); });
+      expect(screen.queryByRole("button", { name: "Add as synonym" })).not.toBeInTheDocument();
+    } else {
+      fireEvent.click(within(group).getByRole("button", { name: /^\d\. River$/ }));
+    }
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 650)); });
+    expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
+    expect(wkRequest).not.toHaveBeenCalledWith("reviews", expect.anything());
+    fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
+    await screen.findByRole("heading", { name: "reading" });
+    fireEvent.click(within(screen.getByRole("group", { name: "Answer choices" })).getByRole("button", { name: /^\d\. かわ$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByRole("heading", { name: "meaning" });
+    fireEvent.click(within(screen.getByRole("group", { name: "Answer choices" })).getByRole("button", { name: /^\d\. River$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.find(([endpoint]) => endpoint === "reviews")?.[1]).toMatchObject({ body: { review: { incorrect_meaning_answers: 1, incorrect_reading_answers: 0 } } }));
+  });
+
   it("does not offer user synonyms as incorrect choices", async () => {
     enableChoices();
     fixtures.studyMaterialsRequest = Promise.resolve([{ ...fixtures.studyMaterial, data: { ...fixtures.studyMaterial.data, meaning_synonyms: ["Water"] } }]);

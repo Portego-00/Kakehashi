@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";

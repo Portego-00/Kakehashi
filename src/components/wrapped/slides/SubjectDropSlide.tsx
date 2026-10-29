@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
   },
   dropArea: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   dropItem: {
     position: "absolute",

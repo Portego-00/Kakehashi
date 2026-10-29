@@ -1,3 +1,4 @@
+import type { ViewInstance } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Clipboard, StyleSheet, Text, View } from "react-native";
 
@@ -7,7 +8,7 @@ const TOOLTIP_EXIT_DURATION_MS = 140;
 const TOOLTIP_ENTER_OFFSET = 10;
 const TOOLTIP_EXIT_OFFSET = -10;
 
-type AnchorRef = React.RefObject<View | null>;
+type AnchorRef = React.RefObject<ViewInstance | null>;
 
 interface TooltipPosition {
   x: number;
@@ -23,7 +24,7 @@ interface CopyTooltipProps {
 }
 
 export function useCopyTooltip(displayMs = TOOLTIP_SHOW_DURATION_MS) {
-  const containerRef = useRef<View>(null);
+  const containerRef = useRef<ViewInstance>(null);
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({
     x: 0,

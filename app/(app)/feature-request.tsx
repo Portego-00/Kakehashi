@@ -1,3 +1,4 @@
+import type { ScrollViewInstance, TextInputInstance } from "react-native";
 import React, { useState, useRef } from "react";
 import {
   View,
@@ -21,8 +22,8 @@ export default function FeatureRequestScreen() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const textInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const textInputRef = useRef<TextInputInstance>(null);
 
   const categories = [
     "Study Experience",

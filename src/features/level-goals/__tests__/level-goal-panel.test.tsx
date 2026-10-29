@@ -1,7 +1,7 @@
 import React from "react";
 import {
   act,
-  cleanup,
+  cleanupAsync,
   fireEvent,
   render,
   waitFor,
@@ -31,7 +31,7 @@ jest.mock("../../../utils/haptics", () => ({
   notificationAsync: jest.fn(async () => {}),
   NotificationFeedbackType: { Success: "success" },
 }));
-jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
+jest.mock("expo-router/react-navigation", () => ({ useIsFocused: () => true }));
 jest.mock("react-native-reanimated", () => {
   const { View } =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -63,8 +63,8 @@ beforeEach(() => {
   mockAuth.userData.username = "Portego";
   mockPush.mockClear();
 });
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await cleanupAsync();
   jest.useRealTimers();
 });
 it("dismisses the Level widget and restores it in Level", () => {

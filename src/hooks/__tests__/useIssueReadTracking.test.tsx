@@ -1,5 +1,6 @@
+import type { ScrollViewInstance } from "react-native";
 import React, { useRef } from "react";
-import { View, type ScrollView } from "react-native";
+import { View, ScrollView } from "react-native";
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { useIssueReadTracking } from "../useIssueReadTracking";
 import { markIssueRead } from "../../utils/issueReadState";
@@ -7,9 +8,9 @@ import { markIssueRead } from "../../utils/issueReadState";
 jest.mock("../../utils/issueReadState", () => ({ markIssueRead: jest.fn(async () => undefined) }));
 const createdAt = "2026-10-08T12:00:00Z";
 function Harness() {
-  const scroll = useRef<ScrollView | null>(null);
+  const scroll = useRef<ScrollViewInstance | null>(null);
   const tracking = useIssueReadTracking("viewer", "thread", undefined, scroll);
-  return <View testID="viewport" onLayout={tracking.onLayout} onScroll={tracking.onScroll}><View testID="reply" onLayout={(event) => tracking.onCommentLayout("reply", createdAt, event)} /></View>;
+  return <ScrollView ref={scroll} testID="viewport" onLayout={tracking.onLayout} onScroll={tracking.onScroll}><View testID="reply" onLayout={(event) => tracking.onCommentLayout("reply", createdAt, event)} /></ScrollView>;
 }
 beforeEach(() => { jest.useFakeTimers(); jest.clearAllMocks(); });
 afterEach(() => jest.useRealTimers());

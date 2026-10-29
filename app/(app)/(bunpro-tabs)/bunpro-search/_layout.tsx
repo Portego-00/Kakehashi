@@ -1,10 +1,12 @@
 import { Stack, useRouter } from "expo-router";
 import { supportsNativeTabs } from "../../../../src/utils/nativeTabs";
-import { bunproNativeSearchBarRef } from "./searchBarRef";
+import { bunproNativeSearchBarRef } from "../../../../src/utils/nativeSearchBarRefs";
+import { useNativeSearchBar } from "../../../../src/contexts/NativeSearchContext";
 
 export default function BunproSearchLayout() {
   const router = useRouter();
   const showNativeSearchBar = supportsNativeTabs();
+  const canAttachSearchBar = useNativeSearchBar(showNativeSearchBar, bunproNativeSearchBarRef);
 
   return (
     <Stack>
@@ -15,8 +17,7 @@ export default function BunproSearchLayout() {
           headerShown: showNativeSearchBar,
           headerTransparent: true,
           headerShadowVisible: false,
-          // @ts-ignore
-          headerSearchBarOptions: showNativeSearchBar
+          headerSearchBarOptions: canAttachSearchBar
             ? {
                 ref: bunproNativeSearchBarRef,
                 placement: "automatic",

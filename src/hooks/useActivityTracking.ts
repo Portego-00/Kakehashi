@@ -1,4 +1,4 @@
-import { NavigationContext } from "@react-navigation/native";
+import { NavigationContext } from "expo-router/react-navigation";
 import { useContext, useEffect } from "react";
 import { timeTrackingService } from "../services/timeTrackingService";
 import type { ActivityKey } from "../services/timeTrackingCore";

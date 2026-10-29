@@ -320,7 +320,10 @@ function getFileExtensionFromMediaType(mediaType: string): string {
   }
 }
 
-function persistCoverFromDataUri(bookId: string, dataUri: string): string | undefined {
+async function persistCoverFromDataUri(
+  bookId: string,
+  dataUri: string,
+): Promise<string | undefined> {
   const parsed = parseDataUri(dataUri);
 
   if (!parsed || !isImageMediaType(parsed.mediaType)) {
@@ -336,7 +339,7 @@ function persistCoverFromDataUri(bookId: string, dataUri: string): string | unde
   }
 
   coverFile.create({ intermediates: true, overwrite: true });
-  coverFile.write(parsed.base64, { encoding: "base64" });
+  await coverFile.write(parsed.base64, { encoding: "base64" });
   return coverFile.uri;
 }
 
@@ -2286,7 +2289,7 @@ async function ensureLibraryReady(): Promise<void> {
 
   if (!indexFile.exists) {
     indexFile.create({ intermediates: true, overwrite: true });
-    indexFile.write("[]");
+    indexFile.writeSync("[]");
   }
 }
 
@@ -2312,7 +2315,7 @@ async function readIndex(): Promise<EpubLibraryItem[]> {
 
 async function writeIndex(entries: EpubLibraryItem[]): Promise<void> {
   await ensureLibraryReady();
-  indexFile.write(JSON.stringify(entries, null, 2));
+  await indexFile.write(JSON.stringify(entries, null, 2));
 }
 
 function getBookFile(bookId: string): File {
@@ -2346,7 +2349,7 @@ async function saveStoredBook(book: StoredEpubBook): Promise<void> {
     if (!htmlFile.exists) {
       htmlFile.create({ intermediates: true, overwrite: true });
     }
-    htmlFile.write(book.html);
+    await htmlFile.write(book.html);
   } else if (!htmlFile.exists) {
     throw new Error(`Missing HTML payload for EPUB book ${bookId}`);
   }
@@ -2360,7 +2363,7 @@ async function saveStoredBook(book: StoredEpubBook): Promise<void> {
   if (!destination.exists) {
     destination.create({ intermediates: true, overwrite: true });
   }
-  destination.write(JSON.stringify(persistedRecord));
+  await destination.write(JSON.stringify(persistedRecord));
 }
 
 export const epubLibraryService = {
@@ -2392,7 +2395,7 @@ export const epubLibraryService = {
     const now = Date.now();
     const bookId = createBookId();
     const coverUri = parsed.coverDataUri
-      ? persistCoverFromDataUri(bookId, parsed.coverDataUri)
+      ? await persistCoverFromDataUri(bookId, parsed.coverDataUri)
       : undefined;
 
     const metadata: EpubLibraryItem = {
@@ -2463,7 +2466,7 @@ export const epubLibraryService = {
           const existingHtml = await htmlFile.text();
           const migratedHtml = migrateReaderHtml(existingHtml);
           if (migratedHtml !== existingHtml) {
-            htmlFile.write(migratedHtml);
+            await htmlFile.write(migratedHtml);
           }
         }
 

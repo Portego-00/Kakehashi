@@ -222,11 +222,11 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           {item.imageUrl && (
             <Animated.View
               pointerEvents="none"
-              style={[StyleSheet.absoluteFillObject, imageReadStyle]}
+              style={[StyleSheet.absoluteFill, imageReadStyle]}
             >
               <Image
                 source={{ uri: item.imageUrl }}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={200}
               />
@@ -236,7 +236,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
           {/* Gradient Overlay for Text Readability */}
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.8)"]}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             pointerEvents="none"
           />
 
@@ -294,7 +294,7 @@ export const NewsCard: React.FC<NewsCardProps> = ({
             >
               <Image
                 source={{ uri: item.imageUrl }}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={200}
               />

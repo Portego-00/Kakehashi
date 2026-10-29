@@ -24,6 +24,7 @@ jest.mock("react-native/Libraries/Linking/Linking", () => ({
   },
 }));
 jest.mock("expo-linking", () => ({
+  ...jest.requireActual("expo-linking"),
   addEventListener: (...args: unknown[]) => jest.requireMock("react-native/Libraries/Linking/Linking").default.addEventListener(...args),
 }));
 jest.mock("react-native/Libraries/AppState/AppState", () => ({
@@ -36,7 +37,10 @@ jest.mock("react-native/Libraries/AppState/AppState", () => ({
     },
   },
 }));
-jest.mock("expo-web-browser/build/ExpoWebBrowser", () => ({
+jest.mock(require("node:path").join(
+  require("node:path").dirname(require.resolve("expo-web-browser/package.json")),
+  "build/ExpoWebBrowser.js",
+), () => ({
   openBrowserAsync: jest.fn(async () => ({ type: "opened" })),
   dismissBrowser: () => mockAppStateChange("active"),
 }));
@@ -62,10 +66,7 @@ function linkingConfig(serverUrl?: string) {
   ])));
   const routes = getRoutes(context);
   if (!routes) throw new Error("Expected app routes");
-  return getLinkingConfig(routes, context, () => ({
-    unstable_globalHref: "/", pathname: "/", pathnameWithParams: "/",
-    params: {}, searchParams: new URLSearchParams(), segments: [], isIndex: true,
-  }), { serverUrl, skipGenerated: false, sitemap: true, notFound: true });
+  return getLinkingConfig(routes, context, { serverUrl, skipGenerated: false, sitemap: true, notFound: true });
 }
 
 const originalPlatform = Platform.OS;

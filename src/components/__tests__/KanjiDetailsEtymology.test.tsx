@@ -5,9 +5,13 @@ import {parsePackageText} from "../../features/translation-packages/resolver";
 import {packageManager} from "../../features/translation-packages/package-store";
 import {useLearningContentStore} from "../../features/translation-packages/store";
 import React from "react";
+import { StyleSheet, TouchableOpacity } from "react-native";
 
 import { useSettingsStore } from "../../utils/store";
 import KanjiDetails from "../KanjiDetails";
+
+let mockHeaderInsets = { top: 0, left: 0, right: 0, bottom: 0 };
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => mockHeaderInsets }));
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: () => null,
@@ -28,7 +32,7 @@ jest.mock("expo-router", () => ({
   },
 }));
 
-jest.mock("@react-navigation/native", () => ({
+jest.mock("expo-router/react-navigation", () => ({
   useNavigation: () => ({ goBack: jest.fn() }),
 }));
 
@@ -70,6 +74,7 @@ jest.mock("react-native-pager-view", () => {
 });
 
 jest.mock("../../utils/store", () => ({
+  useAuthStore: (selector: (state: { apiToken: null }) => unknown) => selector({ apiToken: null }),
   useSettingsStore: jest.fn(),
 }));
 
@@ -278,4 +283,32 @@ it("formats the fallback header reading without mutating its source", () => {
   const screen = render(<KanjiDetails kanji={{ ...kanji, readings }} progressionStatus="success" embedded />);
   expect(screen.getAllByText("キュウ").length).toBeGreaterThan(0);
   expect(readings[0].reading).toBe("きゅう");
+});
+
+
+it("keeps header actions inside changing top and horizontal safe areas", async () => {
+  mockSettings(false);
+  const onAddToList = jest.fn();
+  const onOpenConstellation = jest.fn();
+  mockHeaderInsets = { top: 0, left: 0, right: 72, bottom: 0 };
+  const details = () => <KanjiDetails kanji={kanji} progressionStatus="success" onAddToList={onAddToList} onOpenConstellation={onOpenConstellation} />;
+  const screen = render(details());
+  for (const [top, left, right, contentTop] of [[0, 0, 72, 64], [96, 0, 0, 112], [0, 64, 0, 64], [44, 0, 0, 64]]) {
+    mockHeaderInsets = { ...mockHeaderInsets, top, left, right };
+    screen.rerender(details());
+    const save = screen.getByRole("button", { name: "Add to saved lists" });
+    let actions = save.parent;
+    while (actions && StyleSheet.flatten(actions.props.style)?.position !== "absolute") actions = actions.parent;
+    expect(StyleSheet.flatten(actions?.props.style)).toMatchObject({ right: 16 + right, top: contentTop });
+    let header = actions?.parent;
+    while (header && typeof StyleSheet.flatten(header.props.style)?.paddingTop !== "number") header = header.parent;
+    expect(StyleSheet.flatten(header?.props.style)).toMatchObject({ paddingLeft: 16 + left, paddingRight: 16 + right, paddingTop: contentTop });
+    const buttons = screen.UNSAFE_getAllByType(TouchableOpacity);
+    const constellation = buttons.find(button => button.props.onPress === onOpenConstellation)!;
+    expect(StyleSheet.flatten(constellation.props.style).right).toBe(20 + right);
+    const back = buttons.find(button => StyleSheet.flatten(button.props.style)?.left === 20 + left);
+    expect(StyleSheet.flatten(back?.props.style)).toMatchObject({ left: 20 + left, top: contentTop });
+  }
+  await act(async () => {});
+  mockHeaderInsets = { top: 0, left: 0, right: 0, bottom: 0 };
 });

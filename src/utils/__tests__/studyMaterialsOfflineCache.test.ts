@@ -32,7 +32,7 @@ jest.mock("../permanentStorage", () => ({
 }));
 
 const getFromPermanentStorageMock =
-  getFromPermanentStorage as jest.MockedFunction<typeof getFromPermanentStorage>;
+  jest.mocked(getFromPermanentStorage<unknown>);
 const saveToPermanentStorageMock =
   saveToPermanentStorage as jest.MockedFunction<typeof saveToPermanentStorage>;
 

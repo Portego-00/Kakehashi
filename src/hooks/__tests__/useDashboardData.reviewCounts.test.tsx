@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { act, render } from "@testing-library/react-native";
-import { InteractionManager, Text } from "react-native";
+import { Text } from "react-native";
+import * as idleTasks from "../../utils/scheduleIdleTask";
 import { DashboardProvider, useDashboardData } from "../useDashboardData";
 import type { Assignment } from "../../utils/api";
 
@@ -10,6 +11,7 @@ const mockGetReviewCount = jest.fn();
 const mockGetSummary = jest.fn();
 const mockGetAssignments = jest.fn();
 const mockGetStatistics = jest.fn();
+const mockGetSubjectById = jest.fn(async (_id: number): Promise<any> => null);
 const mockSaveDashboard = jest.fn(async (_data: unknown) => {});
 const mockPendingIds = jest.fn();
 const mockAuthState = {
@@ -35,7 +37,9 @@ jest.mock("../../utils/dashboardCache", () => ({
 jest.mock("../../utils/permanentStorage", () => ({
   getFullDashboardDataFromPermanentStorage: () => mockReconstructedDashboard(),
 }));
-jest.mock("../../utils/cache", () => ({ getSubjectById: async () => null }));
+jest.mock("../../utils/cache", () => ({
+  getSubjectById: (id: number) => mockGetSubjectById(id),
+}));
 jest.mock("../../services/offlineStudyProgressService", () => ({
   getPendingProgressAssignmentIds: () => mockPendingIds(),
 }));
@@ -113,6 +117,7 @@ describe("dashboard review count while refresh is pending", () => {
     mockGetSummary.mockReturnValue(deferred<unknown>().promise);
     mockGetAssignments.mockReturnValue(deferred<unknown>().promise);
     mockGetStatistics.mockResolvedValue({ data: [] });
+    mockGetSubjectById.mockResolvedValue(null);
     mockCachedDashboard.mockResolvedValue({
       reviewCount: 271,
       lessonCount: 0,
@@ -124,6 +129,33 @@ describe("dashboard review count while refresh is pending", () => {
   });
 
   afterEach(() => { jest.useRealTimers(); });
+
+  it("keeps 350 learned kanji when only 86 subject records are cached", async () => {
+    const rows = assignments(350).map((row) => ({
+      ...row,
+      data: { ...row.data, subject_type: "kanji" as const, srs_stage: 5 },
+    }));
+    mockCachedDashboard.mockResolvedValue(null);
+    mockReconstructedDashboard.mockResolvedValue(null);
+    mockGetSummary.mockResolvedValue({ data: { lessons: [], reviews: [] } });
+    mockGetReviewCount.mockResolvedValue(350);
+    mockGetAssignments.mockResolvedValue({ data: rows });
+    mockGetSubjectById.mockImplementation(async (id) => id <= 86 ? {
+      id, object: "kanji", data: {
+        characters: "字", level: 1,
+        meanings: [{ meaning: "letter", primary: true }],
+        readings: [{ reading: "じ", primary: true }],
+      },
+    } : null);
+
+    render(<DashboardProvider><Count /></DashboardProvider>);
+    await act(async () => {});
+
+    expect(dashboard.dashboardData.learnedKanjiCount).toBe(350);
+    expect(mockAuthState.setLearnedKanjiCount).toHaveBeenLastCalledWith(350);
+    expect(mockSaveDashboard.mock.calls.some(([data]: any[]) =>
+      data.learnedKanjiCount === 86)).toBe(false);
+  });
 
   it("uses current local assignments at startup before the network responds", async () => {
     mockReconstructedDashboard.mockResolvedValue({
@@ -355,8 +387,8 @@ describe("dashboard review count while refresh is pending", () => {
     mockReconstructedDashboard.mockImplementation(async () => ({
       assignments: rows, subjects: [], dataLoadingState: {},
     }));
-    const interactions = jest.spyOn(InteractionManager, "runAfterInteractions")
-      .mockImplementation((task: any) => { task(); return { cancel: jest.fn(), then: jest.fn(), done: jest.fn() }; });
+    const interactions = jest.spyOn(idleTasks, "scheduleIdleTask")
+      .mockImplementation((task: any) => { task(); return { cancel: jest.fn() }; });
     render(<DashboardProvider><Count /></DashboardProvider>);
     await act(async () => { await jest.advanceTimersByTimeAsync(1500); });
     expect(mockGetStatistics).toHaveBeenCalled();
@@ -383,8 +415,8 @@ describe("dashboard review count while refresh is pending", () => {
     mockReconstructedDashboard.mockImplementation(async () => ({
       assignments: rows, subjects: [], dataLoadingState: {},
     }));
-    const interactions = jest.spyOn(InteractionManager, "runAfterInteractions")
-      .mockImplementation((task: any) => { task(); return { cancel: jest.fn(), then: jest.fn(), done: jest.fn() }; });
+    const interactions = jest.spyOn(idleTasks, "scheduleIdleTask")
+      .mockImplementation((task: any) => { task(); return { cancel: jest.fn() }; });
     render(<DashboardProvider><Count /></DashboardProvider>);
     await act(async () => { await jest.advanceTimersByTimeAsync(1500); });
     const slowAssignments = deferred<unknown>();
@@ -422,8 +454,8 @@ describe("dashboard review count while refresh is pending", () => {
     mockReconstructedDashboard.mockResolvedValue({
       assignments: rows, subjects: [], dataLoadingState: {},
     });
-    const interactions = jest.spyOn(InteractionManager, "runAfterInteractions")
-      .mockImplementation((task: any) => { task(); return { cancel: jest.fn(), then: jest.fn(), done: jest.fn() }; });
+    const interactions = jest.spyOn(idleTasks, "scheduleIdleTask")
+      .mockImplementation((task: any) => { task(); return { cancel: jest.fn() }; });
     render(<DashboardProvider><Count /></DashboardProvider>);
     await act(async () => { await jest.advanceTimersByTimeAsync(1500); });
     expect(mockGetStatistics).toHaveBeenCalled();

@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Animated,
   AppState,
-  type AppStateStatus,
   type LayoutChangeEvent,
   Modal,
   Pressable,
@@ -147,7 +146,7 @@ export default function EpubReaderScreen() {
   const readingFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartedAtRef = useRef<number | null>(null);
   const pendingReadingSecondsRef = useRef(0);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const appStateRef = useRef(AppState.currentState ?? "active");
   const lookupRequestIdRef = useRef(0);
   const webViewRef = useRef<WebView>(null);
   const lookupSheetTranslateY = useRef(new Animated.Value(56)).current;
@@ -1172,7 +1171,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   positioningOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
@@ -1264,11 +1263,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   lookupModalRoot: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "flex-end",
   },
   lookupBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "transparent",
   },
   lookupSheetWrap: {
