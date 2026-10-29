@@ -7,6 +7,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../../../src/hooks/useActivityTracking";
 import { useRouter } from "expo-router";
+import { isLiquidGlassAvailable } from "expo-glass-effect";
 import React, {
   useCallback,
   useEffect,
@@ -405,14 +406,37 @@ export default function NewsScreen() {
   const isTablet = width > 768;
   const carouselWidth = isTablet ? 500 : width;
 
+  const renderMenuLabel = (
+    systemImage: string,
+    iconName: keyof typeof Ionicons.glyphMap,
+    iconColor: string,
+  ) => isLiquidGlassAvailable() ? (
+    <SwiftUI.Image
+      systemName={systemImage}
+      size={22}
+      color={iconColor}
+      modifiers={[
+        SwiftUIModifiers.frame({ width: 44, height: 44 }),
+        SwiftUIModifiers.glassEffect({
+          glass: { variant: "regular", interactive: true },
+          shape: "circle",
+        }),
+      ]}
+    />
+  ) : (
+    <SwiftUI.RNHostView matchContents>
+      <GlassButton iconName={iconName} iconSize={22} iconColor={iconColor}
+        variant={theme.isDark ? "colored" : "light"} />
+    </SwiftUI.RNHostView>
+  );
+
   const renderSortControl = () => Platform.OS === "ios" && SwiftUI ? (
-    <SwiftUI.Host matchContents style={styles.sortMenuHost}>
-      <SwiftUI.Menu modifiers={[SwiftUIModifiers.buttonStyle("plain")]} label={
-        <SwiftUI.RNHostView matchContents>
-          <GlassButton iconName="swap-vertical" iconSize={18} iconColor={theme.textColor}
-            style={styles.sortMenuButton} variant={theme.isDark ? "colored" : "light"} />
-        </SwiftUI.RNHostView>
-      }>
+    <SwiftUI.Host alignment="center" ignoreSafeArea="container"
+      colorScheme={theme.isDark ? "dark" : "light"} style={styles.sortMenuHost}>
+      <SwiftUI.Menu modifiers={[
+        SwiftUIModifiers.buttonStyle("plain"),
+        SwiftUIModifiers.accessibilityLabel(`Sort news, ${sortButtonText}`),
+      ]} label={renderMenuLabel("arrow.up.arrow.down", "swap-vertical", theme.textColor)}>
         <SwiftUI.Button label="Date (Newest first)"
           systemImage={otherNewsSortMode === "date" ? "checkmark.circle.fill" : "circle"}
           onPress={() => setOtherNewsSortMode("date")} />
@@ -422,11 +446,9 @@ export default function NewsScreen() {
       </SwiftUI.Menu>
     </SwiftUI.Host>
   ) : (
-    <Pressable style={[styles.sortControlButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-      onPress={openSortFallbackMenu}>
-      <Ionicons name="swap-vertical" size={14} color={theme.textSecondary} />
-      <Text style={[styles.sortControlButtonText, { color: theme.textColor }]}>{sortButtonText}</Text>
-    </Pressable>
+    <GlassButton iconName="swap-vertical" iconSize={22} iconColor={theme.textColor}
+      accessibilityLabel={`Sort news, ${sortButtonText}`} style={styles.sortMenuHost}
+      variant={theme.isDark ? "colored" : "light"} onPress={openSortFallbackMenu} />
   );
 
   const renderSectionHeader = ({ section }: { section: { key: string; title: string } }) => {
@@ -451,20 +473,15 @@ export default function NewsScreen() {
           {savedOnly ? "Saved articles" : unreadOnly ? "Unread News" : "Recent News"}
         </Text>
         {Platform.OS === "ios" && SwiftUI ? (
-          <SwiftUI.Host matchContents style={styles.sortMenuHost}>
+          <SwiftUI.Host alignment="center" ignoreSafeArea="container"
+            colorScheme={theme.isDark ? "dark" : "light"} style={styles.sortMenuHost}>
             <SwiftUI.Menu
-              modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
-              label={
-                <SwiftUI.RNHostView matchContents>
-                  <GlassButton
-                    iconName="filter-outline"
-                    iconSize={18}
-                    iconColor={unreadOnly || savedOnly ? theme.primary : theme.textColor}
-                    style={styles.sortMenuButton}
-                    variant={theme.isDark ? "colored" : "light"}
-                  />
-                </SwiftUI.RNHostView>
-              }
+              modifiers={[
+                SwiftUIModifiers.buttonStyle("plain"),
+                SwiftUIModifiers.accessibilityLabel("Filter news"),
+              ]}
+              label={renderMenuLabel("line.3.horizontal.decrease", "filter-outline",
+                unreadOnly || savedOnly ? theme.primary : theme.textColor)}
             >
               <SwiftUI.Button
                 label="Unread only"
@@ -491,16 +508,16 @@ export default function NewsScreen() {
             </SwiftUI.Menu>
           </SwiftUI.Host>
         ) : (
-          <Pressable accessibilityRole="button" accessibilityLabel="Filter news"
-            accessibilityState={{ selected: unreadOnly || savedOnly }} onPress={openSourceFallbackMenu}>
-            <GlassButton
-              iconName="filter-outline"
-              iconSize={18}
-              iconColor={unreadOnly || savedOnly ? theme.primary : theme.textColor}
-              style={[styles.sortMenuButton, styles.sourceMenuFallbackButton]}
-              variant={theme.isDark ? "colored" : "light"}
-            />
-          </Pressable>
+          <GlassButton
+            accessibilityLabel="Filter news"
+            accessibilityState={{ selected: unreadOnly || savedOnly }}
+            onPress={openSourceFallbackMenu}
+            iconName="filter-outline"
+            iconSize={22}
+            iconColor={unreadOnly || savedOnly ? theme.primary : theme.textColor}
+            style={styles.sortMenuHost}
+            variant={theme.isDark ? "colored" : "light"}
+          />
         )}
       </View>
 
@@ -771,29 +788,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     paddingHorizontal: 16,
   },
-  sortControlButton: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginRight: 16,
-    minHeight: 32,
-  },
-  sortControlButtonText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
   sortMenuHost: {
-    marginRight: 16,
-  },
-  sortMenuButton: {
-    width: 36,
-    height: 36,
-  },
-  sourceMenuFallbackButton: {
+    width: 44,
+    height: 44,
+    flexShrink: 0,
     marginRight: 16,
   },
 });
