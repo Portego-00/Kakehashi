@@ -3,7 +3,7 @@
     "name": "Kakehashi",
     "slug": "kakehashi",
     "version": "1.6.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kakehashi",
     "userInterfaceStyle": "automatic",
