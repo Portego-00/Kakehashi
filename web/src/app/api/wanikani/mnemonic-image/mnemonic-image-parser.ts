@@ -5,11 +5,17 @@ function attribute(tag: string, name: string) {
 }
 
 export function extractMnemonicImageUrl(html: string) {
-  const component = html.match(/<wk-mnemonic-image\b[^>]*>/i)?.[0];
-  if (component) return attribute(component, "src")?.replace(/^@/, "") ?? null;
+  // WaniKani includes empty component templates before the subject's image.
+  const components = html.match(/<wk-mnemonic-image\b[^>]*>/gi) ?? [];
+  for (const component of components) {
+    const src = attribute(component, "src")?.trim().replace(/^@/, "").trim();
+    if (src) return src;
+  }
 
-  const fallback = (html.match(/<img\b[^>]*>/gi) ?? []).find((tag) =>
-    attribute(tag, "class")?.split(/\s+/).includes("subject-mnemonic-image__image"),
-  );
-  return fallback ? attribute(fallback, "src")?.replace(/^@/, "") ?? null : null;
+  for (const tag of html.match(/<img\b[^>]*>/gi) ?? []) {
+    if (!attribute(tag, "class")?.split(/\s+/).includes("subject-mnemonic-image__image")) continue;
+    const src = attribute(tag, "src")?.trim().replace(/^@/, "").trim();
+    if (src) return src;
+  }
+  return null;
 }
