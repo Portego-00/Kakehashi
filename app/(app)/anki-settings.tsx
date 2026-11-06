@@ -40,6 +40,7 @@ export default function AnkiSettingsScreen() {
     ankiHideAnswerCompletely,
     setAnkiHideAnswerCompletely,
     ankiButtonlessMode,
+    reviewLeftHandedMode,
     setAnkiButtonlessMode,
     ankiShowReplayAudioButton,
     setAnkiShowReplayAudioButton,
@@ -215,8 +216,9 @@ export default function AnkiSettingsScreen() {
               <Text
                 style={[styles.settingSubtext, { color: theme.textSecondary }]}
               >
-                After reveal: tap left for incorrect, tap right for correct,
-                swipe up for details, and swipe down to skip.
+                {reviewLeftHandedMode
+                  ? "After reveal: tap left for correct, tap right for incorrect, swipe up for details, and swipe down to skip."
+                  : "After reveal: tap left for incorrect, tap right for correct, swipe up for details, and swipe down to skip."}
               </Text>
             </View>
             <Switch

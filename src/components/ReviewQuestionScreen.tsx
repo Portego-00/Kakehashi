@@ -1,3 +1,6 @@
+import type { TextInputInstance, ViewInstance } from "react-native";
+import { scheduleIdleTask } from "../utils/scheduleIdleTask";
+import { showStudyMaterialPermissionAlert } from "../utils/study-material-permission-alert";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
@@ -12,9 +15,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import {
   Alert,
   AppState,
-  Dimensions,
   type GestureResponderEvent,
-  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   type KeyboardEvent,
@@ -58,6 +59,7 @@ import {
 } from "../utils/answerChecker";
 import { getSubjectTypeColor } from "../utils/subjectColors";
 import { resolveReadingModeResult } from "../utils/readingAnswerMode";
+import { formatKanjiReadingAnswer } from "../utils/katakanaMadness";
 import {
   createStudyMaterial,
   updateStudyMaterial,
@@ -109,6 +111,7 @@ import {
 } from "../utils/review-multiple-choice";
 import KanjiDetails from "./KanjiDetails";
 import ReviewAnswerChoices from "./review-answer-choices";
+import ReviewKeyboardAvoidingView, { IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO } from "./ReviewKeyboardAvoidingView";
 import ReviewPromptCharacters from "./ReviewPromptCharacters";
 import RadicalDetails from "./RadicalDetails";
 import SrsLevelIcon, { type SrsLevelName } from "./SrsLevelIcon";
@@ -126,8 +129,6 @@ import {
 import { parseFormattedNote } from "../utils/note-formatting";
 import { getNoteVisualEditorRunsSignature } from "./note-visual-editor-model";
 
-// Get screen dimensions for animations
-const { width, height } = Dimensions.get("window");
 const ANSWER_INPUT_HEIGHT = 52;
 const ANDROID_AUTOFOCUS_DELAY_MS = 200;
 const ANKI_REVEAL_DURATION_MS = 200;
@@ -141,7 +142,6 @@ const ANSWERED_ITEM_RADICAL_SIZE = 34;
 const BUTTONLESS_TAP_MOVE_TOLERANCE_PX = 14;
 const BUTTONLESS_SWIPE_TRIGGER_PX = 56;
 const BUTTONLESS_VERTICAL_DOMINANCE_RATIO = 1.2;
-const IOS_SUSPICIOUS_KEYBOARD_HEIGHT_RATIO = 0.9;
 const VOCABULARY_AUDIO_MAX_PLAYBACK_MS = 15000;
 const DARK_MODE_MEANING_BANNER_BG = "#b8b8b8";
 const DARK_MODE_MEANING_BANNER_TEXT = "#1f1f1f";
@@ -209,6 +209,12 @@ interface SRSProgressionInfo {
   nextReviewInterval: string;
 }
 
+export interface AnkiReviewSettings {
+  enabled: boolean;
+  scope: "both" | "meaning" | "reading";
+  groupQuestions: boolean;
+}
+
 interface ReviewQuestionProps {
   item: ReviewItem;
   questionType: QuestionType;
@@ -239,6 +245,8 @@ interface ReviewQuestionProps {
   onSRSCardDismiss?: () => void;
   // Force disable Anki grouped questions (for random tests)
   forceDisableAnkiGrouping?: boolean;
+  // Session-specific review mode without changing the learner's global settings.
+  ankiSettingsOverride?: AnkiReviewSettings;
   // Hide accuracy for lesson flow
   isLessonFlow?: boolean;
   // When provided, overrides the central prompt display text (e.g., show meaning instead of characters)
@@ -941,6 +949,7 @@ const AnsweredItemCharacterDisplay = React.memo(function AnsweredItemCharacterDi
   subject: WKSubject;
   fallbackText: string;
 }) {
+  const { width: windowWidth } = useWindowDimensions();
   const isRadical = subject.object === "radical";
   const bestImg =
     isRadical && subject.data.character_images?.length
@@ -953,7 +962,7 @@ const AnsweredItemCharacterDisplay = React.memo(function AnsweredItemCharacterDi
     return (
       <Text
         key={`${subject.id}-${subject.data.characters}`}
-        style={styles.answeredItemCharacter}
+        style={[styles.answeredItemCharacter, { fontSize: Math.min(windowWidth * 0.07, 30) }]}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.5}
@@ -1008,6 +1017,7 @@ export default function ReviewQuestionScreen({
   srsProgression,
   onSRSCardDismiss,
   forceDisableAnkiGrouping = false,
+  ankiSettingsOverride,
   isLessonFlow = false,
   overridePromptText,
   audioPrompt,
@@ -1065,6 +1075,7 @@ export default function ReviewQuestionScreen({
     acceptUserSynonymsAsAnswers,
     showAddSynonymButton,
     acceptAnyKanjiOnyomiReading,
+    showOnyomiInKatakana,
     jitaiEnabled,
     jitaiCycleAllFonts,
     autoSwitchKeyboard,
@@ -1076,7 +1087,9 @@ export default function ReviewQuestionScreen({
     showJLPTLevel,
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
+    reviewLeftHandedMode,
     reviewCharacterFontScale,
+    reviewPromptTextColor,
     reviewInputFontScale,
     srsProgressionCardDisplayMode,
     visuallySimilarKanjiSource,
@@ -1102,16 +1115,18 @@ export default function ReviewQuestionScreen({
     [reviewCorrectKeyboardShortcuts],
   );
 
+  const resolvedAnkiScope = ankiSettingsOverride?.scope ?? ankiCardModeScope;
   const ankiModeMatchesQuestionType =
-    ankiCardModeScope === "both" || ankiCardModeScope === questionType;
+    resolvedAnkiScope === "both" || resolvedAnkiScope === questionType;
 
   // Override Anki mode settings if forced to disable grouping
-  const effectiveAnkiCardMode = ankiCardMode && ankiModeMatchesQuestionType;
+  const effectiveAnkiCardMode =
+    (ankiSettingsOverride?.enabled ?? ankiCardMode) && ankiModeMatchesQuestionType;
   const effectiveAnkiGroupQuestions = forceDisableAnkiGrouping
     ? false
     : effectiveAnkiCardMode &&
-      ankiCardModeScope === "both" &&
-      ankiGroupQuestions;
+      resolvedAnkiScope === "both" &&
+      (ankiSettingsOverride?.groupQuestions ?? ankiGroupQuestions);
   const effectiveAnkiButtonlessMode =
     effectiveAnkiCardMode && ankiButtonlessMode;
   // Regular reviews may also accept kanji, but still support kana choices.
@@ -1173,8 +1188,8 @@ export default function ReviewQuestionScreen({
   const [retryCount, setRetryCount] = useState(0);
   const [navigatingToDetail, setNavigatingToDetail] = useState(false);
   const kanaInputRef = useRef<KanaInputHandle | null>(null);
-  const pausedShortcutInputRef = useRef<TextInput | null>(null);
-  const ankiShortcutInputRef = useRef<TextInput | null>(null);
+  const pausedShortcutInputRef = useRef<TextInputInstance | null>(null);
+  const ankiShortcutInputRef = useRef<TextInputInstance | null>(null);
   const [showRetryFeedback, setShowRetryFeedback] = useState(false);
   const [answerFeedback, setAnswerFeedback] = useState<
     "correct" | "incorrect" | "close" | null
@@ -1231,6 +1246,7 @@ export default function ReviewQuestionScreen({
   const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
   const [isSavingStudyMaterialNote, setIsSavingStudyMaterialNote] =
     useState(false);
+  const [noteImageComposerOpen, setNoteImageComposerOpen] = useState(false);
   const [localStudyMaterials, setLocalStudyMaterials] = useState<
     ReviewStudyMaterials | undefined
   >(studyMaterials);
@@ -1253,7 +1269,7 @@ export default function ReviewQuestionScreen({
   const [iosKeyboardVisible, setIosKeyboardVisible] = useState(false);
   const [iosKeyboardAvoidingEnabled, setIosKeyboardAvoidingEnabled] = useState(true);
   const [androidQuestionLayoutHeight, setAndroidQuestionLayoutHeight] = useState(0);
-  const buttonlessGestureContainerRef = useRef<View | null>(null);
+  const buttonlessGestureContainerRef = useRef<ViewInstance | null>(null);
   const buttonlessGestureBoundsRef = useRef({ left: 0, width: windowWidth });
   const androidBaselineQuestionHeightRef = useRef(0);
   const interfaceIdiom = (
@@ -2469,7 +2485,7 @@ export default function ReviewQuestionScreen({
         });
         let t1: ReturnType<typeof setTimeout> | null = null;
         let t2: ReturnType<typeof setTimeout> | null = null;
-        const interactionTask = InteractionManager.runAfterInteractions(() => {
+        const interactionTask = scheduleIdleTask(() => {
           t1 = setTimeout(focusInput, primaryDelay ?? 100);
           if (fallbackDelay !== null) {
             t2 = setTimeout(focusInput, fallbackDelay);
@@ -2618,8 +2634,8 @@ export default function ReviewQuestionScreen({
 
   const animateAnsweredItemBox = () => {
     const topMargin = 130; // Keep the scaled preview clear of long question text
-    const targetX = -(width / 2); // Move left
-    const targetY = -(height / 2) + topMargin; // Move up
+    const targetX = -(windowWidth / 2); // Move left
+    const targetY = -(windowHeight / 2) + topMargin; // Move up
     const targetScale = 0.6;
 
     // Reset animation values to starting position (center of screen)
@@ -2642,10 +2658,10 @@ export default function ReviewQuestionScreen({
   };
 
   useEffect(() => {
-    if (mixedPrevious) animateAnsweredItemBox();
+    if (mixedPrevious || previousAnswerItem) animateAnsweredItemBox();
     // Mixed answers arrive independently of this provider's own submissions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mixedPrevious, reviewAnimatePreviousQuestion]);
+  }, [mixedPrevious, reviewAnimatePreviousQuestion, windowWidth, windowHeight]);
 
   const handleAnswerChange = (text: string) => {
     if (!reviewActiveRef.current) return;
@@ -3146,7 +3162,7 @@ export default function ReviewQuestionScreen({
         if (!mountedRef.current) return;
 
         // If pause on wrong is enabled, show the correct answer and wait for user action
-        if (disableAutoProgressOnWrong) {
+        if (disableAutoProgressOnWrong || choice) {
           setIsPausedOnWrong(true);
           setIsPausedOnCloseAnswer(false);
           setIsPausedOnCorrect(false);
@@ -3624,6 +3640,7 @@ export default function ReviewQuestionScreen({
 
   const handleReviewDetailNotePress = useCallback(
     (noteType: StudyMaterialNoteType) => {
+      setNoteImageComposerOpen(false);
       setStudyMaterialNoteEditorSession((session) => session + 1);
       releasePausedShortcutFocus();
       setEditingStudyMaterialNoteType(noteType);
@@ -3746,6 +3763,7 @@ export default function ReviewQuestionScreen({
       setStudyMaterialNoteModalVisible(false);
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (showStudyMaterialPermissionAlert(error)) return;
       Alert.alert(
         "Error",
         `Failed to save note: ${
@@ -4019,6 +4037,9 @@ export default function ReviewQuestionScreen({
         }),
       );
     } else if (isPausedOnCorrect) {
+      if (currentSelectedChoice !== undefined) buttons.push(
+        renderPausedDetailsActionButton({ label: "Mark Wrong", iconName: "close", color: "#f44336", onPress: handleProgressAsWrong }),
+      );
       buttons.push(
         renderPausedDetailsActionButton({
           label: "Continue",
@@ -4027,6 +4048,10 @@ export default function ReviewQuestionScreen({
           onPress: handleProgressAsCorrect,
         }),
       );
+    }
+
+    if (reviewLeftHandedMode) {
+      buttons.reverse();
     }
 
     if (canReplayPausedAudio) {
@@ -4043,7 +4068,7 @@ export default function ReviewQuestionScreen({
       );
     }
 
-    if (item.subject.id > 0 && showAddSynonymButton && isPausedOnWrong && questionType === "meaning") {
+    if (item.subject.id > 0 && currentSelectedChoice !== "" && showAddSynonymButton && isPausedOnWrong && questionType === "meaning") {
       buttons.push(
         renderPausedDetailsActionButton({
           label: isAddingSynonym ? "Adding" : "Synonym",
@@ -4183,6 +4208,8 @@ export default function ReviewQuestionScreen({
             autoFocus
             value={editingStudyMaterialNoteText}
             onChangeText={setEditingStudyMaterialNoteText}
+            onImageComposerOpenChange={setNoteImageComposerOpen}
+            editable={!isSavingStudyMaterialNote}
             onFocus={syncAndroidKeyboardMetrics}
             accessibilityLabel={`${
               editingStudyMaterialNoteType === "meaning"
@@ -4219,9 +4246,13 @@ export default function ReviewQuestionScreen({
                 styles.studyMaterialNoteModalButton,
                 styles.studyMaterialNoteSaveButton,
                 { backgroundColor: getItemColor(item.subject.object) },
+                { opacity: noteImageComposerOpen ? 0.45 : 1 },
               ]}
               onPress={handleSaveStudyMaterialNote}
-              disabled={isSavingStudyMaterialNote}
+              accessibilityRole="button"
+              accessibilityLabel="Save note"
+              disabled={isSavingStudyMaterialNote || noteImageComposerOpen}
+              accessibilityState={{ disabled: isSavingStudyMaterialNote || noteImageComposerOpen }}
             >
               <Text
                 style={[
@@ -4229,7 +4260,7 @@ export default function ReviewQuestionScreen({
                   { color: "#ffffff" },
                 ]}
               >
-                {isSavingStudyMaterialNote ? "Saving..." : "Save"}
+                {isSavingStudyMaterialNote ? "Saving..." : "Save note"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -4327,7 +4358,7 @@ export default function ReviewQuestionScreen({
 
   // Handler for adding wrong answer as a synonym and marking correct
   const handleAddAsSynonym = async () => {
-    if (!apiToken || item.subject.id <= 0 || !wrongAnswerText || isAddingSynonym) return;
+    if (!apiToken || item.subject.id <= 0 || !wrongAnswerText || currentSelectedChoice === "" || isAddingSynonym) return;
 
     setIsAddingSynonym(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -4428,6 +4459,11 @@ export default function ReviewQuestionScreen({
     };
 
     if (isPausedOnCorrect) {
+      if (currentSelectedChoice !== undefined && doesReviewShortcutMatchKey(pressedKey, resolvedReviewIncorrectKeyboardShortcuts.markIncorrect)) {
+        suppressSubmitTemporarily();
+        handleProgressAsWrong();
+        return true;
+      }
       if (
         canReplayPausedAudio &&
         doesReviewShortcutMatchKey(
@@ -4872,7 +4908,8 @@ export default function ReviewQuestionScreen({
     // necessarily relative to the review pane.
     const { left, width: hitAreaWidth } = buttonlessGestureBoundsRef.current;
     const isLeftHalfTap = event.nativeEvent.pageX < left + hitAreaWidth / 2;
-    if (isLeftHalfTap) handleAnkiWrongButton();
+    const isWrongTap = reviewLeftHandedMode ? !isLeftHalfTap : isLeftHalfTap;
+    if (isWrongTap) handleAnkiWrongButton();
     else handleAnkiAnswerButton(true);
   };
 
@@ -5305,6 +5342,15 @@ export default function ReviewQuestionScreen({
     ],
   );
 
+  const acceptedReadingAnswerDisplayText = acceptedReadingAnswerOptions.map(
+    (reading) => formatKanjiReadingAnswer(
+      reading,
+      subject.object,
+      subject.data.readings ?? [],
+      showOnyomiInKatakana,
+    ),
+  ).join(", ");
+
   const pausedCorrectAnswerText =
     overridePausedCorrectAnswerText ??
     (questionType === "meaning"
@@ -5313,9 +5359,9 @@ export default function ReviewQuestionScreen({
         ? customAcceptedReadingAnswerDisplayText
       : showCharactersAndReadingForReadingQuestion
         ? buildCharactersAndReadingAnswerText(
-            acceptedReadingAnswerOptions.join(", "),
+            acceptedReadingAnswerDisplayText,
           )
-        : acceptedReadingAnswerOptions.join(", "));
+        : acceptedReadingAnswerDisplayText);
   const answerInputPlaceholder =
     questionType === "reading" ? "答え" : "Your Response";
 
@@ -5444,6 +5490,11 @@ export default function ReviewQuestionScreen({
     effectiveShowAnswerStopSubjectDetails && isPausedOnAnswer && !effectiveAnkiCardMode;
   const shouldShowPausedSubjectDetails =
     shouldUsePausedSubjectDetailsMode && pausedDetailsSheetVisible;
+  // KeyboardAvoidingView owns the active iOS answer's movement. Applying a
+  // second layout transition retimes that movement after the keyboard starts.
+  const shouldAnimatePausedDetailsLayout =
+    effectiveShowAnswerStopSubjectDetails &&
+    (Platform.OS !== "ios" || effectiveAnkiCardMode || isPausedOnAnswer);
   const pausedSubjectDetailsPanelHeight = Math.round(
     Math.max(
       240,
@@ -5547,9 +5598,19 @@ export default function ReviewQuestionScreen({
       : 0;
   const androidKeyboardLift = Math.min(
     androidKeyboardFallbackLift,
-    Math.round(height * 0.6),
+    Math.round(windowHeight * 0.6),
   );
   const isLandscape = windowWidth > windowHeight;
+  // A short landscape window has room beside the answer card, but not above
+  // it once the software keyboard is open. Keep both in the same stable pane.
+  const useCompactTypedLayout =
+    Platform.OS === "ios" &&
+    isLandscape &&
+    windowHeight <= 500 &&
+    !effectiveAnkiCardMode &&
+    !hideTypedAnswerInput &&
+    !isPausedOnAnswer &&
+    !audioPrompt;
   const isLargeIPadLandscape =
     Platform.OS === "ios" &&
     Platform.isPad &&
@@ -5665,7 +5726,7 @@ export default function ReviewQuestionScreen({
         style={[
           styles.statsHeader,
           {
-            paddingTop: 60,
+            paddingTop: Platform.OS === "ios" ? noteModalInsets.top + 10 : 60,
           },
         ]}
       >
@@ -5904,7 +5965,7 @@ export default function ReviewQuestionScreen({
 
       {/* Previous Answered Item Box */}
       {!hidePreviousAnswer && (mixedPrevious ? (
-        <Animated.View style={[styles.answeredItemBox, answeredItemBoxStyle]} accessibilityLabel={`Previous ${mixedPrevious.source === "bunpro" ? "Bunpro" : "WaniKani"} answer: ${mixedPrevious.title}, ${mixedPrevious.correct ? "correct" : "incorrect"}`}>
+        <Animated.View style={[styles.answeredItemBox, { top: windowHeight / 2, left: windowWidth / 2 }, answeredItemBoxStyle]} accessibilityLabel={`Previous ${mixedPrevious.source === "bunpro" ? "Bunpro" : "WaniKani"} answer: ${mixedPrevious.title}, ${mixedPrevious.correct ? "correct" : "incorrect"}`}>
           <View style={[styles.answeredItemBoxTouchable, { backgroundColor: mixedPrevious.source === "bunpro" ? "#cc5b5d" : theme.primary }]}>
             <Text numberOfLines={2} style={{ color: "white", fontSize: 18, textAlign: "center" }}>{mixedPrevious.title}</Text>
             <View style={[styles.answeredItemStatusIndicator, { backgroundColor: mixedPrevious.correct ? "#4caf50" : "#f44336" }]}>
@@ -5913,7 +5974,7 @@ export default function ReviewQuestionScreen({
           </View>
         </Animated.View>
       ) : previousAnswerItem && (
-        <Animated.View style={[styles.answeredItemBox, answeredItemBoxStyle]}>
+        <Animated.View style={[styles.answeredItemBox, { top: windowHeight / 2, left: windowWidth / 2 }, answeredItemBoxStyle]}>
           <TouchableOpacity
             style={[
               styles.answeredItemBoxTouchable,
@@ -5948,8 +6009,10 @@ export default function ReviewQuestionScreen({
         </Animated.View>
       ))}
 
-      <KeyboardAvoidingView
+      <ReviewKeyboardAvoidingView
         style={styles.questionContainer}
+        bottomInset={shouldShowPausedSubjectDetails ? 0 : noteModalInsets.bottom}
+        windowHeight={windowHeight}
         behavior={
           Platform.OS === "ios" && iosKeyboardAvoidingEnabled
             ? "padding"
@@ -5995,16 +6058,19 @@ export default function ReviewQuestionScreen({
           }
           accessibilityHint={
             effectiveAnkiButtonlessMode && isCurrentQuestionAnkiRevealed && !ankiWrongOptionsVisible
-              ? "Tap a kanji card for its details. Elsewhere, tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
+              ? reviewLeftHandedMode
+                ? "Tap a kanji card for its details. Elsewhere, tap left for correct, tap right for wrong, swipe up for details, swipe down to skip"
+                : "Tap a kanji card for its details. Elsewhere, tap left for wrong, tap right for correct, swipe up for details, swipe down to skip"
               : undefined
           }
           layout={
-            effectiveShowAnswerStopSubjectDetails
+            shouldAnimatePausedDetailsLayout
               ? pausedDetailsLayoutTransition
               : undefined
           }
           style={[
             styles.reviewInteractionPane,
+            useCompactTypedLayout && styles.compactTypedPane,
             useContentSizedAnkiCard && styles.ankiContentSizedPane,
             ankiWrongOptionsVisible && styles.ankiWrongChoicePane,
             shouldShowPausedSubjectDetails &&
@@ -6017,6 +6083,7 @@ export default function ReviewQuestionScreen({
           layout={effectiveAnkiCardMode ? ankiLayoutTransition : undefined}
           style={[
             styles.characterScrollView,
+            useCompactTypedLayout && styles.compactTypedPrompt,
             ankiWrongOptionsVisible && { display: "none" },
             useContentSizedAnkiCard && styles.ankiContentSizedPrompt,
             useContentSizedAnkiCard && isContextHintVisible && styles.ankiContextHintPrompt,
@@ -6033,7 +6100,7 @@ export default function ReviewQuestionScreen({
           bounces={isContextHintVisible}
           keyboardDismissMode="none"
           keyboardShouldPersistTaps="handled"
-          scrollEnabled={isContextHintVisible}
+          scrollEnabled={isContextHintVisible || useCompactTypedLayout}
           showsVerticalScrollIndicator={isContextHintVisible}
         >
           <View style={styles.characterContainer}>
@@ -6044,7 +6111,9 @@ export default function ReviewQuestionScreen({
                 <Text
                   style={[
                     styles.placeholderText,
+                    { fontSize: Math.min(windowWidth * 0.09, 36) },
                     overridePromptUsesJapaneseFont && fontStyles.japaneseText,
+                    reviewPromptTextColor ? { color: reviewPromptTextColor } : undefined,
                   ]}
                   numberOfLines={2}
                   adjustsFontSizeToFit
@@ -6053,7 +6122,7 @@ export default function ReviewQuestionScreen({
                 </Text>
                 {!!overridePromptSubtext && (
                   <Text
-                    style={styles.placeholderSubtext}
+                    style={[styles.placeholderSubtext, { fontSize: Math.min(windowWidth * 0.05, 18) }]}
                     numberOfLines={3}
                     adjustsFontSizeToFit
                   >
@@ -6064,7 +6133,7 @@ export default function ReviewQuestionScreen({
             ) : (
               <ReviewPromptCharacters
                 subject={subject}
-                size={contextHintPromptSize}
+                size={useCompactTypedLayout ? Math.min(contextHintPromptSize, 64) : contextHintPromptSize}
                 fontCycleIndex={jitaiFontCycleIndex}
               />
             )}
@@ -6380,6 +6449,7 @@ export default function ReviewQuestionScreen({
                               <Text
                                 style={[
                                   styles.ankiAnswerText,
+                                  { fontSize: Math.min(windowWidth * 0.05, 20) },
                                   theme.isDark && { color: "#ffffff" },
                                 ]}
                               >
@@ -6388,6 +6458,7 @@ export default function ReviewQuestionScreen({
                               <Text
                                 style={[
                                   styles.ankiAnswerText,
+                                  { fontSize: Math.min(windowWidth * 0.05, 20) },
                                   fontStyles.japaneseText,
                                   { marginTop: 8 },
                                   theme.isDark && { color: "#ffffff" },
@@ -6402,6 +6473,7 @@ export default function ReviewQuestionScreen({
                           <Text
                             style={[
                               styles.ankiAnswerText,
+                              { fontSize: Math.min(windowWidth * 0.05, 20) },
                               questionType === "reading"
                                 ? fontStyles.japaneseText
                                 : null,
@@ -6622,7 +6694,11 @@ export default function ReviewQuestionScreen({
               )}
               {isCurrentQuestionAnkiRevealed && !effectiveAnkiButtonlessMode && !ankiWrongOptionsVisible && (
                 <Animated.View
-                  style={[styles.ankiButtonSection, ankiButtonSectionStyle]}
+                  style={[
+                    styles.ankiButtonSection,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                    ankiButtonSectionStyle,
+                  ]}
                 >
                   <TouchableOpacity
                     style={[
@@ -6724,12 +6800,22 @@ export default function ReviewQuestionScreen({
           /* Traditional WaniKani Mode */
           <Animated.View
             layout={
-              effectiveShowAnswerStopSubjectDetails
+              shouldAnimatePausedDetailsLayout
                 ? pausedDetailsLayoutTransition
                 : undefined
             }
             style={[
               styles.answerContainer,
+              useCompactTypedLayout && styles.compactTypedAnswer,
+              // Duo's right-only status area is above the answer field. Reclaim
+              // that space here while keeping the header and prompt protected.
+              Platform.OS === "ios" &&
+                noteModalInsets.left === 0 &&
+                noteModalInsets.right > 0 &&
+                !hideTypedAnswerInput &&
+                !isPausedOnAnswer && {
+                  marginRight: -noteModalInsets.right,
+                },
               hideTypedAnswerInput && !isPausedOnAnswer && { flexShrink: 1 },
               Platform.OS === "android" &&
                 androidKeyboardLift > 0 && { paddingBottom: androidKeyboardLift },
@@ -6823,7 +6909,12 @@ export default function ReviewQuestionScreen({
                   {renderAudioAnswerReading()}
                 </View>
 
-                <View style={styles.pausedPrimaryActions}>
+                <View
+                  style={[
+                    styles.pausedPrimaryActions,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                  ]}
+                >
                   <TouchableOpacity
                     style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
                     onPress={handleProgressAsWrong}
@@ -6896,7 +6987,7 @@ export default function ReviewQuestionScreen({
                     </Text>
                   </TouchableOpacity>
 
-                  {item.subject.id > 0 && showAddSynonymButton && questionType === "meaning" && (
+                  {item.subject.id > 0 && currentSelectedChoice !== "" && showAddSynonymButton && questionType === "meaning" && (
                     <TouchableOpacity
                       style={[styles.pausedSecondaryAction, styles.pausedButtonSynonym]}
                       onPress={handleAddAsSynonym}
@@ -6944,7 +7035,12 @@ export default function ReviewQuestionScreen({
                   {renderAudioAnswerReading()}
                 </View>
 
-                <View style={styles.pausedPrimaryActions}>
+                <View
+                  style={[
+                    styles.pausedPrimaryActions,
+                    reviewLeftHandedMode && styles.mirroredReviewActions,
+                  ]}
+                >
                   <TouchableOpacity
                     style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
                     onPress={handleProgressAsWrong}
@@ -7042,6 +7138,19 @@ export default function ReviewQuestionScreen({
                 </View>
 
                 <View style={styles.pausedSecondaryActions}>
+                  {currentSelectedChoice !== undefined && (
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mark Wrong"
+                      style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]} onPress={handleProgressAsWrong}>
+                      <Ionicons name="close" size={16} color="#f44336" />
+                      <Text style={[styles.pausedSecondaryActionText, { color: "#f44336" }]}>Mark Wrong</Text>
+                    </TouchableOpacity>
+                  )}
+                  {currentSelectedChoice !== undefined && (
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Continue"
+                      style={styles.pausedSecondaryAction} onPress={handleProgressAsCorrect}>
+                      <Text style={[styles.pausedSecondaryActionText, { color: "#4caf50" }]}>Continue</Text>
+                    </TouchableOpacity>
+                  )}
                   {canReplayPausedAudio && (
                     <TouchableOpacity
                       style={[
@@ -7150,8 +7259,9 @@ export default function ReviewQuestionScreen({
                         disabled={answered || currentSelectedChoice !== undefined || navigatingToDetail}
                         isReading={questionType === "reading"}
                         fontSize={Math.max(18, reviewAnswerInputFontSize)}
-                        maxHeight={Math.max(160, windowHeight * 0.42)}
+                        maxHeight={Math.max(160, windowHeight * 0.42 - 44)}
                         onSelect={(choice) => { void handleSubmitAnswer({ source: "choice", answer: choice.text, choice }); }}
+                        onDontKnow={() => { void handleSubmitAnswer({ source: "choice", answer: "I don't know", choice: { text: "", isCorrect: false } }); }}
                       />
                     )}
                   </View>
@@ -7166,6 +7276,10 @@ export default function ReviewQuestionScreen({
                         (isVoiceRecognizing
                           ? styles.answerInputVoiceModeDual
                           : styles.answerInputVoiceMode),
+                      isVoiceReviewEnabled &&
+                        isVoiceRecognizing &&
+                        reviewLeftHandedMode &&
+                        styles.answerInputVoiceModeDualMirrored,
                       {
                         backgroundColor: theme.isDark ? "#000000" : "white",
                         color: theme.isDark ? "#ffffff" : "#000000",
@@ -7210,6 +7324,10 @@ export default function ReviewQuestionScreen({
                             (isVoiceRecognizing
                               ? styles.answerInputVoiceModeDual
                               : styles.answerInputVoiceMode),
+                          isVoiceReviewEnabled &&
+                            isVoiceRecognizing &&
+                            reviewLeftHandedMode &&
+                            styles.answerInputVoiceModeDualMirrored,
                           {
                             backgroundColor: theme.isDark ? "#000000" : "white",
                             fontSize: reviewAnswerInputFontSize,
@@ -7230,6 +7348,7 @@ export default function ReviewQuestionScreen({
                       <TouchableOpacity
                         style={[
                           styles.voiceButtonInside,
+                          reviewLeftHandedMode && styles.voiceButtonInsideMirrored,
                           voiceSessionEnabled ? styles.voiceButtonActive : null,
                         ]}
                         onPress={handleVoiceAnswerButton}
@@ -7246,7 +7365,10 @@ export default function ReviewQuestionScreen({
 
                       {isVoiceRecognizing && (
                         <TouchableOpacity
-                          style={styles.voiceRetryButtonInside}
+                          style={[
+                            styles.voiceRetryButtonInside,
+                            reviewLeftHandedMode && styles.voiceRetryButtonInsideMirrored,
+                          ]}
                           onPress={handleRetryVoiceRecognition}
                           accessibilityRole="button"
                           accessibilityLabel="Retry voice answer"
@@ -7265,6 +7387,7 @@ export default function ReviewQuestionScreen({
                   <TouchableOpacity
                     style={[
                       styles.submitButtonInside,
+                      reviewLeftHandedMode && styles.submitButtonInsideMirrored,
                       hasCorrectAccent
                         ? styles.correctButton
                         : hasCloseAccent
@@ -7374,7 +7497,7 @@ export default function ReviewQuestionScreen({
               importantForAccessibility="no-hide-descendants"
             />
           )}
-      </KeyboardAvoidingView>
+      </ReviewKeyboardAvoidingView>
       {renderStudyMaterialNoteModal()}
     </SafeAreaView>
   );
@@ -7477,8 +7600,6 @@ const styles = StyleSheet.create({
   },
   answeredItemBox: {
     position: "absolute",
-    top: height / 2, // Start at center
-    left: width / 2, // Start at center
     zIndex: 20,
     alignItems: "center",
     justifyContent: "center",
@@ -7506,7 +7627,7 @@ const styles = StyleSheet.create({
   },
   answeredItemCharacter: {
     color: "white",
-    fontSize: Math.min(width * 0.07, 30),
+    fontSize: 30,
     fontWeight: "400",
     flexShrink: 1,
     textAlign: "center",
@@ -7631,6 +7752,21 @@ const styles = StyleSheet.create({
   voiceButtonActive: {
     backgroundColor: "#d32f2f",
   },
+  submitButtonInsideMirrored: {
+    left: 8,
+    right: "auto",
+  },
+  voiceButtonInsideMirrored: {
+    left: "auto",
+    right: 8,
+  },
+  voiceRetryButtonInsideMirrored: {
+    left: "auto",
+    right: 52,
+  },
+  mirroredReviewActions: {
+    flexDirection: "row-reverse",
+  },
   voiceRetryButtonInside: {
     position: "absolute",
     left: 52,
@@ -7649,6 +7785,20 @@ const styles = StyleSheet.create({
   },
   reviewInteractionPane: {
     flex: 1,
+  },
+  compactTypedPane: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  compactTypedPrompt: {
+    alignSelf: "stretch",
+    minWidth: 0,
+  },
+  compactTypedAnswer: {
+    flex: 2,
+    alignSelf: "center",
+    marginTop: 0,
   },
   reviewInteractionPaneWithDetails: {
     justifyContent: "space-between",
@@ -7750,14 +7900,14 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.06)",
   },
   placeholderText: {
-    fontSize: Math.min(width * 0.09, 36),
+    fontSize: 36,
     color: "white",
     fontWeight: "500",
     textAlign: "center",
   },
   placeholderSubtext: {
     marginTop: 8,
-    fontSize: Math.min(width * 0.05, 18),
+    fontSize: 18,
     color: "rgba(255,255,255,0.9)",
     textAlign: "center",
     paddingHorizontal: 12,
@@ -7947,6 +8097,10 @@ const styles = StyleSheet.create({
   answerInputVoiceModeDual: {
     paddingLeft: 100,
     paddingRight: 56,
+  },
+  answerInputVoiceModeDualMirrored: {
+    paddingLeft: 56,
+    paddingRight: 100,
   },
   correctButton: {
     backgroundColor: "#4caf50",
@@ -8203,7 +8357,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   ankiAnswerText: {
-    fontSize: Math.min(width * 0.05, 20),
+    fontSize: 20,
     fontWeight: "500",
     textAlign: "center",
     paddingHorizontal: 20,

@@ -14,6 +14,7 @@ export default function ReviewAnswerChoices({
   fontSize,
   maxHeight,
   onSelect,
+  onDontKnow,
   questionKey,
   keyboardEnabled,
 }: {
@@ -24,6 +25,7 @@ export default function ReviewAnswerChoices({
   fontSize: number;
   maxHeight: number;
   onSelect: (choice: ReviewAnswerChoice) => void;
+  onDontKnow: () => void;
   questionKey: string;
   keyboardEnabled: boolean;
 }) {
@@ -123,6 +125,10 @@ export default function ReviewAnswerChoices({
           );
         })}
       </ScrollView>
+      <Pressable accessibilityRole="button" accessibilityLabel="I don't know" disabled={disabled} onPress={onDontKnow}
+        style={({ pressed }) => ({ minHeight: 44, justifyContent: "center", alignItems: "center", opacity: disabled ? 0.5 : pressed ? 0.7 : 1 })}>
+        <Text style={{ color: theme.textSecondary, fontSize: 16 }}>{"I don't know"}</Text>
+      </Pressable>
     </MultipleChoiceKeyboard>
   );
 }

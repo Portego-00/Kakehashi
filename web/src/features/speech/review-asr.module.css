@@ -1,0 +1,6 @@
+.answerControl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.status { font-size: 0.85rem; color: var(--color-muted); }
+.status[role="alert"] { color: var(--color-danger); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; }
+.description { margin: 0; padding: 0 16px 16px; font-size: 0.9rem; color: var(--color-muted); line-height: 1.5; }
+.progress { width: 140px; accent-color: var(--color-accent); }

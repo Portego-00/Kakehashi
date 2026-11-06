@@ -40,30 +40,28 @@ const appExtensions =
     return extension;
   }) ?? [];
 
-module.exports = {
-  expo: {
-    ...expo,
-    name: isDevelopment ? `${expo.name} Dev` : expo.name,
-    ios: {
-      ...expo.ios,
-      bundleIdentifier: iosBundleIdentifier,
-    },
-    plugins,
-    extra: {
-      ...expo.extra,
-      eas: {
-        ...expo.extra.eas,
-        build: {
-          ...expo.extra.eas.build,
-          experimental: {
-            ...expo.extra.eas.build.experimental,
-            ios: {
-              ...expo.extra.eas.build.experimental.ios,
-              appExtensions,
-            },
+module.exports = ({ config }) => ({
+  ...config,
+  name: isDevelopment ? `${expo.name} Dev` : expo.name,
+  ios: {
+    ...expo.ios,
+    bundleIdentifier: iosBundleIdentifier,
+  },
+  plugins,
+  extra: {
+    ...expo.extra,
+    eas: {
+      ...expo.extra.eas,
+      build: {
+        ...expo.extra.eas.build,
+        experimental: {
+          ...expo.extra.eas.build.experimental,
+          ios: {
+            ...expo.extra.eas.build.experimental.ios,
+            appExtensions,
           },
         },
       },
     },
   },
-};
+});

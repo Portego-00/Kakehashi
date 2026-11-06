@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React from "react";
+import { Image } from "react-native";
 
 import SongsTab from "../../../app/(app)/(tabs)/songs";
 import type { SpotifyTrack } from "../../services/spotifyService";
@@ -30,6 +31,10 @@ const track: SpotifyTrack = {
   albumArt: "https://example.com/cover.jpg", url: "https://open.spotify.com/track/recovered-song",
   previewUrl: null, duration: 120000, albumName: "Album", releaseDate: "2026-10-01",
 };
+let mockHistory: SpotifyTrack[] = [];
+const mockLegacyGetInfo = jest.fn();
+const mockLegacyDownload = jest.fn();
+const mockWriteFile = jest.fn(async (_content: string) => {});
 
 jest.mock("../../utils/store", () => ({
   useSettingsStore: (selector: (settings: typeof mockSettings) => unknown) =>
@@ -53,12 +58,21 @@ jest.mock("@shopify/flash-list", () => ({ FlashList: () => null }));
 jest.mock("expo-file-system", () => ({
   Paths: { cache: "file:///cache" },
   Directory: class {
-    uri = "file:///cache/songs";
+    uri: string;
+    constructor(parent: string, name: string) { this.uri = `${parent}/${name}`; }
     create() {}
   },
   File: class {
-    exists = false;
+    get exists() { return mockHistory.length > 0; }
+    async text() { return JSON.stringify(mockHistory); }
+    write(content: string) { return mockWriteFile(content); }
   },
+  getInfoAsync: async () => { throw new Error("Use the legacy entry point"); },
+  downloadAsync: async () => { throw new Error("Use the legacy entry point"); },
+}));
+jest.mock("expo-file-system/legacy", () => ({
+  getInfoAsync: (uri: string) => mockLegacyGetInfo(uri),
+  downloadAsync: (url: string, uri: string) => mockLegacyDownload(url, uri),
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("../../utils/theme", () => ({
@@ -76,6 +90,9 @@ describe("Music discovery connection messages", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockHistory = [];
+    mockLegacyGetInfo.mockResolvedValue({ exists: false });
+    mockLegacyDownload.mockResolvedValue({ status: 200 });
     consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
     mockSettings.songsPlaybackSource = "youtube";
     mockSettings.appleMusicAuthStatus = "notDetermined";
@@ -95,6 +112,32 @@ describe("Music discovery connection messages", () => {
   });
 
   afterEach(() => consoleError.mockRestore());
+
+  it("reuses cached history artwork through the supported legacy filesystem entry point", async () => {
+    mockHistory = [track];
+    mockLegacyGetInfo.mockResolvedValue({ exists: true });
+    const screen = render(<SongsTab />);
+    const cachedUri = `file:///cache/songs/song-images/${track.id}.jpg`;
+
+    await waitFor(() => expect(mockLegacyGetInfo).toHaveBeenCalledWith(cachedUri));
+    await waitFor(() => expect(
+      screen.UNSAFE_getAllByType(Image).some(image => image.props.source?.uri === cachedUri),
+    ).toBe(true));
+    expect(mockLegacyDownload).not.toHaveBeenCalled();
+  });
+
+  it("downloads artwork when selecting a song whose image is not cached", async () => {
+    mockSpotifyService.getPopularJapaneseSongs.mockResolvedValue([track]);
+    const screen = render(<SongsTab />);
+    await waitFor(() => expect(screen.getByText(track.title)).toBeTruthy());
+
+    fireEvent.press(screen.getByText(track.title));
+
+    await waitFor(() => expect(mockLegacyDownload).toHaveBeenCalledWith(
+      track.albumArt, `file:///cache/songs/song-images/${track.id}.jpg`,
+    ));
+    expect(mockWriteFile).toHaveBeenCalledWith(expect.stringContaining(track.id));
+  });
 
   it("does not call an empty successful catalog response a WiFi problem", async () => {
     const screen = render(<SongsTab />);

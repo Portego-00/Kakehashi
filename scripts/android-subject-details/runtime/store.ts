@@ -27,6 +27,8 @@ export const useSettingsStore = create((set) => ({
   forecastShowSubjectColors: false, showSimilarVocabulary: true, showPitchAccent: true, showPatternsOfUse: true, showSingleKanjiVocabularySimilarKanji: true, showMediaContextSentences: false,
   immersionKitAnimes: [], showVocabularyFrequency: false,
   appTextSizeScale: 1,
+  singlePageLessonView: false, autoplayLessonReadingAudio: false,
+  lessonSearchButtonEnabled: false, groupKanjiVocabularyExamplesByReading: false,
   setReviewMultipleChoiceEnabled: (enabled: boolean) => set({ reviewMultipleChoiceEnabled: enabled }),
 }));
 export const usePreviewTextScale = create(() => ({ scale: 1 }));

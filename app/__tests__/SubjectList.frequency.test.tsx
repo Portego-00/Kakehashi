@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, cleanupAsync, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { Alert } from "react-native";
+import { Alert, FlatList } from "react-native";
 import SubjectListEditorScreen from "../(app)/subject-list/[id]";
 import { getAllSubjects } from "../../src/utils/cache";
 import { useVocabularyFrequencyRanks } from "../../src/hooks/useVocabularyFrequencyRanks";
@@ -14,7 +14,7 @@ jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "source" }),
   useRouter: () => mockRouter,
 }));
-jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
+jest.mock("expo-router/react-navigation", () => ({ useIsFocused: () => true }));
 jest.mock("../../src/lib/supabase", () => ({ supabase: {} }));
 jest.mock("../../src/utils/store", () => ({
   useAuthStore: Object.assign(() => ({ apiToken: "test-token" }), {
@@ -23,10 +23,13 @@ jest.mock("../../src/utils/store", () => ({
   useSettingsStore: (selector: (state: typeof mockSettings) => unknown) => selector(mockSettings),
 }));
 jest.mock("../../src/hooks/useVocabularyFrequencyRanks", () => ({ useVocabularyFrequencyRanks: jest.fn() }));
+jest.mock("../../src/hooks/use-subject-list-audio", () => ({
+  useSubjectListAudio: () => ({ play: jest.fn(), stop: jest.fn(), activeSubjectId: null, loading: false, error: null }),
+}));
 jest.mock("../../src/utils/cache", () => ({ getAllSubjects: jest.fn() }));
 jest.mock("../../src/utils/api", () => ({
   getAllAssignmentsCached: jest.fn(async () => ({
-    data: Array.from({ length: 260 }, (_, index) => ({ data: { subject_id: index + 1, srs_stage: 1 } })),
+    data: Array.from({ length: 751 }, (_, index) => ({ data: { subject_id: index + 1, srs_stage: 1 } })),
   })),
 }));
 jest.mock("../../src/utils/theme", () => ({
@@ -44,7 +47,18 @@ jest.mock("../../src/utils/jlptClassification", () => ({
   JLPT_LEVELS: ["N5", "N4", "N3", "N2", "N1"],
 }));
 jest.mock("../../src/utils/radicalSvg", () => ({ pickBestImage: () => null, useRemoteSvg: () => null }));
-jest.mock("../../src/components/SubjectListStudyMenu", () => () => null);
+jest.mock("../../src/components/SubjectListStudyMenu", () => {
+  const { View, Text, TouchableOpacity } = jest.requireActual("react-native");
+  return function MockStudyMenu({ onStandardReview, onFlashcardReview }: {
+    onStandardReview: () => void;
+    onFlashcardReview: () => void;
+  }) {
+    return <View>
+      <TouchableOpacity onPress={onStandardReview}><Text>Standard Review</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onFlashcardReview}><Text>Flashcard Review</Text></TouchableOpacity>
+    </View>;
+  };
+});
 jest.mock("../../src/components/TransferSubjectListsModal", () => () => null);
 jest.mock("../../src/components/CommonFilterModal", () => ({ CommonFilterModal: () => null }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
@@ -61,10 +75,13 @@ jest.mock("@expo/ui/swift-ui", () => {
     ),
   };
 });
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  buttonStyle: (style: string) => ({ $type: "buttonStyle", style }),
+}));
 jest.mock("../../src/components/GlassButton", () => {
   const { TouchableOpacity } = jest.requireActual("react-native");
-  return { GlassButton: ({ iconName, ...props }: { iconName: string }) => (
-    <TouchableOpacity {...props} accessibilityLabel={iconName} />
+  return { GlassButton: ({ iconName, accessibilityLabel, ...props }: { iconName: string; accessibilityLabel?: string }) => (
+    <TouchableOpacity {...props} accessibilityLabel={accessibilityLabel ?? iconName} />
   ) };
 });
 
@@ -110,8 +127,8 @@ describe("subject list frequency filtering", () => {
     jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
   });
 
-  afterEach(() => {
-    cleanup();
+  afterEach(async () => {
+    await cleanupAsync();
     jest.useRealTimers();
     jest.restoreAllMocks();
   });
@@ -131,6 +148,63 @@ describe("subject list frequency filtering", () => {
     act(() => jest.advanceTimersByTime(1000));
     expect(screen.UNSAFE_getByType(SearchFilterModal).props.visible).toBe(false);
   }
+
+  it.each(["browse", "selected"])("loads every page in the %s tab and hides Load more at the end", async (tab) => {
+    const subjects = Array.from({ length: 751 }, (_, index) => vocabulary(index + 1));
+    jest.mocked(getAllSubjects).mockResolvedValue(subjects);
+    const saved = JSON.parse(storage.get(listKey)!);
+    saved.lists[0].subjectIds = subjects.map((subject) => subject.id);
+    storage.set(listKey, JSON.stringify(saved));
+
+    const screen = await openList();
+    if (tab === "selected") fireEvent.press(screen.getByText("In List (751)"));
+    const displayedIds = () => screen.UNSAFE_getByType(FlatList).props.data.map((subject: Subject) => subject.id);
+    expect(displayedIds()).toEqual(subjects.slice(0, 250).map((subject) => subject.id));
+
+    for (const count of [500, 750, 751]) {
+      fireEvent.press(screen.getByRole("button", { name: "Load more" }));
+      expect(displayedIds()).toEqual(subjects.slice(0, count).map((subject) => subject.id));
+      if (count === 500) {
+        fireEvent.press(screen.getByText(tab === "browse" ? "In List (751)" : "Browse"));
+        expect(displayedIds()).toHaveLength(250);
+        fireEvent.press(screen.getByText(tab === "browse" ? "Browse" : "In List (751)"));
+        expect(displayedIds()).toHaveLength(500);
+      }
+    }
+
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+    expect(screen.getByLabelText("Save list changes").props.accessibilityState.disabled).toBe(true);
+
+    const search = screen.getByPlaceholderText(tab === "browse" ? "Search subjects..." : "Search subjects in this list...");
+    fireEvent.changeText(search, "語751");
+    expect(displayedIds()).toEqual([751]);
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+    fireEvent.changeText(search, "");
+    expect(displayedIds()).toEqual(subjects.slice(0, 250).map((subject) => subject.id));
+    expect(screen.getByRole("button", { name: "Load more" })).toBeTruthy();
+  });
+
+  it("does not show Load more when all matches already fit", async () => {
+    const screen = await openList();
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+    fireEvent.press(screen.getByText("Select All"));
+    fireEvent.press(screen.getByText("In List (3)"));
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+  });
+
+  it.each([
+    ["standard", "Standard Review"], ["flashcard", "Flashcard Review"],
+  ])("starts a %s review with the saved list items", async (reviewMode, label) => {
+    const screen = await openList();
+    await applyMaximum(screen);
+    fireEvent.press(screen.getByText("Select Filtered"));
+    fireEvent.press(screen.getByText(label));
+    await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({
+      pathname: "/custom-review",
+      params: { subjectIds: "1,2", reviewMode },
+    }));
+    expect(JSON.parse(storage.get(listKey)!).lists[0].subjectIds).toEqual([1, 2]);
+  });
 
   it("offers word frequency in the list creation filters", async () => {
     const screen = await openList();
@@ -177,6 +251,8 @@ describe("subject list frequency filtering", () => {
     screen.rerender(<SubjectListEditorScreen />);
     fireEvent.press(screen.getByText("Select Filtered"));
     expect(screen.getByText("In List (260)")).toBeTruthy();
+    fireEvent.press(screen.getByRole("button", { name: "Load more" }));
+    expect(screen.UNSAFE_getByType(FlatList).props.data).toHaveLength(260);
   });
 
   it("allows enabling frequency filtering from the list menu", async () => {

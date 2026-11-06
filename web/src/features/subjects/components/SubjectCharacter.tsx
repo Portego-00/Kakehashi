@@ -1,7 +1,8 @@
 "use client";
 
 import Image, { type ImageLoader } from "next/image";
-import { useId, useState, type ComponentPropsWithoutRef, type CSSProperties } from "react";
+import { useContext, useId, useState, type ComponentPropsWithoutRef, type CSSProperties } from "react";
+import { ThemeContext } from "@/lib/theme-context";
 import type { Subject } from "@/types/wanikani";
 import { pickBestImage, pickBestPng, type PreferredRadicalImage } from "../../../../../src/utils/radicalImage";
 
@@ -53,7 +54,9 @@ export function SubjectCharacter({
   ...spanProps
 }: SubjectCharacterProps) {
   const generatedId = useId();
-  const subjectTintFilterId = `subject-image-${generatedId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const theme = useContext(ThemeContext)?.resolvedTheme;
+  // WebKit can cache a filter's inherited color across theme changes.
+  const subjectTintFilterId = `subject-image-${generatedId.replace(/[^a-zA-Z0-9_-]/g, "")}-${theme ?? "default"}`;
   const characters = subject.data.characters;
   const candidates = imageCandidates(subject);
   const imageIdentity = `${subject.id}:${candidates.map((candidate) => candidate.url).join("|")}`;
@@ -68,14 +71,14 @@ export function SubjectCharacter({
     lang={characters ? spanProps.lang ?? "ja" : spanProps.lang}
   >
     {characters ?? (image ? <>
-      {imageTone === "subject" ? <svg aria-hidden="true" focusable="false" width="0" height="0" style={{ position: "absolute", overflow: "hidden" }}>
+      {imageTone === "subject" ? <svg key={subjectTintFilterId} aria-hidden="true" focusable="false" width="0" height="0" style={{ position: "absolute", overflow: "hidden" }}>
         <filter id={subjectTintFilterId} data-subject-image-tint colorInterpolationFilters="sRGB">
           <feFlood floodColor="currentColor" result="subjectColor" />
           <feComposite in="subjectColor" in2="SourceAlpha" operator="in" />
         </filter>
       </svg> : null}
       <Image
-        key={image.url}
+        key={imageTone === "subject" ? `${image.url}:${subjectTintFilterId}` : image.url}
         src={image.url}
         alt={`${meaning} radical`}
         width={160}

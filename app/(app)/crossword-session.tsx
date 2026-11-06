@@ -1,5 +1,6 @@
 import { useLearningDisplay } from "../../src/features/translation-packages/display";
 import { practiceClue, practiceAlternatives, type PracticeDisplay } from "../../src/features/translation-packages/practice-display";
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -46,6 +47,7 @@ import {
   getCellsForWord,
   getWordById,
 } from "../../src/utils/crosswordGenerator";
+import { buildCrosswordInput, eraseCrosswordCell } from "../../src/utils/crosswordInput";
 import {
   CROSSWORD_HARD_AVOID_PUZZLE_LIMIT,
   buildCrosswordGenerationPool,
@@ -154,6 +156,7 @@ interface SavedCrosswordSession {
   attemptsByWordId: Record<string, number>;
   startedAt: number;
   elapsedMs: number;
+  draftValues?: Record<string, string>;
 }
 
 interface WordCompletionAnimationState {
@@ -479,6 +482,8 @@ export default function CrosswordSessionScreen() {
   const [completedWordIds, setCompletedWordIds] = useState<Set<string>>(
     () => new Set()
   );
+  const completedWordIdsRef = useRef(completedWordIds);
+  useEffect(() => { completedWordIdsRef.current = completedWordIds; }, [completedWordIds]);
   const [revealedWordIds, setRevealedWordIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -494,6 +499,12 @@ export default function CrosswordSessionScreen() {
     useState(false);
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [isGridFocused, setIsGridFocused] = useState(false);
+  const draftValuesRef = useRef<Record<string, string>>({});
+  const inputValueRef = useRef("");
+  const [inputEdit, setInputEdit] = useState({ values: {} as Record<string, string>, startIndex: 0, clearCount: 0 });
+  const inputEditRef = useRef(inputEdit);
   const [feedbackState, setFeedbackState] = useState<
     "idle" | "correct" | "incorrect"
   >("idle");
@@ -515,7 +526,8 @@ export default function CrosswordSessionScreen() {
   const clueDisplayMode = config?.clueDisplayMode ?? "english";
 
   const inputRef = useRef<KanaInputHandle>(null);
-  const mainScrollRef = useRef<ScrollView>(null);
+  const lastTappedCellRef = useRef<string | null>(null);
+  const mainScrollRef = useRef<ScrollViewInstance>(null);
   const subjectByIdRef = useRef<Map<number, ApiSubject>>(new Map());
   const vocabularySoundRef = useRef<AudioSound | null>(null);
   const vocabularyAudioRequestIdRef = useRef(0);
@@ -547,6 +559,7 @@ export default function CrosswordSessionScreen() {
       attemptsByWordId,
       startedAt,
       elapsedMs,
+      draftValues,
     };
     return saveExtraStudySessionState(CROSSWORD_SESSION_KEY, payload);
   }, [
@@ -554,6 +567,7 @@ export default function CrosswordSessionScreen() {
     completedWordIds,
     config,
     elapsedMs,
+    draftValues,
     isComplete,
     mistakes,
     puzzle,
@@ -591,6 +605,10 @@ export default function CrosswordSessionScreen() {
     setAttemptsByWordId(saved.attemptsByWordId ?? {});
     setStartedAt(saved.startedAt ?? Date.now());
     setElapsedMs(saved.elapsedMs ?? 0);
+    setDraftValues(saved.draftValues ?? {});
+    draftValuesRef.current = saved.draftValues ?? {};
+    inputEditRef.current = { values: saved.draftValues ?? {}, startIndex: 0, clearCount: 0 };
+    setInputEdit(inputEditRef.current);
     setIsComplete(false);
     setHasAcknowledgedCompletion(false);
     setIsAnswerAnimating(false);
@@ -922,6 +940,12 @@ export default function CrosswordSessionScreen() {
       }
 
       setPuzzle(built);
+      setDraftValues({});
+      draftValuesRef.current = {};
+      inputEditRef.current = { values: {}, startIndex: 0, clearCount: 0 };
+      inputValueRef.current = "";
+      setInputValue("");
+      setInputEdit(inputEditRef.current);
       setSelectedWordId(built.words[0]?.id ?? null);
       setCompletedWordIds(new Set());
       setRevealedWordIds(new Set());
@@ -1004,6 +1028,48 @@ export default function CrosswordSessionScreen() {
     return out;
   }, [completedWordIds, puzzle]);
 
+  const selectedCrossingValues = useMemo(() => {
+    const values: Record<string, string> = {};
+    if (!puzzle || !selectedWord) return values;
+    for (const cell of getCellsForWord(puzzle, selectedWord)) {
+      const key = `${cell.row}:${cell.col}`;
+      if (completedCellSet.has(key)) values[key] = cell.solution;
+    }
+    return values;
+  }, [completedCellSet, puzzle, selectedWord]);
+
+  const selectedInputCellKeys = useMemo(() => {
+    if (!puzzle || !selectedWord) return [];
+    return getCellsForWord(puzzle, selectedWord).map((cell) => `${cell.row}:${cell.col}`);
+  }, [puzzle, selectedWord]);
+
+  const activeInput = useMemo(() => buildCrosswordInput(
+    selectedInputCellKeys, selectedCrossingValues,
+    normalizeKatakanaToHiragana(inputValue), inputEdit,
+  ), [inputValue, selectedCrossingValues, selectedInputCellKeys, inputEdit]);
+
+  const handleGridInput = useCallback((kana: string) => {
+    if (isAnswerAnimating || (selectedWordId && completedWordIds.has(selectedWordId))) return;
+    inputValueRef.current = kana;
+    setInputValue(kana);
+    const next = buildCrosswordInput(selectedInputCellKeys, selectedCrossingValues, normalizeKatakanaToHiragana(kana), inputEditRef.current);
+    inputEditRef.current = { ...inputEditRef.current, clearCount: next.clearCount };
+    setInputEdit(inputEditRef.current);
+    draftValuesRef.current = next.values;
+    setDraftValues(next.values);
+    setFeedbackState("idle");
+  }, [completedWordIds, isAnswerAnimating, selectedInputCellKeys, selectedCrossingValues, selectedWordId]);
+
+  const handleGridBackspace = useCallback(() => {
+    if (inputValueRef.current || isAnswerAnimating) return;
+    const next = eraseCrosswordCell(selectedInputCellKeys, selectedCrossingValues, draftValuesRef.current, activeInput.cursorKey);
+    draftValuesRef.current = next.values;
+    setDraftValues(next.values);
+    inputEditRef.current = { values: next.values, startIndex: next.startIndex, clearCount: 0 };
+    setInputEdit(inputEditRef.current);
+    setFeedbackState("idle");
+  }, [activeInput.cursorKey, isAnswerAnimating, selectedCrossingValues, selectedInputCellKeys]);
+
   const cellSize = useMemo(() => {
     if (!puzzle) return 36;
     const horizontalPadding = 24;
@@ -1023,9 +1089,10 @@ export default function CrosswordSessionScreen() {
       }
 
       const wordLength = Array.from(word.word).length;
-      const startRow = word.row;
+      const cursor = wordId === selectedWordId ? activeInput.cursorKey : null;
+      const startRow = cursor ? Number(cursor.split(":")[0]) : word.row;
       const endRow =
-        word.direction === "down" ? word.row + wordLength - 1 : word.row;
+        cursor ? startRow : word.direction === "down" ? word.row + wordLength - 1 : word.row;
       const cellStride = cellSize + GRID_CELL_MARGIN * 2;
       const wordTopY =
         gridLayout.y + GRID_WRAPPER_PADDING + startRow * cellStride;
@@ -1054,14 +1121,26 @@ export default function CrosswordSessionScreen() {
       mainScrollRef.current?.scrollTo({ y: nextScrollY, animated });
       scrollYRef.current = nextScrollY;
     },
-    [cellSize, gridLayout, puzzle, scrollViewportHeight]
+    [activeInput.cursorKey, cellSize, gridLayout, puzzle, scrollViewportHeight, selectedWordId]
   );
 
   const selectWord = useCallback(
-    (wordId: string, clearInput = true, keepKeyboardOpen = false) => {
+    (wordId: string, clearInput = true, keepKeyboardOpen = false, cellKey?: string) => {
       setSelectedWordId(wordId);
       setFeedbackState("idle");
       if (clearInput) {
+        const word = puzzle && getWordById(puzzle, wordId);
+        const cells = word && puzzle ? getCellsForWord(puzzle, word) : [];
+        const completedKeys = new Set(cells.filter((cell) => cell.wordIds.some((id) => completedWordIdsRef.current.has(id))).map((cell) => `${cell.row}:${cell.col}`));
+        const keys = cells.map((cell) => `${cell.row}:${cell.col}`);
+        const requestedIndex = cellKey ? keys.indexOf(cellKey) : -1;
+        const firstEmpty = keys.findIndex((key) => !completedKeys.has(key) && !draftValuesRef.current[key]);
+        const hasDraft = keys.some((key) => !completedKeys.has(key) && draftValuesRef.current[key]);
+        const startIndex = requestedIndex >= 0 && !completedKeys.has(keys[requestedIndex])
+          ? requestedIndex : hasDraft && firstEmpty >= 0 ? firstEmpty : 0;
+        inputEditRef.current = { values: draftValuesRef.current, startIndex, clearCount: 0 };
+        setInputEdit(inputEditRef.current);
+        inputValueRef.current = "";
         setInputValue("");
         inputRef.current?.clearInput();
       }
@@ -1072,7 +1151,7 @@ export default function CrosswordSessionScreen() {
         setTimeout(() => inputRef.current?.focus?.(), 0);
       }
     },
-    [scrollWordIntoView],
+    [puzzle, scrollWordIntoView],
   );
 
   useEffect(() => {
@@ -1087,13 +1166,14 @@ export default function CrosswordSessionScreen() {
 
   const selectNextWord = useCallback(
     (fromWordId: string) => {
+      lastTappedCellRef.current = null;
       if (!puzzle || puzzle.words.length === 0) {
         return;
       }
 
       const ordered = [...puzzle.words].sort((a, b) => a.number - b.number);
       const currentIndex = ordered.findIndex((word) => word.id === fromWordId);
-      const unsolved = ordered.filter((word) => !completedWordIds.has(word.id));
+      const unsolved = ordered.filter((word) => !completedWordIdsRef.current.has(word.id));
       const orderedUnsolvedIndices = unsolved
         .map((word) => ordered.findIndex((orderedWord) => orderedWord.id === word.id))
         .filter((index) => index >= 0)
@@ -1113,7 +1193,7 @@ export default function CrosswordSessionScreen() {
 
       selectWord(targetWord.id, true, true);
     },
-    [completedWordIds, puzzle, selectWord],
+    [puzzle, selectWord],
   );
 
   const getWordCellIndex = useCallback(
@@ -1166,7 +1246,10 @@ export default function CrosswordSessionScreen() {
       let nextId =
         incompleteIds[0] ?? ids[0] ?? null;
 
-      if (selectedWordId && ids.includes(selectedWordId) && ids.length > 1) {
+      if (selectedWordId && ids.includes(selectedWordId)) {
+        nextId = selectedWordId;
+      }
+      if (selectedWordId && ids.includes(selectedWordId) && ids.length > 1 && lastTappedCellRef.current === `${row}:${col}`) {
         const pool = incompleteIds.length > 0 ? incompleteIds : ids;
         const currentIndex = pool.indexOf(selectedWordId);
         if (currentIndex !== -1) {
@@ -1175,7 +1258,8 @@ export default function CrosswordSessionScreen() {
       }
 
       if (nextId) {
-        selectWord(nextId);
+        selectWord(nextId, true, true, `${row}:${col}`);
+        lastTappedCellRef.current = `${row}:${col}`;
       }
     },
     [completedWordIds, isAnswerAnimating, puzzle, selectWord, selectedWordId]
@@ -1183,6 +1267,7 @@ export default function CrosswordSessionScreen() {
 
   const handleClueSelect = useCallback(
     (word: PlacedCrosswordWord) => {
+      lastTappedCellRef.current = null;
       if (isAnswerAnimating) return;
       if (completedWordIds.has(word.id)) {
         router.push(`/subject/${word.subjectId}` as any);
@@ -1415,11 +1500,23 @@ export default function CrosswordSessionScreen() {
     [config?.playAudioOnCorrectAnswer, playVocabularyAudioBySubjectId]
   );
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (nativeText?: string) => {
     if (!selectedWord || isAnswerAnimating) return;
-    const flushed = inputRef.current?.flushKana?.() ?? inputValue;
-    const candidate = normalizeKatakanaToHiragana((flushed || "").trim());
-    if (!candidate) {
+    if (completedWordIds.has(selectedWord.id)) {
+      selectNextWord(selectedWord.id);
+      return;
+    }
+    const flushed = inputRef.current?.flushKana?.(nativeText) ?? inputValue;
+    const normalizedInput = normalizeKatakanaToHiragana((flushed || "").trim());
+    const nextInput = buildCrosswordInput(selectedInputCellKeys, selectedCrossingValues, normalizedInput, inputEditRef.current);
+    inputValueRef.current = normalizedInput;
+    setInputValue(normalizedInput);
+    inputEditRef.current = { ...inputEditRef.current, clearCount: nextInput.clearCount };
+    setInputEdit(inputEditRef.current);
+    const candidate = nextInput.answer;
+    draftValuesRef.current = nextInput.values;
+    setDraftValues(nextInput.values);
+    if (!normalizedInput && !candidate && !selectedInputCellKeys.some((key) => !selectedCrossingValues[key] && nextInput.values[key])) {
       setTimeout(() => inputRef.current?.focus?.(), 0);
       selectNextWord(selectedWord.id);
       return;
@@ -1435,8 +1532,6 @@ export default function CrosswordSessionScreen() {
       setFeedbackState("correct");
       playSuccess();
       setIsAnswerAnimating(true);
-      setInputValue(selectedWord.word);
-      inputRef.current?.setInputText?.(selectedWord.word);
       void playCorrectAnswerAudio(selectedWord);
 
       try {
@@ -1449,6 +1544,7 @@ export default function CrosswordSessionScreen() {
         });
         setWordCompletionAnimation(null);
         setInputValue("");
+        inputValueRef.current = "";
         inputRef.current?.clearInput();
         setIsAnswerAnimating(false);
 
@@ -1470,13 +1566,15 @@ export default function CrosswordSessionScreen() {
     animateWordCompletion,
     isAnswerAnimating,
     inputValue,
-    completedWordIds.size,
+    completedWordIds,
     playShake,
     playSuccess,
     playCorrectAnswerAudio,
     puzzle,
     selectNextWord,
     selectedWord,
+    selectedCrossingValues,
+    selectedInputCellKeys,
   ]);
 
   const handleRevealLetter = useCallback(() => {
@@ -1501,8 +1599,6 @@ export default function CrosswordSessionScreen() {
       next.add(selectedWord.id);
       return next;
     });
-    setInputValue(selectedWord.word);
-    inputRef.current?.setInputText?.(selectedWord.word);
 
     setTimeout(() => {
       setInputValue("");
@@ -1513,7 +1609,7 @@ export default function CrosswordSessionScreen() {
       );
       if (remaining.length > 0) {
         remaining.sort((a, b) => a.number - b.number);
-        selectWord(remaining[0].id, false);
+        selectWord(remaining[0].id, true);
       }
       setFeedbackState("idle");
     }, 260);
@@ -1625,34 +1721,10 @@ export default function CrosswordSessionScreen() {
   }, []);
 
   const typedPreviewByCell = useMemo(() => {
-    const preview = new Map<string, string>();
-    if (!selectedWord || completedWordIds.has(selectedWord.id)) {
-      return preview;
-    }
-
-    const normalizedInput = normalizeKatakanaToHiragana((inputValue || "").trim());
-    if (!normalizedInput) {
-      return preview;
-    }
-
-    const typedCharacters = Array.from(normalizedInput);
-    const solutionLength = Array.from(selectedWord.word).length;
-    const limit = Math.min(typedCharacters.length, solutionLength);
-
-    for (let i = 0; i < limit; i += 1) {
-      const row =
-        selectedWord.direction === "down"
-          ? selectedWord.row + i
-          : selectedWord.row;
-      const col =
-        selectedWord.direction === "across"
-          ? selectedWord.col + i
-          : selectedWord.col;
-      preview.set(`${row}:${col}`, typedCharacters[i]);
-    }
-
+    const preview = new Map(Object.entries(draftValues));
+    if (activeInput.pending && activeInput.cursorKey) preview.set(activeInput.cursorKey, activeInput.pending);
     return preview;
-  }, [completedWordIds, inputValue, selectedWord]);
+  }, [activeInput.cursorKey, activeInput.pending, draftValues]);
   const selectedHintStage = selectedWord
     ? hintStageByWordId[selectedWord.id] ?? 0
     : 0;
@@ -1820,9 +1892,8 @@ export default function CrosswordSessionScreen() {
   const totalWords = puzzle.words.length;
   const solvedCount = completedWordIds.size;
 
-  const expectedLength = selectedWord
-    ? Array.from(selectedWord.word).length
-    : 0;
+  const cursorKey = selectedWord && !completedWordIds.has(selectedWord.id) ? activeInput.cursorKey : null;
+  const [cursorRow, cursorCol] = (cursorKey ?? "0:0").split(":").map(Number);
 
   return (
     <SafeAreaView
@@ -1894,6 +1965,10 @@ export default function CrosswordSessionScreen() {
         </View>
       </View>
 
+      <KeyboardAvoidingView
+        style={styles.keyboardArea}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
       <ScrollView
         ref={mainScrollRef}
         style={styles.scrollArea}
@@ -1947,6 +2022,31 @@ export default function CrosswordSessionScreen() {
               selectedCellSet={selectedCellSet}
               completedCellSet={completedCellSet}
               typedPreviewByCell={typedPreviewByCell}
+              feedbackState={feedbackState}
+              cursorKey={isGridFocused ? cursorKey : null}
+              keyboardInput={
+                <KanaInput
+                  ref={inputRef}
+                  accessibilityLabel="Crossword grid input"
+                  accessibilityHint={`Type in row ${cursorRow + 1}, column ${cursorCol + 1}. Press Return to check the word.`}
+                  onKanaChange={handleGridInput}
+                  useJapaneseKeyboard={autoSwitchKeyboard}
+                  onFocus={() => setIsGridFocused(true)}
+                  onBlur={() => setIsGridFocused(false)}
+                  onKeyPress={(event) => { if (event.nativeEvent.key === "Backspace") handleGridBackspace(); }}
+                  onSubmitEditing={(event) => void handleSubmit(event.nativeEvent.text)}
+                  blurOnSubmit={false}
+                  caretHidden
+                  pointerEvents="none"
+                  returnKeyType="go"
+                  editable={!!selectedWord}
+                  style={[styles.gridKeyboardInput, {
+                    width: cellSize, height: cellSize,
+                    top: GRID_WRAPPER_PADDING + cursorRow * (cellSize + GRID_CELL_MARGIN * 2),
+                    left: GRID_WRAPPER_PADDING + cursorCol * (cellSize + GRID_CELL_MARGIN * 2),
+                  }]}
+                />
+              }
               wordCompletionAnimation={wordCompletionAnimation}
               getWordCellIndex={getWordCellIndex}
               onCellPress={handleCellPress}
@@ -1984,10 +2084,6 @@ export default function CrosswordSessionScreen() {
         </View>
       </ScrollView>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={0}
-      >
         <View
           style={[
             styles.inputDock,
@@ -2106,46 +2202,9 @@ export default function CrosswordSessionScreen() {
           </View>
         )}
         <View style={styles.inputRow}>
-          <View
-            style={[
-              styles.inputBox,
-              {
-                borderColor:
-                  feedbackState === "incorrect"
-                    ? theme.error
-                    : feedbackState === "correct"
-                    ? CROSSWORD_SUCCESS_COLOR
-                    : theme.border,
-                backgroundColor: theme.backgroundColor,
-              },
-            ]}
-          >
-            <KanaInput
-              ref={inputRef}
-              onKanaChange={(kana) => setInputValue(kana)}
-              useJapaneseKeyboard={autoSwitchKeyboard}
-              placeholder={
-                expectedLength > 0
-                  ? `Enter ${expectedLength} character${
-                      expectedLength === 1 ? "" : "s"
-                    }`
-                  : "Select a clue"
-              }
-              placeholderTextColor={theme.textSecondary}
-              style={[
-                styles.input,
-                fontStyles.japaneseText,
-                { color: theme.textColor },
-              ]}
-              autoCapitalize="none"
-              autoCorrect={false}
-              blurOnSubmit={false}
-              returnKeyType="go"
-              onSubmitEditing={() => void handleSubmit()}
-              editable={!!selectedWord}
-              resetSignal={selectedWord?.id}
-            />
-          </View>
+          <Text style={[styles.gridInputHint, { color: theme.textSecondary }]}>
+            Tap a square and type in the grid.
+          </Text>
           <TouchableOpacity
             onPress={() => void handleSubmit()}
             style={[
@@ -2174,6 +2233,9 @@ interface CrosswordGridViewProps {
   selectedCellSet: Set<string>;
   completedCellSet: Set<string>;
   typedPreviewByCell: Map<string, string>;
+  feedbackState?: "idle" | "correct" | "incorrect";
+  cursorKey?: string | null;
+  keyboardInput?: React.ReactNode;
   wordCompletionAnimation: WordCompletionAnimationState | null;
   getWordCellIndex: (
     word: PlacedCrosswordWord,
@@ -2191,6 +2253,9 @@ function CrosswordGridView({
   selectedCellSet,
   completedCellSet,
   typedPreviewByCell,
+  feedbackState = "idle",
+  cursorKey,
+  keyboardInput,
   wordCompletionAnimation,
   getWordCellIndex,
   onCellPress,
@@ -2245,6 +2310,7 @@ function CrosswordGridView({
 
             const borderColor = isCompleted
               ? CROSSWORD_SUCCESS_COLOR
+              : isSelected && feedbackState === "incorrect" ? theme.error
               : isSelected
                 ? theme.primary
                 : theme.border;
@@ -2258,6 +2324,9 @@ function CrosswordGridView({
             return (
               <TouchableOpacity
                 key={`cell-${rowIndex}-${colIndex}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Row ${rowIndex + 1}, column ${colIndex + 1}`}
+                accessibilityValue={{ text: displayedLetter || "Empty" }}
                 onPress={() => onCellPress(rowIndex, colIndex)}
                 activeOpacity={0.85}
                 style={[
@@ -2266,7 +2335,8 @@ function CrosswordGridView({
                     width: cellSize,
                     height: cellSize,
                     backgroundColor,
-                    borderColor,
+                    borderColor: key === cursorKey ? theme.textColor : borderColor,
+                    borderWidth: key === cursorKey ? 3 : 1,
                   },
                 ]}
               >
@@ -2327,6 +2397,7 @@ function CrosswordGridView({
           })}
         </View>
       ))}
+      {keyboardInput}
     </View>
   );
 }
@@ -3009,6 +3080,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   scrollArea: { flex: 1 },
+  keyboardArea: { flex: 1 },
   scrollContent: {
     paddingVertical: 16,
     alignItems: "center",
@@ -3112,18 +3184,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  inputBox: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    justifyContent: "center",
-  },
-  input: {
-    fontSize: 18,
-    paddingVertical: 0,
-  },
+  gridInputHint: { flex: 1, fontSize: 13 },
+  // One stable native input preserves the IME session while the tiles render
+  // its text and cursor. Moving focus between one-character inputs breaks IME.
+  gridKeyboardInput: { position: "absolute", opacity: 0.01, color: "transparent", padding: 0 },
   submitButton: {
     paddingHorizontal: 18,
     height: 48,

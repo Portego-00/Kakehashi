@@ -103,6 +103,14 @@ filter as Custom Review, including kana vocabulary. **Select Filtered** adds all
 confirmed matches, including those beyond the displayed results. Cached ranks
 work offline; remaining words can be checked with Jiten and retried if interrupted.
 
+## Custom Review dates
+
+In **Custom Review → Filters → Date**, choose **Lesson completed** or **Unlocked**,
+then pick a **Start** and **End** date. Both options default to the last 7 days.
+Dates include both selected days in your local time. Select individual subjects or **Select Filtered**, then use the study
+button to review them or **Add to Lists** to save them to Subject Lists. Recent
+Lessons keeps its existing shortcut behavior.
+
 ## Review character size
 
 Use **Settings → Review Settings → Review Character Size** on mobile, or
@@ -111,6 +119,16 @@ prompts down to 30% in 10% steps. The default is 100%; answer fields and other
 app text keep their own sizes. On the web, you can also change **Question text
 size** from the review session's settings button, including on a phone with the
 keyboard open.
+
+## Multiple choice controls
+
+Turn **Multiple choice** on or off in Settings. Anki questions keep their
+selected answer mode.
+
+Choose **I don't know** to reveal the answer and count a mistake. Correct
+multiple-choice answers follow **Stop on correct**: with it off, reviews advance
+automatically; with it on, use **Mark Wrong** on mobile or **Mark Incorrect** on
+the web to correct an accidentally correct selection before continuing.
 
 ## Review keyboard shortcuts
 

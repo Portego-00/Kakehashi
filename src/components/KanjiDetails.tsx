@@ -1,8 +1,9 @@
+import type { ViewInstance } from "react-native";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { Ionicons } from "@expo/vector-icons";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   enableLayoutAnimations,
   FadeIn,
@@ -27,7 +29,7 @@ import { SvgXml } from "react-native-svg";
 import PagerView from "react-native-pager-view";
 import SubjectMetadataRows from "./SubjectMetadataRows";
 import { SRS_COLORS } from "../constants/srsColors";
-import { hiraganaToKata } from "../utils/katakanaMadness";
+import { formatOnyomiReading, hiraganaToKata } from "../utils/katakanaMadness";
 import { speakKanjiReading } from "../utils/kanjiPronunciationSpeech";
 import {
   getMnemonicImageAsset,
@@ -127,7 +129,9 @@ interface KanjiDetailsProps {
     readingIncorrect?: number;
     percentageCorrect?: number;
     nextReviewAt?: string;
+    burnedAt?: string | null;
     onEditNote?: (type: "meaning" | "reading") => void;
+    onRemoveNoteImage?: (type: "meaning" | "reading", index: number) => Promise<void>;
     meaningCurrentStreak?: number;
     meaningMaxStreak?: number;
     readingCurrentStreak?: number;
@@ -440,6 +444,8 @@ export default function KanjiDetails({
     showStrokeOrder || initialTab !== "stroke" ? initialTab : "meaning"
   );
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const headerTop = Math.max(HEADER_TOP_OFFSET, insets.top + 16);
   const [showAllSimilar, setShowAllSimilar] = useState(false);
   const [expandedComponentId, setExpandedComponentId] = useState<number | null>(
     null
@@ -450,7 +456,7 @@ export default function KanjiDetails({
   const [kunyomiPitchPage, setKunyomiPitchPage] = useState(0);
   const [nanoriPitchPage, setNanoriPitchPage] = useState(0);
   const { theme } = useTheme();
-  const mainCharacterRef = useRef<View>(null);
+  const mainCharacterRef = useRef<ViewInstance>(null);
   const {
     containerRef,
     tooltipVisible,
@@ -493,10 +499,14 @@ export default function KanjiDetails({
   const primaryMeaning = translatedMeaning ? contentDisplay.formatMeaning(translatedMeaning.primary) : originalPrimaryMeaning;
 
   // Determine the primary reading (fallback to first available reading)
-  const primaryReading =
-    kanji.readings.find((r) => r.primary)?.reading ||
-    kanji.readings[0]?.reading ||
-    "";
+  const primaryReadingEntry =
+    kanji.readings.find((r) => r.primary) ?? kanji.readings[0];
+  const primaryReading = primaryReadingEntry?.reading ?? "";
+  const displayedPrimaryReading = formatOnyomiReading(
+    primaryReading,
+    primaryReadingEntry?.type === "onyomi",
+    showOnyomiInKatakana,
+  );
 
   // Group readings by type
   const onyomiReadings = kanji.readings.filter((r) => r.type === "onyomi");
@@ -1296,6 +1306,7 @@ export default function KanjiDetails({
                     {kanji.meaningNote ? (
                       <FormattedNoteText
                         text={kanji.meaningNote}
+                        onRemoveImage={kanji.onRemoveNoteImage ? (index) => kanji.onRemoveNoteImage!("meaning", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (
@@ -1337,6 +1348,7 @@ export default function KanjiDetails({
                     {kanji.readingNote ? (
                       <FormattedNoteText
                         text={kanji.readingNote}
+                        onRemoveImage={kanji.onRemoveNoteImage ? (index) => kanji.onRemoveNoteImage!("reading", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (
@@ -1640,6 +1652,7 @@ export default function KanjiDetails({
                 kanjiCharacters={kanji.characters}
                 kanjiReadings={kanji.readings}
                 vocabulary={kanji.amalgamationSubjects ?? []}
+                userLevel={userLevel}
                 onSubjectPress={onSubjectPress}
               />
             </View>
@@ -1726,11 +1739,15 @@ export default function KanjiDetails({
                           { color: theme.textSecondary },
                         ]}
                       >
-                        Next review:{" "}
+                        {kanji.srsStage === 9 ? "Burned on: " : "Next review: "}
                         <Text
                           style={{ fontWeight: "600", color: theme.textColor }}
                         >
-                          {formatNextReviewTime(kanji.nextReviewAt)}
+                          {kanji.srsStage === 9
+                            ? kanji.burnedAt
+                              ? new Date(kanji.burnedAt).toLocaleDateString()
+                              : "Date unavailable"
+                            : formatNextReviewTime(kanji.nextReviewAt)}
                         </Text>
                       </Text>
                     </View>
@@ -1967,16 +1984,23 @@ export default function KanjiDetails({
         ]}
       >
         {!embedded && (
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            { paddingTop: headerTop, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+          ]}
+        >
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Back"
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={[styles.backButton, { top: headerTop, left: 20 + insets.left }]}
             hitSlop={BACK_BUTTON_HIT_SLOP}
           >
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
 
-          <View style={styles.headerActions}>
+          <View style={[styles.headerActions, { top: headerTop, right: 16 + insets.right }]}>
             <SubjectHistoryButton subjectType="kanji" meaning={kanji.meanings.find(item => item.primary)?.meaning} subjectId={kanji.id} label={kanji.characters || "Radical"} />
             {onAddToList && (
               <TouchableOpacity
@@ -2004,7 +2028,7 @@ export default function KanjiDetails({
           {onOpenConstellation && (
             <TouchableOpacity
               onPress={onOpenConstellation}
-              style={styles.constellationButton}
+              style={[styles.constellationButton, { right: 20 + insets.right }]}
             >
               <Ionicons name="planet-outline" size={24} color="#fff" />
             </TouchableOpacity>
@@ -2021,7 +2045,7 @@ export default function KanjiDetails({
 
           <Text style={styles.mainTitle}>{primaryMeaning}</Text>
           {!!primaryReading && (
-            <Text style={styles.mainReading}>{primaryReading}</Text>
+            <Text style={styles.mainReading}>{displayedPrimaryReading}</Text>
           )}
         </View>
         )}

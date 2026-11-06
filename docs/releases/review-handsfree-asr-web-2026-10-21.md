@@ -1,0 +1,14 @@
+# Hands-free review speech recognition — October 21, 2026
+
+## Current release: October 21, 2026 — hands-free speech recognition
+
+Production is **`dpl_762x3KnqTQQPiCn5sLi3KstQLZpN`**, at https://kakehashi-44g7gormu-portego-00s-projects.vercel.app, promoted to https://kakehashiapp.com. The optional **Settings → Reviews → Speech recognition** trial remains a normal collapsed section, visible only to authenticated Portego accounts and hidden for demo accounts. One **241 MB SenseVoiceSmall** model download now handles Japanese readings and English meanings entirely on-device, with Silero speech detection.
+
+Start voice answers once to continue across review questions. Finished speech submits automatically; stable accepted provisional answers can submit earlier. The control follows regular and mixed reviews, lessons, Bunpro reviews/lessons/practice, custom SRS, and extra study. Listening pauses for feedback, app playback, hidden tabs, dialogs, and manual typing. Ungraded “try another answer” results resume listening automatically. Existing answer-stop preferences still apply: disable **Pause on correct answer** for continuous progression. Japanese transcripts resolve to kana independently of the current card's accepted answer; ambiguous readings can require a retry or typing. Recognition remains imperfect, including an observed short synthetic かわ → かは error.
+
+The complete **1,240-file** source snapshot is `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-21/Kakehashi/review-handsfree-asr-prod/upload`. It preserves the verified previous production source and changes only 30 web paths. Production builds and typechecks passed. The initial full unit run passed **3,238 tests** with one existing skip; after the final retry and streaming-route fixes, **287 focused tests** passed. Lint passed with three existing warnings; final changed-file lint was clean. **15 hosted checks** passed, including a fresh model download and real Japanese/English inference with one activation, silence rejection, automatic progression, and an intentionally incorrect meaning to verify grading does not copy the expected answer. **14 live desktop/mobile checks** passed; live runtime and detector hashes matched the pinned assets. All uploaded source hashes were verified before promotion. An earlier unpromoted staged build is recorded beside the final release. Temporary staging credentials were removed after verification.
+
+The immediate rollback is **`dpl_FozBTABZSA6rdGsYqLXX8E1xrN3a`**, with source in `/Volumes/XcodeBuildCache/ProjectArtifacts/2026-10-20/Kakehashi/review-metadata-text-prod/upload`. No environment changes, database migrations, native release, Git commit, or Git push were performed.
+
+
+Research and remaining limitations: [browser ASR upgrade](../../research/browser-review-asr-upgrade.md).

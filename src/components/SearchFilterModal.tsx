@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { BlurView } from "expo-blur";
@@ -21,6 +22,8 @@ import { JLPT_LEVELS, type JLPTLevel } from "../utils/jlptClassification";
 import { useSubjectColors } from "../utils/subjectColors";
 import { useTheme } from "../utils/theme";
 import { VocabularyTypeFilter } from "./vocabulary-type-filter";
+import { StudyDateFilterControls } from "./StudyDateFilterControls";
+import type { StudyDateFilter } from "../utils/studyDateFilter";
 
 // Duplicate the type here to avoid circular dependency if it's not exported centrally
 // In a real scenario, this should be imported from a shared types file
@@ -46,6 +49,7 @@ export interface SearchFilters {
   jlptLevels: Set<JLPTLevel>;
   maxFrequencyRank: number | null;
   vocabularyTypes: string[];
+  studyDate?: StudyDateFilter | null;
 }
 
 export const createDefaultSearchFilters = (): SearchFilters => ({
@@ -68,6 +72,7 @@ interface SearchFilterModalProps {
   showFrequencyFilters?: boolean;
   frequencyFiltersEnabled?: boolean;
   onEnableFrequencyFilters?: () => void;
+  showDateFilters?: boolean;
 }
 
 export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
@@ -80,6 +85,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   showFrequencyFilters = false,
   frequencyFiltersEnabled = true,
   onEnableFrequencyFilters,
+  showDateFilters = false,
 }) => {
   const { theme } = useTheme();
   const subjectColors = useSubjectColors();
@@ -94,7 +100,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   // Animation values
   const filterPanelAnimation = useRef(new Animated.Value(0)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const filterSectionsRef = useRef<ScrollView>(null);
+  const filterSectionsRef = useRef<ScrollViewInstance>(null);
   const vocabularySectionY = useRef(0);
   const frequencySectionY = useRef(0);
   const focusedSection = useRef<"vocabulary" | "frequency" | null>(null);
@@ -175,8 +181,8 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
           duration: 250,
           useNativeDriver: true,
         }),
-      ]).start(() => {
-        setPendingFilters(null);
+      ]).start(({ finished }) => {
+        if (finished) setPendingFilters(null);
       });
     }
   }, [
@@ -882,6 +888,11 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
               })}
             </View>
           </View>
+
+          {showDateFilters ? <View style={styles.filterSection}>
+            <Text style={[styles.filterSectionTitle, { color: theme.textSecondary }]}>Date</Text>
+            <StudyDateFilterControls value={filtersToDisplay.studyDate} onChange={(studyDate) => setPendingFilters((current) => current ? { ...current, studyDate } : null)} />
+          </View> : null}
           </ScrollView>
 
           <View style={styles.modalFooter}>
@@ -1069,7 +1080,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
 
 const styles = StyleSheet.create({
   keyboardContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1000,
   },
   keyboardContent: {

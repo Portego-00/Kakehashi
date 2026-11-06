@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen, Bookmark, ChevronDown, ChevronUp, Download, ExternalLink, Headphones, Layers3, LoaderCircle, Pencil, Save, Square, Volume2, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Bookmark, ChevronDown, ChevronUp, Download, ExternalLink, Headphones, ImagePlus, Layers3, LoaderCircle, Pencil, Save, Square, Volume2, X } from "lucide-react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { AnkiExportButton } from "../../anki-export/AnkiExportButton";
 import { Button, type ButtonState } from "@/components/ui/Button";
@@ -32,6 +32,11 @@ import { SubjectHistory } from "./SubjectHistory";
 import { SubjectCharacter } from "./SubjectCharacter";
 import { EmbeddedSubjectHeader } from "./EmbeddedSubjectHeader";
 import { StrokeOrder } from "./StrokeOrder";
+import { MediaContextSource, useYouGlishAccess } from "./MediaContextSource";
+import { NoteImageComposer, NoteImageGallery } from "./NoteImages";
+import { StudyMaterialPermissionDialog } from "./StudyMaterialPermissionDialog";
+import { isStudyMaterialPermissionError, STUDY_MATERIAL_PERMISSION_SUMMARY } from "../../../../../shared/study-material-permissions";
+import { joinNoteImages, splitNoteImages } from "../../../../../shared/note-images";
 import styles from "../subjects.module.css";
 
 function ConstellationIcon() {
@@ -395,7 +400,7 @@ function UsagePatterns({ patterns }: { patterns: UsagePattern[] }) {
 }
 
 export function ContextSentences({ sentences }: { sentences: ContextSentence[] }) {
-  const voice = useJapaneseVoice();
+  const voice = useJapaneseVoice({ prepare: sentences.length > 0 });
   const downloading = voice.activity === "downloading";
   const downloadState: ButtonState = downloading ? "loading" : voice.error && !voice.downloaded ? "error" : "idle";
   const action = voice.checked && voice.downloaded
@@ -590,6 +595,7 @@ export function SubjectDetailPanels({
   showVocabularyFrequency = false,
   autoplayPronunciation = false,
 }: SubjectDetailPanelsProps) {
+  const youGlishEnabled = useYouGlishAccess(settings.showYouGlishContext);
   const detailsRef = useRef<HTMLDivElement>(null);
   const [moreExpanded, setMoreExpanded] = useState(false);
   const [moreVisited, setMoreVisited] = useState(false);
@@ -616,6 +622,7 @@ export function SubjectDetailPanels({
     isVocabulary && (
       (settings.showContextSentences && record.data.context_sentences?.length)
       || (settings.showImmersionExamples && record.data.characters)
+      || (youGlishEnabled && record.data.characters)
       || (settings.showPatternsOfUse && usagePatterns.length)
     ),
   );
@@ -699,10 +706,12 @@ export function SubjectDetailPanels({
         </section>
 
         {hasReadingTab ? <section id={panelId("reading")} role="tabpanel" aria-labelledby={tabId("reading")} aria-hidden={resolvedActiveTab !== "reading"} inert={resolvedActiveTab !== "reading" ? true : undefined} data-tab-position={tabPosition("reading")} className={styles.detailPanelStack} style={tabPagerStyle("reading")}>
-          <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}><ReadingGroups readings={record.data.readings ?? []} pitchAccents={settings.showPitchAccent ? pitchAccents : []} /></DetailSection>
+          <DetailSection title="Readings" icon={<Layers3 size={19} aria-hidden />}>
+            <ReadingGroups readings={record.data.readings ?? []} pitchAccents={settings.showPitchAccent ? pitchAccents : []} />
+            {pronunciationAudios.length ? <div className={styles.readingGroup}><h3>Audio</h3><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></div> : null}
+          </DetailSection>
           {readingMnemonic.length ? <DetailSection title="Reading mnemonic"><Mnemonic paragraphs={readingMnemonic} />{!compact && record.data.reading_hint ? <div className={styles.subjectHint}><Mnemonic paragraphs={mnemonicParagraphs(record.data.reading_hint)} /></div> : null}</DetailSection> : null}
           {!compact ? readingExtras : null}
-          {pronunciationAudios.length ? <DetailSection title="Pronunciation" icon={<Headphones size={19} aria-hidden />}><div className={styles.audioList}>{pronunciationAudios.map((audio, index) => <PronunciationPlayer key={audio.metadata.source_id ?? index} audio={audio} index={index} />)}</div></DetailSection> : null}
         </section> : null}
 
         {record.object === "kanji" && settings.showStrokeOrder ? <section id={panelId("stroke")} role="tabpanel" aria-labelledby={tabId("stroke")} aria-hidden={resolvedActiveTab !== "stroke"} inert={resolvedActiveTab !== "stroke" ? true : undefined} data-tab-position={tabPosition("stroke")} className={styles.detailPanelStack} style={tabPagerStyle("stroke")}>
@@ -712,7 +721,9 @@ export function SubjectDetailPanels({
         {hasContextContent ? <section id={panelId("context")} role="tabpanel" aria-labelledby={tabId("context")} aria-hidden={resolvedActiveTab !== "context"} inert={resolvedActiveTab !== "context" ? true : undefined} data-tab-position={tabPosition("context")} className={styles.detailPanelStack} style={tabPagerStyle("context")}>
           {settings.showPatternsOfUse && usagePatterns.length ? <UsagePatterns patterns={usagePatterns} /> : null}
           {settings.showContextSentences && record.data.context_sentences?.length ? <ContextSentences sentences={record.data.context_sentences} /> : null}
-          {settings.showImmersionExamples && isVocabulary ? <AnimeContext examples={immersionExamples} query={characters} loading={immersionLoading} failed={immersionFailed} /> : null}
+          {isVocabulary ? <MediaContextSource query={characters} enabled={settings.showYouGlishContext} active={resolvedActiveTab === "context"}>
+            {settings.showImmersionExamples ? <AnimeContext examples={immersionExamples} query={characters} loading={immersionLoading} failed={immersionFailed} /> : null}
+          </MediaContextSource> : null}
         </section> : null}
       </DetailPager>
       {compact ? <div className={styles.reviewMore}>
@@ -765,7 +776,12 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
   const [synonyms, setSynonyms] = useState(material?.data.meaning_synonyms ?? []);
   const [synonymDraft, setSynonymDraft] = useState("");
   const [editing, setEditing] = useState(false);
+  const [addingImage, setAddingImage] = useState(false);
+  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
   const [buttonState, setButtonState] = useState<ButtonState>("idle");
+  const note = splitNoteImages(field === "meaning_note" ? meaningNote : readingNote);
+  const savedNote = splitNoteImages(field === "meaning_synonyms" ? "" : material?.data[field] ?? "");
+  const updateNote = (text: string) => field === "meaning_note" ? setMeaningNote(text) : setReadingNote(text);
   const mutation = useMutation({
     mutationFn: (draft: StudyMaterialDraft) => {
       const body = { study_material: { ...(material ? {} : { subject_id: subjectId }), [field]: field === "meaning_synonyms" ? draft.synonyms : (field === "meaning_note" ? draft.meaningNote : draft.readingNote) || null } };
@@ -784,8 +800,13 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
       setSynonymDraft("");
       setButtonState("success");
       setEditing(false);
+      setAddingImage(false);
+      setPermissionDialogOpen(false);
     },
-    onError: () => setButtonState("error"),
+    onError: (error) => {
+      setButtonState("error");
+      if (isStudyMaterialPermissionError(error)) setPermissionDialogOpen(true);
+    },
   });
 
   const resetDraft = () => {
@@ -794,6 +815,8 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
     setSynonyms(material?.data.meaning_synonyms ?? []);
     setSynonymDraft("");
     setButtonState("idle");
+    setAddingImage(false);
+    setPermissionDialogOpen(false);
   };
   const startEditing = () => {
     resetDraft();
@@ -819,10 +842,14 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
   };
   const action = loading ? null : editing
     ? <Button type="button" tone="ghost" size="small" disabled={buttonState === "loading"} onClick={cancelEditing}><X size={16} aria-hidden />Cancel</Button>
-    : <Button type="button" tone="ghost" size="small" aria-label={`Edit ${title.toLowerCase()}`} onClick={startEditing}><Pencil size={16} aria-hidden />Edit</Button>;
+    : <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      {field !== "meaning_synonyms" ? <Button type="button" tone="ghost" size="small" disabled={buttonState === "loading"} onClick={() => { startEditing(); setAddingImage(true); }}><ImagePlus size={16} aria-hidden />Add image</Button> : null}
+      <Button type="button" tone="ghost" size="small" disabled={buttonState === "loading"} aria-label={`Edit ${title.toLowerCase()}`} onClick={startEditing}><Pencil size={16} aria-hidden />Edit</Button>
+    </div>;
 
   const content = loading ? <Skeleton height="6rem" /> : editing ? <form className={styles.notesForm} data-state={buttonState} aria-busy={buttonState === "loading"} onSubmit={(event) => {
       event.preventDefault();
+      if (addingImage || buttonState === "loading") return;
       const nextSynonyms = mergeSynonyms(synonyms, [synonymDraft]);
       setSynonyms(nextSynonyms);
       setSynonymDraft("");
@@ -845,13 +872,26 @@ export function StudyMaterialEditor({ subjectId, material, queryKey, loading, fi
           }} />
         </div>
         <span id={`${inputId}-help`} className={styles.synonymHelper}>Press comma or Enter after each synonym.</span>
-      </div> : <TextAreaField label={title} rows={4} value={field === "meaning_note" ? meaningNote : readingNote} onChange={(event) => field === "meaning_note" ? setMeaningNote(event.target.value) : setReadingNote(event.target.value)} />}
-      {buttonState === "error" ? <p className={styles.notesError} role="alert">Notes weren’t saved. Check your connection and try again.</p> : null}
-      <div className={styles.notesActions}><Button type="submit" tone="primary" state={buttonState}><Save size={16} aria-hidden />{buttonState === "error" ? "Try again" : field === "meaning_synonyms" ? "Save synonyms" : "Save note"}</Button></div>
+      </div> : <>
+        <TextAreaField label={title} rows={4} value={note.text} disabled={buttonState === "loading"} onChange={(event) => updateNote(joinNoteImages(event.target.value, note.images))} />
+        <NoteImageGallery images={note.images} disabled={buttonState === "loading"} onRemove={(index) => updateNote(joinNoteImages(note.text, note.images.filter((_, position) => position !== index)))} />
+        {addingImage ? <NoteImageComposer disabled={buttonState === "loading"} onCancel={() => setAddingImage(false)} onAdd={(url) => { updateNote(joinNoteImages(note.text, [...note.images, url])); setAddingImage(false); }} />
+          : <div><Button type="button" tone="ghost" size="small" disabled={buttonState === "loading"} onClick={() => setAddingImage(true)}><ImagePlus size={16} aria-hidden />Add image</Button></div>}
+      </>}
+      {buttonState === "error" ? <p className={styles.notesError} role="alert">{isStudyMaterialPermissionError(mutation.error) ? STUDY_MATERIAL_PERMISSION_SUMMARY : "Notes weren’t saved. Check your connection and try again."}</p> : null}
+      <div className={styles.notesActions}><Button type="submit" tone="primary" state={buttonState} disabled={addingImage}><Save size={16} aria-hidden />{buttonState === "error" ? "Try again" : field === "meaning_synonyms" ? "Save synonyms" : "Save note"}</Button></div>
     </form> : field === "meaning_synonyms" ? <span>{material?.data.meaning_synonyms.length ? material.data.meaning_synonyms.join(", ") : <span className={styles.emptyNote}>None added</span>}</span>
-      : <div className={styles.notesReadOnly}>{material?.data[field] ? <p>{material.data[field]}</p> : <span className={styles.emptyNote}>None added</span>}</div>;
+      : <div>
+        <div className={styles.notesReadOnly}>{savedNote.text ? <p>{savedNote.text}</p> : !savedNote.images.length ? <span className={styles.emptyNote}>None added</span> : null}</div>
+        <NoteImageGallery images={savedNote.images} disabled={buttonState === "loading"} onRemove={(index) => {
+          const value = joinNoteImages(savedNote.text, savedNote.images.filter((_, position) => position !== index));
+          return mutation.mutateAsync({ meaningNote: field === "meaning_note" ? value : meaningNote, readingNote: field === "reading_note" ? value : readingNote, synonyms });
+        }} />
+      </div>;
 
-  return field === "meaning_synonyms"
+  return <>{field === "meaning_synonyms"
     ? <div className={styles.synonymRow}><div>{content}</div>{action}</div>
-    : <DetailSection title={title} action={action}>{content}</DetailSection>;
+    : <DetailSection title={title} action={action}>{content}</DetailSection>}
+    <StudyMaterialPermissionDialog open={permissionDialogOpen} onClose={() => setPermissionDialogOpen(false)} />
+  </>;
 }

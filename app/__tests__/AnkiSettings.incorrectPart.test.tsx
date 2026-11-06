@@ -1,5 +1,5 @@
 import React from "react";
-import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
+import { act, cleanupAsync, fireEvent, render } from "@testing-library/react-native";
 import AnkiSettingsScreen from "../(app)/anki-settings";
 import { useSettingsStore } from "../../src/utils/store";
 import { permanentStorage } from "../../src/utils/permanentStorage";
@@ -15,7 +15,7 @@ beforeEach(() => {
   useSettingsStore.setState(useSettingsStore.getInitialState(), true);
   useSettingsStore.setState({ ankiGroupQuestions: true, ankiCardModeScope: "both" });
 });
-afterEach(() => { cleanup(); useSettingsStore.setState(useSettingsStore.getInitialState(), true); });
+afterEach(async () => { await cleanupAsync(); useSettingsStore.setState(useSettingsStore.getInitialState(), true); });
 
 it("exposes an off-by-default chooser preference in Anki settings and saves changes", () => {
   const screen = render(<AnkiSettingsScreen />);
@@ -33,4 +33,11 @@ it("only offers the chooser for grouped meaning and reading cards", () => {
   expect(screen.queryByLabelText("Ask which part was wrong")).toBeNull();
   act(() => useSettingsStore.setState({ ankiGroupQuestions: true, ankiCardModeScope: "reading" }));
   expect(screen.queryByLabelText("Ask which part was wrong")).toBeNull();
+});
+
+it("updates the buttonless instructions with the left-handed preference", () => {
+  const screen = render(<AnkiSettingsScreen />);
+  expect(screen.getByText(/After reveal: tap left for incorrect, tap right for correct/)).toBeTruthy();
+  act(() => useSettingsStore.getState().setReviewLeftHandedMode(true));
+  expect(screen.getByText(/After reveal: tap left for correct, tap right for incorrect/)).toBeTruthy();
 });

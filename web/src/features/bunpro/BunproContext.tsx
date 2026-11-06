@@ -6,8 +6,15 @@ import { useWebSettings } from "@/features/settings/use-workspace-preferences";
 import { fetchImmersionExamples } from "@/features/study/immersion";
 import { AnimeContext } from "@/features/subjects/components/SubjectDetail";
 import { SubjectAudioProvider } from "@/features/subjects/components/SubjectAudioControls";
+import { MediaContextSource } from "@/features/subjects/components/MediaContextSource";
 
 export function BunproContext({ query }: { query: string }) {
+  const { user } = useSession();
+  const settings = useWebSettings(user?.data.username ?? "anonymous");
+  return <SubjectAudioProvider><MediaContextSource query={query} enabled={settings.subjectDetails.showYouGlishContext}><BunproAnimeContext query={query} /></MediaContextSource></SubjectAudioProvider>;
+}
+
+function BunproAnimeContext({ query }: { query: string }) {
   const { user } = useSession();
   const sources = useWebSettings(user?.data.username ?? "anonymous").study.immersionKitAnimeSources;
   const scenes = useQuery({
@@ -17,5 +24,5 @@ export function BunproContext({ query }: { query: string }) {
     staleTime: 60 * 60_000,
     retry: 1,
   });
-  return <SubjectAudioProvider><AnimeContext examples={scenes.data ?? []} query={query} loading={Boolean(query) && scenes.isPending} failed={scenes.isError} /></SubjectAudioProvider>;
+  return <AnimeContext examples={scenes.data ?? []} query={query} loading={Boolean(query) && scenes.isPending} failed={scenes.isError} />;
 }

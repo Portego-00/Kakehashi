@@ -41,6 +41,21 @@ function dialogProps(
 }
 
 describe("AddToSubjectListsDialog", () => {
+  it("appends a selection without removing existing subjects or touching unchosen lists", () => {
+    const repository = setupRepository();
+    const target = repository.create("Practice");
+    const other = repository.create("Other");
+    repository.addSubject(target.id, 42);
+    repository.addSubject(target.id, 99);
+    repository.addSubject(other.id, 42);
+    const props = dialogProps(repository);
+    render(<AddToSubjectListsDialog {...props} subjectIds={[42, 43, 43]} />);
+    expect(screen.getByRole("checkbox", { name: /Practice/ })).not.toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Practice/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(repository.load().find((list) => list.id === target.id)?.subjectIds).toEqual([42, 99, 43]);
+    expect(repository.load().find((list) => list.id === other.id)?.subjectIds).toEqual([42]);
+  });
   it("preselects existing memberships and reconciles additions and removals on Save", () => {
     const repository = setupRepository();
     const existing = repository.create("Already saved");

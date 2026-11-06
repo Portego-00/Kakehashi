@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, Text, View } from "react-native";
 import type { BunproLearnContentItem } from "../../types/bunpro";
@@ -20,7 +21,7 @@ export function BunproDetailsContent({ kind, slug, content, review, deckId, acti
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const heroHeight = useRef(0);
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
   const [stuck, setStuck] = useState(false);
   const [tab, setTab] = useState(initialTab);
   const audio = useBunproAudio();

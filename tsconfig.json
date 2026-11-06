@@ -2,6 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "types": ["jest", "node"],
     "paths": {
       "@/*": [
         "./*"
@@ -13,5 +14,17 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "android",
+    "ios",
+    "build",
+    "dist",
+    "output",
+    "web",
+    "website",
+    "services",
+    "supabase"
   ]
 }

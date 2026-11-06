@@ -20,6 +20,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSharedValue, withTiming } from "react-native-reanimated";
@@ -45,8 +46,6 @@ import MultipleChoiceKeyboard from "./multiple-choice-keyboard";
 import * as wanakana from "wanakana";
 import { AnkiDroidExportButton } from "./AnkiDroidExportButton";
 
-const { width } = Dimensions.get("window");
-const { height } = Dimensions.get("window");
 const BLANK_TOKEN = "＿＿＿";
 const ANSWER_CARD_ANIMATION_MS = 430;
 const NEXT_QUESTION_DELAY_MS = 460;
@@ -205,6 +204,14 @@ export default function ContextSentenceQuestionScreen({
   correctAnswersCount,
   accuracyPercent,
 }: ContextSentenceQuestionScreenProps) {
+  const { width, height } = useWindowDimensions();
+  const styles = useMemo(() => createStyles(width, height), [width, height]);
+  const [choicesGridWidth, setChoicesGridWidth] = useState(0);
+  const choiceButtonWidth = Math.max(0, ((choicesGridWidth || width - 32) - 10) / 2);
+  const handleChoicesGridLayout = (event: LayoutChangeEvent) => {
+    const nextWidth = event.nativeEvent.layout.width;
+    if (nextWidth > 0) setChoicesGridWidth(nextWidth);
+  };
   const { theme } = useTheme();
   const display = useLearningDisplay();
   const subjectColors = useSubjectColors();
@@ -285,8 +292,7 @@ export default function ContextSentenceQuestionScreen({
   const vocabInputRef = useRef<KanaInputHandle | null>(null);
   const progressWidth = useRef(new Animated.Value(0)).current;
   const feedbackOpacity = useRef(new Animated.Value(0)).current;
-  const boxPositionX = useRef(new Animated.Value(0)).current;
-  const boxPositionY = useRef(new Animated.Value(0)).current;
+  const boxTravelProgress = useRef(new Animated.Value(0)).current;
   const boxScale = useRef(new Animated.Value(1)).current;
   const boxOpacity = useRef(new Animated.Value(0)).current;
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
@@ -800,24 +806,13 @@ export default function ContextSentenceQuestionScreen({
   };
 
   const animateAnsweredItemBox = () => {
-    boxPositionX.setValue(0);
-    boxPositionY.setValue(0);
+    boxTravelProgress.setValue(0);
     boxScale.setValue(1);
     boxOpacity.setValue(1);
 
-    // Match ReviewQuestionScreen positioning so it lands below the header.
-    const targetTop = Math.max(140, insets.top + 96);
-    const targetX = -(width / 2);
-    const targetY = -(height / 2) + targetTop;
-
     Animated.parallel([
-      Animated.timing(boxPositionX, {
-        toValue: targetX,
-        duration: ANSWER_CARD_ANIMATION_MS,
-        useNativeDriver: true,
-      }),
-      Animated.timing(boxPositionY, {
-        toValue: targetY,
+      Animated.timing(boxTravelProgress, {
+        toValue: 1,
         duration: ANSWER_CARD_ANIMATION_MS,
         useNativeDriver: true,
       }),
@@ -1705,8 +1700,14 @@ export default function ContextSentenceQuestionScreen({
             styles.answeredItemBox,
             {
               transform: [
-                { translateX: boxPositionX },
-                { translateY: boxPositionY },
+                { translateX: boxTravelProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -width / 2],
+                }) },
+                { translateY: boxTravelProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -height / 2 + Math.max(140, insets.top + 96)],
+                }) },
                 { scale: boxScale },
               ],
               opacity: boxOpacity,
@@ -1856,6 +1857,7 @@ export default function ContextSentenceQuestionScreen({
             </Text>
             <MultipleChoiceKeyboard
               style={styles.choicesGrid}
+              onLayout={handleChoicesGridLayout}
               questionKey={String(question.id)}
               enabled={pendingAnswer === null && !isAdvancing && !navigatingToDetail && selectedItem === null}
               onSelectIndex={handleChoiceSelect}
@@ -1872,6 +1874,7 @@ export default function ContextSentenceQuestionScreen({
                     key={choice.vocabId}
                     style={[
                       styles.choiceButton,
+                      { width: choiceButtonWidth },
                       {
                         borderColor: selected ? selectedResultColor : theme.border,
                         backgroundColor: selected
@@ -2013,7 +2016,7 @@ export default function ContextSentenceQuestionScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (width: number, height: number) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -2274,10 +2277,10 @@ const styles = StyleSheet.create({
     opacity: 0.18,
   },
   translationBlurOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   translationRevealHint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -2432,7 +2435,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   choiceButton: {
-    width: (width - 32 - 10) / 2,
     borderRadius: 12,
     borderWidth: 1,
     justifyContent: "center",

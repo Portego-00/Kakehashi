@@ -122,12 +122,12 @@ function renderCrossword(nextPuzzle?: CrosswordPuzzle) {
 }
 
 async function solveCrossword() {
-  const answer = screen.getByRole("textbox", { name: "Answer" });
+  const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
   fireEvent.change(answer, { target: { value: "natsu" } });
   fireEvent.keyDown(answer, { key: "Enter" });
   await waitFor(() => expect(screen.getByText("What", { selector: "[data-active-clue]" })).toBeVisible());
 
-  const nextAnswer = screen.getByRole("textbox", { name: "Answer" });
+  const nextAnswer = screen.getByRole("textbox", { name: "Crossword grid input" });
   fireEvent.change(nextAnswer, { target: { value: "nani" } });
   fireEvent.keyDown(nextAnswer, { key: "Enter" });
   await waitFor(() => expect(screen.getByRole("heading", { name: "Crossword complete" })).toBeVisible());
@@ -149,14 +149,14 @@ describe("crossword keyboard interaction", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps an ambiguous n editable in the lower field while previewing complete kana", () => {
+  it("keeps an ambiguous n in the active grid square while composing kana", () => {
     renderCrossword();
 
-    const answer = screen.getByRole("textbox", { name: "Answer" });
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
     answer.focus();
     fireEvent.change(answer, { target: { value: "n" } });
     expect(answer).toHaveValue("n");
-    expect(tileLetter(1, 1)).toBeEmptyDOMElement();
+    expect(tileLetter(1, 1)).toHaveTextContent("n");
     expect(answer).toHaveFocus();
 
     fireEvent.change(answer, { target: { value: "na" } });
@@ -168,7 +168,7 @@ describe("crossword keyboard interaction", () => {
   it("flushes a trailing romaji n before checking the selected word", () => {
     renderCrossword(hospitalPuzzle);
 
-    const answer = screen.getByRole("textbox", { name: "Answer" }) as HTMLInputElement;
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" }) as HTMLInputElement;
     for (const character of "byouin") {
       fireEvent.change(answer, { target: { value: `${answer.value}${character}` } });
     }
@@ -209,13 +209,13 @@ describe("crossword keyboard interaction", () => {
     expect(tileLetter(1, 2)).toBeEmptyDOMElement();
   });
 
-  it("previews a word from the lower field and checks it with Return", async () => {
+  it("types into the grid and checks the word with Return", async () => {
     renderCrossword();
 
-    const answer = screen.getByRole("textbox", { name: "Answer" });
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
     fireEvent.change(answer, { target: { value: "n" } });
     expect(answer).toHaveValue("n");
-    expect(tileLetter(1, 1)).toBeEmptyDOMElement();
+    expect(tileLetter(1, 1)).toHaveTextContent("n");
 
     fireEvent.change(answer, { target: { value: "na" } });
     expect(answer).toHaveValue("な");
@@ -227,8 +227,8 @@ describe("crossword keyboard interaction", () => {
     fireEvent.keyDown(answer, { key: "Enter" });
 
     await waitFor(() => expect(screen.getByText("What", { selector: "[data-active-clue]" })).toBeVisible());
-    expect(screen.getByRole("textbox", { name: "Answer" })).toHaveValue("");
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Answer" })).toHaveFocus());
+    expect(screen.getByRole("textbox", { name: "Crossword grid input" })).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Crossword grid input" })).toHaveFocus());
     expect(tileLetter(1, 1)).toHaveTextContent("な");
     expect(tileLetter(1, 2)).toHaveTextContent("つ");
     expect(tile(1, 2)).toHaveAttribute("data-completed", "true");
@@ -237,7 +237,7 @@ describe("crossword keyboard interaction", () => {
   it("advances to the next word when Return is pressed with an empty answer", async () => {
     renderCrossword();
 
-    const answer = screen.getByRole("textbox", { name: "Answer" });
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
     answer.focus();
     expect(screen.getByText("Summer", { selector: "[data-active-clue]" })).toBeVisible();
     expect(answer).toHaveValue("");
@@ -250,10 +250,52 @@ describe("crossword keyboard interaction", () => {
     await waitFor(() => expect(answer).toHaveFocus());
   });
 
+  it("fills a leading crossing from the grid when only the missing kana is typed", async () => {
+    renderCrossword();
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
+    fireEvent.change(answer, { target: { value: "natsu" } });
+    fireEvent.keyDown(answer, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("What", { selector: "[data-active-clue]" })).toBeVisible());
+
+    fireEvent.change(answer, { target: { value: "ni" } });
+    expect(tileLetter(1, 1)).toHaveTextContent("な");
+    expect(tileLetter(2, 1)).toHaveTextContent("に");
+    fireEvent.keyDown(answer, { key: "Enter" });
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Crossword complete" })).toBeVisible());
+  });
+
+  it("counts a trailing crossing when checking the letters displayed in the grid", async () => {
+    renderCrossword({
+      ...puzzle,
+      cells: [
+        [{ answer: "な", number: 1, entryIds: ["summer"] }, { answer: "つ", number: 2, entryIds: ["summer", "what"] }],
+        [null, { answer: "に", entryIds: ["what"] }],
+      ],
+      entries: [puzzle.entries[0], { ...puzzle.entries[1], answer: "つに", col: 1, number: 2 }],
+    });
+    fireEvent.click(screen.getByRole("button", { name: /2 Down.*What/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Reveal word" }));
+    fireEvent.click(screen.getByRole("button", { name: /1 Across.*Summer/i }));
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
+    fireEvent.change(answer, { target: { value: "na" } });
+    expect(tileLetter(1, 1)).toHaveTextContent("な");
+    expect(tileLetter(1, 2)).toHaveTextContent("つ");
+    fireEvent.click(screen.getByRole("button", { name: "Check word" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Crossword complete" })).toBeVisible());
+  });
+
+  it("rejects extra kana instead of silently truncating an answer to the grid", () => {
+    renderCrossword();
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
+    fireEvent.change(answer, { target: { value: "なつあ" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check word" }));
+    expect(answer).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("continues forward after answering a skipped-to clue and wraps past solved clues", async () => {
     renderCrossword(navigationPuzzle);
 
-    const answer = screen.getByRole("textbox", { name: "Answer" });
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
     fireEvent.keyDown(answer, { key: "Enter" });
     expect(screen.getByText("What", { selector: "[data-active-clue]" })).toBeVisible();
 
@@ -279,7 +321,7 @@ describe("crossword keyboard interaction", () => {
   it("keeps an incorrect checked word editable without committing it", async () => {
     renderCrossword();
 
-    const answer = screen.getByRole("textbox", { name: "Answer" });
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
     fireEvent.change(answer, { target: { value: "nani" } });
     fireEvent.keyDown(answer, { key: "Enter" });
 
@@ -293,16 +335,16 @@ describe("crossword keyboard interaction", () => {
     expect(answer).not.toHaveAttribute("aria-invalid");
   });
 
-  it("uses the grid only to select a word and returns focus to the lower answer field", async () => {
+  it("keeps the keyboard input in the grid when a square is selected", async () => {
     renderCrossword();
 
     const grid = screen.getByLabelText("Crossword grid");
-    expect(within(grid).queryByRole("textbox", { name: "Row 1, column 1" })).not.toBeInTheDocument();
+    expect(within(grid).getByRole("textbox", { name: "Crossword grid input" })).toBeInTheDocument();
 
     fireEvent.click(within(grid).getByRole("button", { name: "Row 2, column 1" }));
 
     expect(screen.getByText("What", { selector: "[data-active-clue]" })).toBeVisible();
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Answer" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Crossword grid input" })).toHaveFocus());
     expect(grid.querySelectorAll('[data-selected="true"]')).toHaveLength(2);
   });
 
@@ -311,7 +353,7 @@ describe("crossword keyboard interaction", () => {
     try {
       renderCrossword();
 
-      const answer = screen.getByRole("textbox", { name: "Answer" });
+      const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
       fireEvent.change(answer, { target: { value: "natsu" } });
       fireEvent.keyDown(answer, { key: "Enter" });
 
@@ -333,7 +375,7 @@ describe("crossword keyboard interaction", () => {
   it("marks every selected tile red when the checked word is wrong", async () => {
     renderCrossword();
 
-    const answer = screen.getByRole("textbox", { name: "Answer" });
+    const answer = screen.getByRole("textbox", { name: "Crossword grid input" });
     fireEvent.change(answer, { target: { value: "nani" } });
     fireEvent.keyDown(answer, { key: "Enter" });
 
@@ -374,5 +416,52 @@ describe("crossword keyboard interaction", () => {
     const grid = screen.getByLabelText("Crossword grid");
     expect(grid.style.getPropertyValue("--crossword-cols")).toBe("2");
     expect(grid.style.getPropertyValue("--crossword-rows")).toBe("2");
+  });
+
+  it("edits a tapped middle square while preserving the surrounding kana", async () => {
+    renderCrossword(hospitalPuzzle);
+    const input = screen.getByRole("textbox", { name: "Crossword grid input" });
+    fireEvent.change(input, { target: { value: "びゃういん" } });
+    fireEvent.click(tile(1, 2));
+    fireEvent.change(input, { target: { value: "ょ" } });
+    expect(tileLetter(1, 1)).toHaveTextContent("び");
+    expect(tileLetter(1, 2)).toHaveTextContent("ょ");
+    expect(tileLetter(1, 5)).toHaveTextContent("ん");
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Crossword complete" })).toBeVisible());
+  });
+
+  it("preserves unfinished letters when switching clues and returning to the game", () => {
+    const view = renderCrossword();
+    fireEvent.change(screen.getByRole("textbox", { name: "Crossword grid input" }), { target: { value: "na" } });
+    fireEvent.click(screen.getByRole("button", { name: /1 Down.*What/i }));
+    expect(tileLetter(1, 1)).toHaveTextContent("な");
+    view.unmount();
+    renderCrossword();
+    expect(tileLetter(1, 1)).toHaveTextContent("な");
+  });
+
+  it("backspaces into the previous square after tapping an empty square", () => {
+    renderCrossword();
+    const input = screen.getByRole("textbox", { name: "Crossword grid input" });
+    fireEvent.change(input, { target: { value: "na" } });
+    fireEvent.click(tile(1, 2));
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(tileLetter(1, 1)).toBeEmptyDOMElement();
+    expect(input).toHaveFocus();
+  });
+
+  it("keeps one focused input throughout Japanese IME composition", () => {
+    renderCrossword(hospitalPuzzle);
+    const input = screen.getByRole("textbox", { name: "Crossword grid input" });
+    fireEvent.click(tile(1, 1));
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "びょ" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(screen.getByRole("status")).not.toHaveTextContent("does not match");
+    fireEvent.compositionEnd(input, { data: "びょういん", target: { value: "びょういん" } });
+    expect(screen.getByRole("textbox", { name: "Crossword grid input" })).toBe(input);
+    expect(input).toHaveFocus();
+    expect(tileLetter(1, 5)).toHaveTextContent("ん");
   });
 });

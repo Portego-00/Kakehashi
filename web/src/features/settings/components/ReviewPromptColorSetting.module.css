@@ -1,0 +1,6 @@
+.row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); min-height: 3.5rem; }
+.label { display: flex; align-items: center; flex: 1 1 12rem; gap: var(--space-sm); }
+.controls { display: flex; align-items: center; gap: var(--space-xs); }
+.controls select { min-height: 2.75rem; padding: var(--space-xs); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-ink); font: inherit; font-size: var(--text-sm); }
+.controls input[type="color"] { width: 2.75rem; height: 2.75rem; padding: var(--space-3xs); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-sm); background: var(--color-surface); cursor: pointer; }
+.controls :is(select, input):focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }

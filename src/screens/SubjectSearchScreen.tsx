@@ -10,15 +10,17 @@ import React, {
 import {
   ActivityIndicator,
   Animated,
-  Dimensions,
   FlatList,
   Image,
   StyleSheet,
   Text,
   TextInput,
+  type TextInputInstance,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SvgXml } from "react-native-svg";
 import { GlassButton } from "../components/GlassButton";
 import { useDashboardData } from "../hooks/useDashboardData";
@@ -170,8 +172,17 @@ export default function SubjectSearchScreen({
   const router = useRouter();
   const params = useLocalSearchParams<{ query?: string }>();
   const usesNativeTabSearch = supportsNativeTabs() && !forceInlineSearchBar;
-  const { width } = Dimensions.get("window");
-  const isTablet = width > 768;
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isWideLayout = width - insets.left - insets.right > 768;
+  const containerStyle = [
+    styles.container,
+    {
+      backgroundColor: theme.backgroundColor,
+      paddingLeft: insets.left,
+      paddingRight: insets.right,
+    },
+  ];
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
@@ -197,7 +208,7 @@ export default function SubjectSearchScreen({
   const buttonWidth = useRef(
     new Animated.Value(SEARCH_BUTTON_TOTAL_WIDTH)
   ).current;
-  const textInputRef = useRef<TextInput>(null);
+  const textInputRef = useRef<TextInputInstance>(null);
   const flatListRef = useRef<FlatList<SearchResult>>(null);
   const hasLoadedSubjectSrsStagesRef = useRef(false);
   const subjectSrsLoadInFlightRef = useRef(false);
@@ -652,6 +663,7 @@ export default function SubjectSearchScreen({
 
     return (
       <TouchableOpacity
+        accessibilityRole="button"
         style={[styles.itemContainer, { backgroundColor: theme.cardBackground }]}
         activeOpacity={0.7}
         onPress={() => handleSubjectPress(item.id)}
@@ -846,7 +858,7 @@ export default function SubjectSearchScreen({
   if (isLoadingSubjects) {
     return (
       <View
-        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+        style={containerStyle}
       >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
@@ -862,7 +874,7 @@ export default function SubjectSearchScreen({
   if (isCacheMissing && !isRebuildingCache) {
     return (
       <View
-        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+        style={containerStyle}
       >
         <View style={styles.cacheErrorContainer}>
           <Ionicons
@@ -904,7 +916,7 @@ export default function SubjectSearchScreen({
   if (isRebuildingCache) {
     return (
       <View
-        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+        style={containerStyle}
       >
         <View style={styles.cacheRebuildContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
@@ -1036,10 +1048,7 @@ export default function SubjectSearchScreen({
 
   return (
     <View
-      style={[
-        styles.container,
-        { backgroundColor: theme.backgroundColor, paddingTop: topPadding },
-      ]}
+      style={[containerStyle, { paddingTop: topPadding }]}
     >
       {/* Search bar */}
       {showInlineSearchBar ? (
@@ -1133,7 +1142,7 @@ export default function SubjectSearchScreen({
               Search
             </Text>
           )}
-          {!isTablet && (
+          {!isWideLayout && (
             <View style={{ flexDirection: "row", gap: 12 }}>
               <GlassButton
                 iconName="options"
@@ -1168,12 +1177,16 @@ export default function SubjectSearchScreen({
       {/* Main Content */}
       {renderContent()}
 
-      {/* Floating Buttons for Native Search Mode (Tablet only) */}
-      {!showInlineSearchBar && isTablet && (
+      {/* Floating Buttons for Native Search Mode on wide layouts */}
+      {!showInlineSearchBar && isWideLayout && (
         <View
           style={[
             styles.nativeSearchButtons,
-            { backgroundColor: theme.cardBackground },
+            {
+              backgroundColor: theme.cardBackground,
+              right: insets.right + 24,
+              bottom: insets.bottom + 24,
+            },
           ]}
         >
           <GlassButton

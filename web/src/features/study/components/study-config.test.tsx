@@ -7,6 +7,8 @@ import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
 import { getModeDefaultFilters } from "../mode-config";
 import type { StudyFilters, SubjectList } from "../types";
 import { StudyConfig } from "./study-config";
+import { createListRepository } from "@/features/subjects/lists";
+import type { SubjectListsState } from "@/features/subjects/components/AddToSubjectListsDialog";
 
 function renderConfig(component: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -78,9 +80,9 @@ function reviewAssignment(subjectId: number, subjectType: SubjectType, srsStage:
   };
 }
 
-function ReviewHarness({ initialFilters, subjects, assignments, lists = [], onStart }: { initialFilters: StudyFilters; subjects: Subject[]; assignments: Assignment[]; lists?: SubjectList[]; onStart: () => void }) {
+function ReviewHarness({ initialFilters, subjects, assignments, lists = [], subjectLists, onStart }: { initialFilters: StudyFilters; subjects: Subject[]; assignments: Assignment[]; lists?: SubjectList[]; subjectLists?: SubjectListsState; onStart: (filters: StudyFilters) => void }) {
   const [filters, setFilters] = useState(initialFilters);
-  return <StudyConfig mode="custom-review" filters={filters} subjects={subjects} assignments={assignments} lists={lists} userLevel={5} onChange={setFilters} onStart={onStart} />;
+  return <StudyConfig mode="custom-review" filters={filters} subjects={subjects} assignments={assignments} lists={lists} subjectLists={subjectLists} userLevel={5} onChange={setFilters} onStart={() => onStart(filters)} />;
 }
 
 function LessonHarness({ initialFilters, subjects, assignments, lists = [], onStart }: { initialFilters: StudyFilters; subjects: Subject[]; assignments: Assignment[]; lists?: SubjectList[]; onStart: () => void }) {
@@ -91,6 +93,52 @@ function LessonHarness({ initialFilters, subjects, assignments, lists = [], onSt
 afterEach(() => vi.restoreAllMocks());
 
 describe("native-parity study configuration", () => {
+  it("switches between lesson completion and unlock dates, saves a selection and starts it directly", () => {
+    const first = reviewAssignment(1, "kanji", 2);
+    first.data.started_at = "2026-08-27T12:00:00Z";
+    first.data.unlocked_at = "2026-08-20T12:00:00Z";
+    const second = reviewAssignment(2, "kanji", 0);
+    second.data.started_at = null;
+    second.data.unlocked_at = "2026-08-27T12:00:00Z";
+    const values = new Map<string, string>();
+    const repository = createListRepository({ getItem: (key) => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); } }, "Date test");
+    const list = repository.create("Practice later");
+    repository.addSubject(list.id, 99);
+    const onStart = vi.fn();
+    renderConfig(<ReviewHarness initialFilters={getModeDefaultFilters("custom-review", 5)} subjects={[reviewSubject(1, "kanji", "日", "Sun", "にち"), reviewSubject(2, "kanji", "月", "Moon", "げつ")]} assignments={[first, second]} onStart={onStart} subjectLists={{ repository, lists: repository.load(), syncing: false, syncError: "" }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lesson completed" }));
+    fireEvent.input(screen.getByLabelText("Start date"), { target: { value: "2026-08-27" } });
+    fireEvent.input(screen.getByLabelText("End date"), { target: { value: "2026-08-27" } });
+    expect(screen.getByRole("button", { name: /Choose 日/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Choose 月/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Unlocked" }));
+    expect(screen.queryByRole("button", { name: /Choose 日/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Choose 月/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to Lists" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Practice later/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(repository.load()[0].subjectIds).toEqual([99, 2]);
+    fireEvent.click(screen.getByRole("button", { name: "Start review" }));
+    expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ selectedSubjectIds: [2] }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+    expect(screen.getByRole("button", { name: "Any date" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Choose 日/ })).toBeInTheDocument();
+  });
+
+  it("bulk-selects date matches beyond the visible result limit", () => {
+    const subjects = Array.from({ length: 211 }, (_, i) => reviewSubject(i + 1, "kanji", `字${i + 1}`, `Word ${i + 1}`, "じ"));
+    const assignments = subjects.map((subject) => {
+      const assignment = reviewAssignment(subject.id, "kanji", 1);
+      assignment.data.started_at = subject.id <= 205 ? "2026-08-27T12:00:00Z" : "2026-08-20T12:00:00Z";
+      return assignment;
+    });
+    const onStart = vi.fn();
+    renderConfig(<ReviewHarness initialFilters={{ ...getModeDefaultFilters("custom-review", 5), studyDate: { field: "started_at", period: "custom", from: "2026-08-27", to: "2026-08-27" } }} subjects={subjects} assignments={assignments} onStart={onStart} />);
+    fireEvent.click(screen.getByRole("button", { name: "Select filtered" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start review" }));
+    expect(onStart.mock.calls[0][0].selectedSubjectIds).toEqual(Array.from({ length: 205 }, (_, i) => i + 1));
+  });
   it("offers original word recordings or context sentence speech for audio vocabulary", () => {
     const onChange = vi.fn();
     renderConfig(<StudyConfig mode="audio-vocab" filters={getModeDefaultFilters("audio-vocab", 5)} subjects={[]} lists={[]} userLevel={5} onChange={onChange} onStart={vi.fn()} />);

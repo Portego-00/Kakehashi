@@ -1,4 +1,4 @@
-/** @jest-environment jsdom */
+/** @jest-environment ./jest.dom-environment.cjs */
 
 import {
   getNoteVisualEditorBoundaryOffset,

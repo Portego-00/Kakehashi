@@ -18,6 +18,13 @@ function render(ui: ReactElement) {
 
 vi.mock("@/features/core-study/review-subject-font", () => ({ reviewSubjectFont: { style: { fontFamily: "Noto Sans JP" } } }));
 
+it.each(["custom-review", "recent-lessons", "vocab-reading", "context-sentences", "hiragana-meaning", "random-test", "similar-kanji", "kana-to-kanji", "listening"] as const)("uses the WaniKani prompt color in %s extra study", (mode) => {
+  render(<QuizSession scope="test" initialSession={{ ...makeSession(makeQuestion()), mode }} reviewPreferences={{ ...DEFAULT_WEB_SETTINGS.study, reviewPromptTextColor: "#123456", bunproReviewPromptTextColor: "#abcdef" }} studyMaterials={[]} onExit={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: "防ぐ" })).toHaveStyle({ color: "#123456" });
+  expect(screen.getByRole("textbox")).not.toHaveStyle({ color: "#123456" });
+  cleanup();
+});
+
 it.each(["custom-review", "recent-lessons", "vocab-reading", "context-sentences", "hiragana-meaning", "random-test", "similar-kanji", "kana-to-kanji", "listening"] as const)("uses regular review typography for %s prompts", (mode) => {
   render(<QuizSession scope="test" initialSession={{ ...makeSession(makeQuestion()), mode }} onExit={vi.fn()} />);
   expect(screen.getByRole("heading", { name: "防ぐ" })).toHaveStyle({ fontFamily: "Noto Sans JP", fontWeight: 350 });
@@ -34,6 +41,8 @@ vi.mock("@/lib/wanikani/client", () => ({
 }));
 
 vi.mock("@/features/notebooks/use-notebooks", () => ({ useNotebooks: () => ({ state: { version: 1, pages: [], sentences: [] }, available: false, isLoading: false, error: "" }) }));
+const asr = vi.hoisted(() => ({ active: false }));
+vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript, onAnswer }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void; onAnswer: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "ふせぐ"); onAnswer(language === "en" ? "forest" : "ふせぐ"); }}>Record {language}</button> : null }));
 vi.mock("@/lib/session", () => ({ useSession: () => ({ status: "authenticated", user: { data: { id: "test", username: "test" } }, isDemo: false }) }));
 
 vi.mock("@/features/speech/use-japanese-voice", () => ({
@@ -184,6 +193,37 @@ describe("extra-study quiz interaction", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Incorrect");
     expect(screen.getByRole("status")).not.toHaveTextContent("Accepted with a typo");
     expect(within(group).getByRole("button", { name: /Prevent\. Correct answer/ })).toBeDisabled();
+  });
+
+  it.each([false, true])("honors stop on correct %s for multiple choice in extra study", async (pause) => {
+    const session = makeSession(makeQuestion({ kind: "meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" }));
+    session.questions.push(makeQuestion({ id: "question-2" }));
+    renderQuiz({ scope: "test", initialSession: { ...session, mode: "custom-review" }, subjects: [makeSubject()], reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true }, pauseOnCorrect: pause, onExit: vi.fn() });
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. Prevent$/ }));
+    if (pause) {
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)); });
+      expect(loadStudySession("test", "custom-review")?.currentIndex).toBe(0);
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+    await waitFor(() => expect(loadStudySession("test", "custom-review")?.currentIndex).toBe(1), { timeout: 2000 });
+  });
+
+  it.each(["unknown", "corrected"])("records a %s choice as incorrect in extra study", async (action) => {
+    const session = makeSession(makeQuestion({ kind: "meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" }));
+    session.questions.push(makeQuestion({ id: "question-2" }));
+    renderQuiz({ scope: "test", initialSession: { ...session, mode: "custom-review" }, subjects: [makeSubject()], reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true }, pauseOnCorrect: action === "corrected", pauseOnWrong: false, onExit: vi.fn() });
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    if (action === "unknown") {
+      fireEvent.click(screen.getByRole("button", { name: "I don't know" }));
+      expect(screen.getByRole("status")).toHaveTextContent("Incorrect");
+      fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
+    } else {
+      fireEvent.click(within(group).getByRole("button", { name: /^\d\. Prevent$/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
+    }
+    await waitFor(() => expect(loadStudySession("test", "custom-review")?.answers[0]).toMatchObject({ correct: false, status: "incorrect" }));
+    expect(loadStudySession("test", "custom-review")?.currentIndex).toBe(1);
   });
 
   it("keeps scoped Anki behavior when the shared multiple choice setting is on", async () => {
@@ -1011,7 +1051,7 @@ describe("extra-study quiz interaction", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
     expect(screen.getByRole("heading", { name: "Readings" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reading mnemonic" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Pronunciation" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Audio", level: 3 })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Context" }));
     expect(screen.getByRole("heading", { name: "Context sentences" })).toBeInTheDocument();
@@ -1223,7 +1263,7 @@ describe("extra-study quiz interaction", () => {
       return nextFrame;
     });
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frame) => {
-      frames.delete(frame);
+      if (frame != null) frames.delete(frame);
     });
     const firstQuestion = makeQuestion();
     const secondQuestion = makeQuestion({ id: "question-2", prompt: "猫", acceptedAnswers: ["ねこ"], displayAnswer: "ねこ" });
@@ -1435,6 +1475,22 @@ describe("extra-study quiz interaction", () => {
 
     expect(screen.getByText("1 / 5")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "5");
+  });
+
+  it.each([0, 8])("hides English metadata text in extra study at SRS stage %s", (stage) => {
+    renderQuiz({
+      scope: "extra-study-icon-metadata",
+      initialSession: { ...makeSession(makeQuestion()), mode: "random-test" },
+      subjects: [makeSubject()],
+      assignments: [makeAssignment(1, stage)],
+      reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, showReviewItemLevelAndSrsStage: true, hideReviewItemLevelAndSrsStageText: true },
+      onExit: vi.fn(),
+    });
+    const metadata = screen.getByLabelText("Question status");
+    expect(within(metadata).getByText("12", { exact: true })).toBeInTheDocument();
+    expect(within(metadata).getByText("Level")).toHaveClass("sr-only");
+    expect(within(metadata).getByText(stage === 0 ? "Lesson" : "Enlightened")).toHaveClass("sr-only");
+    expect(metadata.querySelector("svg")).toBeInTheDocument();
   });
 
   it("shows enabled review question extras in random test", async () => {
@@ -2038,4 +2094,17 @@ it.each([
   fireEvent.click(await screen.findByRole("button", { name: "Reveal answer" }));
   fireEvent.keyDown(document.body, { key: "d" });
   expect(await screen.findByRole("tab", { name: selected, selected: true })).toBeVisible();
+});
+
+
+it.each(["meaning", "reading", "meaning-to-reading", "kana-to-meaning", "listening-meaning", "listening-characters", "context", "audio-vocab"] as const)("automatically grades voice answers in %s extra study with choice answers", kind => {
+  asr.active = true;
+  try {
+    render(<QuizSession scope="test" initialSession={makeSession(makeQuestion({ kind, choices: ["ふせぐ", "もり"] }))} reviewPreferences={{ ...DEFAULT_WEB_SETTINGS.study, reviewAsrEnabled: true, pauseOnCorrect: true }} subjects={[makeSubject()]} onExit={vi.fn()} />);
+    const english = ["meaning", "kana-to-meaning", "listening-meaning", "audio-vocab"].includes(kind);
+    fireEvent.click(screen.getByRole("button", { name: `Record ${english ? "en" : "ja"}` }));
+    expect(screen.getByRole("textbox")).toHaveValue(english ? "forest" : "ふせぐ");
+    expect(screen.getByRole("button", { name: /^Next$/ })).toBeEnabled();
+    expect(screen.queryByRole("group", { name: "Answer choices" })).not.toBeInTheDocument();
+  } finally { cleanup(); asr.active = false; }
 });

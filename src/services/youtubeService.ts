@@ -31,6 +31,34 @@ const UNWANTED_VIDEO_TERMS = [
   'nightcore',
 ];
 
+function getDirectVideoId(query: string): string | null {
+  const value = query.trim();
+  const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
+  if (videoIdPattern.test(value)) return value;
+
+  try {
+    const url = new URL(
+      /^(?:(?:www|m|music)\.)?youtube\.com\/|^(?:www\.)?youtu\.be\//i.test(value)
+        ? `https://${value}`
+        : value,
+    );
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+
+    let videoId: string | null = null;
+    if (url.hostname === "youtu.be" || url.hostname === "www.youtu.be") {
+      videoId = url.pathname.match(/^\/([A-Za-z0-9_-]{11})\/?$/)?.[1] ?? null;
+    } else if (
+      ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"].includes(url.hostname) &&
+      url.pathname === "/watch"
+    ) {
+      videoId = url.searchParams.get("v");
+    }
+    return videoId && videoIdPattern.test(videoId) ? videoId : null;
+  } catch {
+    return null;
+  }
+}
+
 class YouTubeService {
   private apiKey: string;
 
@@ -103,39 +131,49 @@ class YouTubeService {
 
   /**
    * Search for videos by query string (music search)
-   * Returns videos sorted by relevance, filtered to music category
+   * Text searches use the music category; a pasted video link or ID selects that
+   * exact video, including music videos published in other categories.
    */
   async searchVideos(query: string, maxResults: number = 20): Promise<YouTubeSearchResult[]> {
     try {
-      // Step 1: Search for videos
-      const searchUrl = `${YOUTUBE_API_BASE_URL}/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&maxResults=${maxResults}&key=${this.getApiKey()}`;
+      const directVideoId = getDirectVideoId(query);
+      const fetchDetails = async (videoIds: string) => {
+        const detailsUrl = `${YOUTUBE_API_BASE_URL}/videos?part=contentDetails,snippet&id=${videoIds}&key=${this.getApiKey()}`;
+        const response = await fetch(detailsUrl);
+        if (!response.ok) {
+          throw new Error(`YouTube API error: ${response.status}`);
+        }
+        return response.json();
+      };
 
-      console.log('Searching YouTube for:', query);
+      let detailsData = directVideoId ? await fetchDetails(directVideoId) : null;
+      if (
+        !directVideoId ||
+        (directVideoId === query.trim() && !detailsData.items?.length)
+      ) {
+        // An 11-character song title can look like an ID. Only explicit links
+        // stay exact when unavailable; an empty bare-ID lookup falls back to search.
+        const searchUrl = `${YOUTUBE_API_BASE_URL}/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&maxResults=${maxResults}&key=${this.getApiKey()}`;
 
-      const searchResponse = await fetch(searchUrl);
-      if (!searchResponse.ok) {
-        throw new Error(`YouTube API error: ${searchResponse.status}`);
+        console.log('Searching YouTube for:', query);
+
+        const searchResponse = await fetch(searchUrl);
+        if (!searchResponse.ok) {
+          throw new Error(`YouTube API error: ${searchResponse.status}`);
+        }
+
+        const searchData = await searchResponse.json();
+
+        if (!searchData.items || searchData.items.length === 0) {
+          console.log('No YouTube videos found');
+          return [];
+        }
+
+        const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+        detailsData = await fetchDetails(videoIds);
       }
 
-      const searchData = await searchResponse.json();
-
-      if (!searchData.items || searchData.items.length === 0) {
-        console.log('No YouTube videos found');
-        return [];
-      }
-
-      // Step 2: Get video details (including duration) for all results
-      const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
-      const detailsUrl = `${YOUTUBE_API_BASE_URL}/videos?part=contentDetails,snippet&id=${videoIds}&key=${this.getApiKey()}`;
-
-      const detailsResponse = await fetch(detailsUrl);
-      if (!detailsResponse.ok) {
-        throw new Error(`YouTube API error: ${detailsResponse.status}`);
-      }
-
-      const detailsData = await detailsResponse.json();
-
-      // Step 3: Parse results
+      // Parse details (including duration) for all results.
       const results: YouTubeSearchResult[] = detailsData.items.map((item: any) => {
         const duration = this.parseDuration(item.contentDetails.duration);
         return {

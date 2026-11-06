@@ -1,3 +1,4 @@
+import type { TextInputInstance } from "react-native";
 import React, {
   forwardRef,
   useCallback,
@@ -84,7 +85,7 @@ const KanaInput = forwardRef<
     ref
   ) => {
     const [text, setText] = useState(initialValue);
-    const inputRef = useRef<TextInput>(null);
+    const inputRef = useRef<TextInputInstance>(null);
     const keyboardOwnerId = useRef(Symbol("kana-input"));
     const textRef = useRef(initialValue);
     const previousRawTextRef = useRef(initialValue);

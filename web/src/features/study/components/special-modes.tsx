@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { toHiragana } from "wanakana";
+import { buildCrosswordInput, eraseCrosswordCell } from "../../../../../src/utils/crosswordInput";
 import { ArrowLeft, ArrowRight, Check, Eye, Grid3X3, Library, Lightbulb, Play, RotateCcw, Sparkles, Trash2, Undo2, Volume2, X } from "lucide-react";
 import type { WebSettings } from "@/features/settings/settings";
 import { DEMO_USERNAME } from "@/features/demo/runtime";
@@ -284,14 +285,13 @@ export function WritingPractice({ dataset, filters, scope, onExit }: { dataset: 
   );
 }
 
-interface SavedCrossword { puzzle: CrosswordPuzzle | null; values: Record<string, string>; checked: boolean; signature: string }
+interface SavedCrossword { puzzle: CrosswordPuzzle | null; values: Record<string, string>; draftValues?: Record<string, string>; checked: boolean; signature: string }
 
 function playAudio(url?: string) {
   if (!url || typeof Audio === "undefined") return;
   void new Audio(url).play();
 }
 
-const HIRAGANA_CELL = /^[\p{Script=Hiragana}ー〜～]$/u;
 const CROSSWORD_TILE_REVEAL_MS = 70;
 const CROSSWORD_WORD_SETTLE_MS = 120;
 const CROSSWORD_ERROR_FEEDBACK_MS = 600;
@@ -351,22 +351,18 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
   const [activeEntryId, setActiveEntryId] = useState<string | null>(() => orderedEntries[0]?.id ?? null);
   const [hintedEntryIds, setHintedEntryIds] = useState<Set<string>>(() => new Set());
   const [wordInput, setWordInput] = useState("");
+  const [gridFocused, setGridFocused] = useState(false);
+  const draftValuesRef = useRef(game.draftValues ?? {});
+  const [inputEdit, setInputEdit] = useState({ values: game.draftValues ?? {}, startIndex: 0, clearCount: 0 });
+  const inputEditRef = useRef(inputEdit);
+  const compositionRef = useRef(false);
+  const lastTappedCellRef = useRef<string | null>(null);
   const [wordFeedback, setWordFeedback] = useState<"idle" | "empty" | "correct" | "incorrect">("idle");
   const [attemptFeedback, setAttemptFeedback] = useState<CrosswordAttemptFeedback | null>(null);
   const wordInputRef = useRef<HTMLInputElement>(null);
   const feedbackSequenceRef = useRef(0);
   const activeEntry = orderedEntries.find((entry) => entry.id === activeEntryId) ?? orderedEntries[0] ?? null;
   const activeCellKeys = useMemo(() => new Set(activeEntry ? crosswordEntryCells(activeEntry).map(({ row, col }) => crosswordCellKey(row, col)) : []), [activeEntry]);
-  const wordPreviewByCell = useMemo(() => {
-    const preview = new Map<string, string>();
-    if (!activeEntry) return preview;
-    const cells = crosswordEntryCells(activeEntry);
-    for (const [index, character] of Array.from(wordInput).entries()) {
-      if (!HIRAGANA_CELL.test(character) || !cells[index]) break;
-      preview.set(crosswordCellKey(cells[index].row, cells[index].col), character);
-    }
-    return preview;
-  }, [activeEntry, wordInput]);
   const allCorrect = puzzle ? crosswordIsComplete(puzzle, game.values) : false;
   const entryIsCorrect = (entry: CrosswordPuzzle["entries"][number]) => crosswordEntryIsCorrect(entry, game.values);
   const completedCellKeys = useMemo(() => {
@@ -378,6 +374,16 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
     });
     return keys;
   }, [game.values, puzzle]);
+  const activeInputCellKeys = useMemo(() => activeEntry
+    ? crosswordEntryCells(activeEntry).map(({ row, col }) => crosswordCellKey(row, col)) : [], [activeEntry]);
+  const crossingValues = useMemo(() => Object.fromEntries(activeInputCellKeys
+    .filter((key) => completedCellKeys.has(key)).map((key) => [key, game.values[key]])), [activeInputCellKeys, completedCellKeys, game.values]);
+  const activeInput = useMemo(() => buildCrosswordInput(activeInputCellKeys, crossingValues, toHiragana(wordInput, { passRomaji: true }), inputEdit), [activeInputCellKeys, crossingValues, wordInput, inputEdit]);
+  const wordPreviewByCell = useMemo(() => {
+    const values = new Map(Object.entries(game.draftValues ?? {}));
+    if (activeInput.pending && activeInput.cursorKey) values.set(activeInput.cursorKey, activeInput.pending);
+    return values;
+  }, [activeInput.cursorKey, activeInput.pending, game.draftValues]);
   const attemptCellIndexByKey = useMemo(() => {
     const indexes = new Map<string, number>();
     const entry = attemptFeedback ? puzzle?.entries.find((item) => item.id === attemptFeedback.entryId) : null;
@@ -386,12 +392,15 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
     return indexes;
   }, [attemptFeedback, puzzle]);
   const answerIsAnimating = attemptFeedback?.kind === "correct";
+  const cursorKey = activeInput.cursorKey;
+  const [cursorRow, cursorCol] = (cursorKey ?? "0:0").split(":").map(Number);
   const solvedCount = puzzle?.entries.filter(entryIsCorrect).length ?? 0;
   const filledCount = puzzle?.cells.flat().filter((cell, index) => {
     if (!cell) return false;
     const row = Math.floor(index / puzzle.cols);
     const col = index % puzzle.cols;
-    return Boolean(game.values[crosswordCellKey(row, col)]);
+    const key = crosswordCellKey(row, col);
+    return Boolean(game.draftValues?.[key] ?? game.values[key]);
   }).length ?? 0;
   const totalCells = puzzle?.cells.flat().filter(Boolean).length ?? 0;
 
@@ -399,6 +408,13 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
     if (storedIsComplete || allCorrect) clearModeState(scope, "crossword", "game");
   }, [allCorrect, scope, storedIsComplete]);
   useEffect(() => () => { feedbackSequenceRef.current += 1; }, []);
+  useEffect(() => {
+    if (!gridFocused) return;
+    const frame = window.requestAnimationFrame(() => {
+      wordInputRef.current?.parentElement?.querySelector('[data-cursor="true"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [cursorKey, gridFocused]);
 
   const update = (updates: Array<{ key: string; value: string }>) => {
     if (!puzzle) return null;
@@ -412,23 +428,54 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
         if (!wasComplete && isComplete) playAudio(entry.audioUrl);
       }
     }
-    const next = { ...game, values, checked: false };
+    const draftValues = { ...draftValuesRef.current };
+    updates.forEach(({ key }) => { delete draftValues[key]; });
+    draftValuesRef.current = draftValues;
+    const next = { ...game, values, draftValues, checked: false };
     setGame(next);
     if (crosswordIsComplete(puzzle, values)) clearModeState(scope, "crossword", "game");
     else saveModeState(scope, "crossword", "game", next);
     return values;
   };
 
-  const selectEntry = (entryId: string, focus = true) => {
+  const saveDraft = (values: Record<string, string>) => {
+    draftValuesRef.current = values;
+    const next = { ...game, draftValues: values };
+    setGame(next);
+    saveModeState(scope, "crossword", "game", next);
+  };
+
+  const changeGridInput = (input: string) => {
+    if (answerIsAnimating) return;
+    feedbackSequenceRef.current += 1;
+    setWordInput(input);
+    const next = buildCrosswordInput(activeInputCellKeys, crossingValues, toHiragana(input, { passRomaji: true }), inputEditRef.current);
+    inputEditRef.current = { ...inputEditRef.current, clearCount: next.clearCount };
+    setInputEdit(inputEditRef.current);
+    saveDraft(next.values);
+    setWordFeedback("idle");
+    setAttemptFeedback(null);
+  };
+
+  const selectEntry = (entryId: string, focus = true, cellKey?: string) => {
+    if (!cellKey) lastTappedCellRef.current = null;
     const entry = puzzle?.entries.find((item) => item.id === entryId);
     if (!entry) return;
     feedbackSequenceRef.current += 1;
     setActiveEntryId(entry.id);
+    const keys = crosswordEntryCells(entry).map(({ row, col }) => crosswordCellKey(row, col));
+    const requestedIndex = cellKey ? keys.indexOf(cellKey) : -1;
+    const firstEmpty = keys.findIndex((key) => !completedCellKeys.has(key) && !draftValuesRef.current[key]);
+    const hasDraft = keys.some((key) => !completedCellKeys.has(key) && draftValuesRef.current[key]);
+    const startIndex = requestedIndex >= 0 && !completedCellKeys.has(keys[requestedIndex])
+      ? requestedIndex : hasDraft && firstEmpty >= 0 ? firstEmpty : 0;
+    inputEditRef.current = { values: { ...game.values, ...draftValuesRef.current }, startIndex, clearCount: 0 };
+    setInputEdit(inputEditRef.current);
     setWordInput("");
     setWordFeedback("idle");
     setAttemptFeedback(null);
     if (!focus) return;
-    window.requestAnimationFrame(() => wordInputRef.current?.focus());
+    wordInputRef.current?.focus({ preventScroll: true });
   };
 
   const selectNextEntry = (fromEntryId: string, values = game.values) => {
@@ -450,8 +497,13 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
     });
     const choices = incompleteIds.length ? incompleteIds : ids;
     const currentIndex = activeEntryId ? choices.indexOf(activeEntryId) : -1;
-    const nextId = currentIndex >= 0 && choices.length > 1 ? choices[(currentIndex + 1) % choices.length] : choices[0];
-    if (nextId) selectEntry(nextId);
+    const nextId = currentIndex >= 0
+      ? choices.length > 1 && lastTappedCellRef.current === crosswordCellKey(row, col) ? choices[(currentIndex + 1) % choices.length] : choices[currentIndex]
+      : choices[0];
+    if (nextId) {
+      selectEntry(nextId, true, crosswordCellKey(row, col));
+      lastTappedCellRef.current = crosswordCellKey(row, col);
+    }
   };
 
   const revealWord = () => {
@@ -470,17 +522,19 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
 
   const checkActiveWord = async () => {
     if (!activeEntry || !puzzle || answerIsAnimating) return;
-    const candidate = toHiragana(wordInput.trim());
-    setWordInput(candidate);
-    const candidateCharacters = Array.from(candidate);
-    if (!candidateCharacters.length) {
+    const normalizedInput = toHiragana(wordInput.trim());
+    setWordInput(normalizedInput);
+    const nextInput = buildCrosswordInput(activeInputCellKeys, crossingValues, normalizedInput, inputEditRef.current);
+    inputEditRef.current = { ...inputEditRef.current, clearCount: nextInput.clearCount };
+    setInputEdit(inputEditRef.current);
+    const candidate = nextInput.answer;
+    saveDraft(nextInput.values);
+    if (!normalizedInput && !candidate && !activeInputCellKeys.some((key) => !crossingValues[key] && nextInput.values[key])) {
       selectNextEntry(activeEntry.id);
       return;
     }
     const answer = splitKana(activeEntry.answer);
-    const isCorrect = candidateCharacters.length === answer.length
-      && candidateCharacters.every((character) => HIRAGANA_CELL.test(character))
-      && candidateCharacters.every((character, index) => character === answer[index]);
+    const isCorrect = candidate === activeEntry.answer;
     const sequence = feedbackSequenceRef.current + 1;
     feedbackSequenceRef.current = sequence;
     if (!isCorrect) {
@@ -523,6 +577,9 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
     const nextPuzzle = buildPuzzle();
     const next: SavedCrossword = { puzzle: nextPuzzle, values: {}, checked: false, signature };
     setGame(next);
+    draftValuesRef.current = {};
+    inputEditRef.current = { values: {}, startIndex: 0, clearCount: 0 };
+    setInputEdit(inputEditRef.current);
     setActiveEntryId(nextPuzzle?.entries.toSorted((left, right) => left.number - right.number || (left.direction === "across" ? -1 : 1))[0]?.id ?? null);
     setHintedEntryIds(new Set());
     setWordInput("");
@@ -585,23 +642,55 @@ export function CrosswordGame({ dataset, filters, scope, onExit }: { dataset: St
               const completed = completedCellKeys.has(key);
               const value = completed ? cell.answer : wordPreviewByCell.get(key) ?? game.values[key] ?? "";
               const incorrect = game.checked && value !== cell.answer;
-              return <button type="button" className={styles.crosswordCell} key={key} data-selected={activeCellKeys.has(key)} data-completed={completed} data-feedback={feedback ?? (incorrect ? "incorrect" : undefined)} aria-label={`Row ${rowIndex + 1}, column ${colIndex + 1}`} aria-pressed={activeCellKeys.has(key)} disabled={answerIsAnimating} onClick={() => selectCell(rowIndex, colIndex)}>{cell.number !== undefined ? <span className={styles.crosswordCellNumber}>{cell.number}</span> : null}<span className={styles.crosswordCellLetter} data-letter lang="ja">{value}</span></button>;
-            }))}</div>
+              return <button type="button" className={styles.crosswordCell} key={key} data-selected={activeCellKeys.has(key)} data-cursor={gridFocused && cursorKey === key} data-completed={completed} data-feedback={feedback ?? (incorrect ? "incorrect" : undefined)} aria-label={`Row ${rowIndex + 1}, column ${colIndex + 1}`} aria-pressed={activeCellKeys.has(key)} disabled={answerIsAnimating} onClick={() => selectCell(rowIndex, colIndex)}>{cell.number !== undefined ? <span className={styles.crosswordCellNumber}>{cell.number}</span> : null}<span className={styles.crosswordCellLetter} data-letter lang="ja">{value}</span></button>;
+            }))}
+              <input
+                ref={wordInputRef}
+                className={styles.crosswordGridInput}
+                aria-label="Crossword grid input"
+                aria-describedby="crossword-word-status"
+                aria-invalid={wordFeedback === "incorrect" || undefined}
+                lang="ja"
+                value={wordInput}
+                style={{ left: `calc(${cursorCol} * (var(--crossword-cell-size) + var(--rule-thin)))`, top: `calc(${cursorRow} * (var(--crossword-cell-size) + var(--rule-thin)))` }}
+                autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="go"
+                readOnly={answerIsAnimating}
+                onFocus={() => setGridFocused(true)}
+                onBlur={() => setGridFocused(false)}
+                onCompositionStart={() => { compositionRef.current = true; }}
+                onCompositionEnd={(event) => { compositionRef.current = false; changeGridInput(composeKanaInput(event.currentTarget.value)); }}
+                onChange={(event) => changeGridInput(compositionRef.current ? event.target.value : composeKanaInput(event.target.value))}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing || compositionRef.current || answerIsAnimating) return;
+                  if (event.key === "Enter") { event.preventDefault(); void checkActiveWord(); }
+                  else if (event.key === "Backspace" && !wordInput) {
+                    event.preventDefault();
+                    const next = eraseCrosswordCell(activeInputCellKeys, crossingValues, draftValuesRef.current, cursorKey);
+                    saveDraft(next.values);
+                    inputEditRef.current = { values: next.values, startIndex: next.startIndex, clearCount: 0 };
+                    setInputEdit(inputEditRef.current);
+                  } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+                    event.preventDefault();
+                    const row = cursorRow + (event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0);
+                    const col = cursorCol + (event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0);
+                    selectCell(row, col);
+                  }
+                }}
+              />
+            </div>
           </div>
           <section className={styles.crosswordActiveClue} aria-label="Selected clue">
             <div className={styles.crosswordActiveClueTop}>
               <div className={styles.crosswordActiveClueCopy}><span>{activeEntry ? `${activeEntry.number} ${activeEntry.direction === "across" ? "Across" : "Down"}` : "Select a clue"}</span><strong data-active-clue>{activeEntry?.clue ?? "Pick a clue or a cell"}</strong></div>
               <div className={styles.crosswordHintActions}><button type="button" className={styles.crosswordHintButton} aria-label="Show hint" disabled={!activeEntry || hintedEntryIds.has(activeEntry.id)} onClick={() => activeEntry && setHintedEntryIds((current) => new Set(current).add(activeEntry.id))}><Sparkles size={16} /> Hint</button><button type="button" className={styles.crosswordHintButton} aria-label="Play pronunciation" disabled={!activeEntry?.audioUrl} onClick={() => playAudio(activeEntry?.audioUrl)}><Volume2 size={16} /> Audio</button><button type="button" className={styles.crosswordHintButton} aria-label="Reveal word" disabled={!activeEntry || entryIsCorrect(activeEntry)} onClick={revealWord}><Lightbulb size={16} /> Reveal word</button></div>
             </div>
-            <form className={styles.crosswordWordForm} data-feedback={wordFeedback} onSubmit={(event) => { event.preventDefault(); void checkActiveWord(); }}>
-              <label htmlFor="crossword-word-answer">Answer</label>
-              <input ref={wordInputRef} id="crossword-word-answer" lang="ja" value={wordInput} placeholder={activeEntry ? `Type ${splitKana(activeEntry.answer).length} kana or romaji` : "Select a clue"} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="go" disabled={answerIsAnimating} aria-invalid={wordFeedback === "empty" || wordFeedback === "incorrect" || undefined} aria-describedby="crossword-word-status" onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void checkActiveWord(); } }} onChange={(event) => { feedbackSequenceRef.current += 1; setWordInput(composeKanaInput(event.target.value)); setWordFeedback("idle"); setAttemptFeedback(null); }} />
-              <button type="submit" className={styles.primaryButton} disabled={!activeEntry || answerIsAnimating}>Check word</button>
-            </form>
+            <div className={styles.crosswordGridActions}>
+              <button type="button" className={styles.primaryButton} disabled={!activeEntry || answerIsAnimating} onClick={() => void checkActiveWord()}>Check word</button>
+            </div>
           </section>
           <footer className={styles.crosswordFooter}>
             {activeEntry && hintedEntryIds.has(activeEntry.id) ? <p className={styles.crosswordHint} aria-live="polite">{crosswordHint(activeEntry, filters.crosswordClueMode)}</p> : null}
-            <p id="crossword-word-status" role="status">{wordFeedback === "empty" ? "Type the selected word before checking it." : wordFeedback === "correct" ? "Correct. Revealing the word…" : wordFeedback === "incorrect" ? "That answer does not match the selected clue. Try again." : game.checked && !allCorrect ? "Some letters need another look." : "Type your answer and press Return to check the selected word. Select tiles to change words."}</p>
+            <p id="crossword-word-status" role="status">{wordFeedback === "empty" ? "Type the selected word before checking it." : wordFeedback === "correct" ? "Correct. Revealing the word…" : wordFeedback === "incorrect" ? "That answer does not match the selected clue. Try again." : game.checked && !allCorrect ? "Some letters need another look." : "Tap a square and type in the grid. Crossing kana count automatically. Press Return to check the word."}</p>
           </footer>
         </div>
       </div>

@@ -387,7 +387,7 @@ export async function extractPreferredMkvSubtitleCues({
     while ((fileHandle.offset ?? 0) < totalBytes) {
       const remaining = totalBytes - (fileHandle.offset ?? 0);
       const readSize = Math.min(FILE_READ_CHUNK_BYTES, remaining);
-      const chunk = fileHandle.readBytes(readSize);
+      const chunk = await fileHandle.readBytes(readSize);
       if (!chunk || chunk.length === 0) {
         break;
       }

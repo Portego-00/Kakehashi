@@ -1,3 +1,4 @@
+import { scheduleIdleTask } from "../src/utils/scheduleIdleTask";
 import { useFonts } from "expo-font";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
@@ -7,12 +8,12 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
-  InteractionManager,
   Platform,
   type AppStateStatus,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AnimatedKanjiLoader from "../src/components/AnimatedKanjiLoader";
+import { AppKeyboardProvider } from "../src/components/app-keyboard-provider";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import GlobalMiniPlayer from "../src/components/GlobalMiniPlayer";
 import { SessionProvider, useSession } from "../src/contexts/AuthContext";
@@ -500,7 +501,7 @@ function RootLayoutContentInner() {
       lastHandledDeepLinkSignatureRef.current = intent.signature;
       lastHandledDeepLinkAtRef.current = Date.now();
 
-      InteractionManager.runAfterInteractions(() => {
+      scheduleIdleTask(() => {
         void executeDeepLinkIntent(intent);
       });
     },
@@ -530,7 +531,7 @@ function RootLayoutContentInner() {
       lastHandledIssueNotificationIssueIdRef.current = issueId;
       lastHandledIssueNotificationAtRef.current = now;
 
-      InteractionManager.runAfterInteractions(() => {
+      scheduleIdleTask(() => {
         router.push({
           pathname: "/issue/[id]",
           params: {
@@ -704,7 +705,7 @@ function RootLayoutContentInner() {
           },
         });
 
-        InteractionManager.runAfterInteractions(() => {
+        scheduleIdleTask(() => {
           setTimeout(() => {
             task()
               .then(() => {
@@ -889,7 +890,7 @@ function RootLayoutContentInner() {
                 }
               );
 
-              InteractionManager.runAfterInteractions(() => {
+              scheduleIdleTask(() => {
                 setTimeout(() => {
                   ensureAllSubjectsCached(
                     token,
@@ -1108,9 +1109,11 @@ function RootLayoutContent() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
-        <BackgroundTasksProvider>
-          <RootLayoutContentInner />
-        </BackgroundTasksProvider>
+        <AppKeyboardProvider>
+          <BackgroundTasksProvider>
+            <RootLayoutContentInner />
+          </BackgroundTasksProvider>
+        </AppKeyboardProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>
   );

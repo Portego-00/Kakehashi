@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WEB_SETTINGS } from "@/features/settings/settings";
+import { DEFAULT_WEB_SETTINGS, type WebStudyPreferences } from "@/features/settings/settings";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
 import { coreSessionKey, lessonsStartedToday, orderCoreAssignments, recordLessonStarted, selectCoreAssignments } from "./session-planning";
 import { applyReviewPreset, getEnabledReviewPreset } from "../../../../src/utils/review-presets";
@@ -117,6 +117,31 @@ describe("core session planning", () => {
     });
 
     expect(ordered.map((row) => row.id)).toEqual([...expectedIds]);
+  });
+
+  it.each([
+    ["ascendingSrsStage", false, [2, 3, 4, 5, 6, 1, 7, 8, 9, 10, 11, 12]],
+    ["descendingSrsStage", false, [7, 8, 9, 10, 11, 12, 2, 3, 4, 5, 6, 1]],
+    ["ascendingSrsStage", true, [2, 4, 6, 8, 10, 12, 3, 1, 7, 9, 5, 11]],
+    ["descendingSrsStage", true, [8, 10, 12, 2, 4, 6, 7, 9, 3, 1, 11, 5]],
+  ] as const)("shuffles ties in %s unless item type grouping is enabled (%s)", (reviewOrder, reviewTypeOrderEnabled, expectedIds) => {
+    const types: SubjectType[] = ["kanji", "vocabulary", "kanji", "vocabulary", "radical", "kana_vocabulary"];
+    const rows = [1, 5].flatMap((stage, stageIndex) => types.map((type, index) => assignment(stageIndex * types.length + index + 1, type, stage)));
+    const subjects = rows.map((row) => subject(row.data.subject_id, 1, row.data.subject_type));
+    const settings: WebStudyPreferences = {
+      ...DEFAULT_WEB_SETTINGS.study,
+      reviewOrder,
+      reviewTypeOrderEnabled,
+      reviewTypeOrder: ["vocabulary", "kanji", "radical"],
+      prioritizeCriticalItems: false,
+      reviewBatchSizeEnabled: true,
+    };
+
+    const ordered = orderCoreAssignments(rows, subjects, "reviews", settings, { randomFn: () => 0 });
+    const selected = selectCoreAssignments(rows, subjects, "reviews", settings, 3, { randomFn: () => 0 });
+
+    expect(ordered.map((row) => row.id)).toEqual([...expectedIds]);
+    expect(selected.map((row) => row.id)).toEqual(expectedIds.slice(0, 3));
   });
 
   it("groups reviews by the custom subject-type order before sorting within each group", () => {

@@ -1,7 +1,7 @@
 import { useLearningDisplay } from "../../src/features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import { router, useLocalSearchParams } from "expo-router";
 import React, {
   useCallback,
@@ -32,6 +32,8 @@ import {
   SearchFilters,
 } from "../../src/components/SearchFilterModal";
 import SubjectListStudyMenu from "../../src/components/SubjectListStudyMenu";
+import AddToSubjectListsModal from "../../src/components/AddToSubjectListsModal";
+import { matchesStudyDate } from "../../src/utils/studyDateFilter";
 //
 import { SvgXml } from "react-native-svg";
 import { useVocabularyFrequencyRanks } from "../../src/hooks/useVocabularyFrequencyRanks";
@@ -42,6 +44,7 @@ import {
   getAllAssignmentsCached,
   getSubjects,
   Subject,
+  type Assignment,
 } from "../../src/utils/api";
 import {
   ALL_SUBJECTS_CACHE_KEY,
@@ -101,6 +104,10 @@ function searchFiltersAreEqual(left: SearchFilters, right: SearchFilters) {
     left.minLevel === right.minLevel &&
     left.maxLevel === right.maxLevel &&
     left.maxFrequencyRank === right.maxFrequencyRank &&
+    left.studyDate?.field === right.studyDate?.field &&
+    left.studyDate?.period === right.studyDate?.period &&
+    left.studyDate?.from === right.studyDate?.from &&
+    left.studyDate?.to === right.studyDate?.to &&
     left.vocabularyTypes.length === right.vocabularyTypes.length &&
     left.vocabularyTypes.every((type) => right.vocabularyTypes.includes(type)) &&
     setsAreEqual(left.types, right.types) &&
@@ -129,6 +136,10 @@ export default function CustomReviewSelectionScreen() {
   const [subjectSrsStageMap, setSubjectSrsStageMap] = useState<
     Map<number, number>
   >(new Map());
+  const [subjectAssignments, setSubjectAssignments] = useState<
+    Map<number, Assignment>
+  >(new Map());
+  const [showAddToLists, setShowAddToLists] = useState(false);
   const [isLoadingSubjectSrsStages, setIsLoadingSubjectSrsStages] =
     useState(true);
   const [subjectSrsStageLoadError, setSubjectSrsStageLoadError] = useState<
@@ -356,13 +367,16 @@ export default function CustomReviewSelectionScreen() {
       });
 
       setSubjectSrsStageMap(nextSrsStageMap);
+      setSubjectAssignments(
+        new Map(assignments.data.map((assignment) => [assignment.data.subject_id, assignment])),
+      );
     } catch (err) {
       console.warn(
         "Failed to load assignment SRS stages for custom review selection:",
         err,
       );
       setSubjectSrsStageLoadError(
-        "Your assignment stages could not be loaded. SRS filters, including Burned, are unavailable until this succeeds.",
+        "Study progress could not be loaded. SRS and date filters are unavailable until this succeeds.",
       );
     } finally {
       setIsLoadingSubjectSrsStages(false);
@@ -609,6 +623,9 @@ export default function CustomReviewSelectionScreen() {
       )
       .filter((subject) =>
         matchesVocabularyTypes(subject, filters.vocabularyTypes),
+      )
+      .filter((subject) =>
+        matchesStudyDate(subjectAssignments.get(subject.id), filters.studyDate),
       );
   }, [
     allSubjects,
@@ -623,6 +640,8 @@ export default function CustomReviewSelectionScreen() {
     showVocabularyFrequency,
     subjectIdsFromSelectedLists,
     subjectSrsStageMap,
+    subjectAssignments,
+    filters.studyDate,
   ]);
 
   const subjectsMatchingSearchAndNonFrequencyFacets = useMemo(() => {
@@ -640,7 +659,8 @@ export default function CustomReviewSelectionScreen() {
     !isLoadingSubjectSrsStages && !subjectSrsStageLoadError;
   const hasActiveSrsFilter =
     filters.srsStages.size < ALL_SEARCH_SRS_STAGES.length;
-  const canApplyCurrentSrsFilter = !hasActiveSrsFilter || isSubjectSrsDataReady;
+  const needsAssignmentData = hasActiveSrsFilter || Boolean(filters.studyDate);
+  const canApplyCurrentSrsFilter = !needsAssignmentData || isSubjectSrsDataReady;
   const shouldResolveFrequencyFilter =
     hasActiveFrequencyFilter && canApplyCurrentSrsFilter;
   const frequencyCandidates = useMemo(
@@ -764,7 +784,7 @@ export default function CustomReviewSelectionScreen() {
     [allSubjects, selectedSubjectIds],
   );
 
-  const startCustomReview = async () => {
+  const startCustomReview = async (reviewMode: "standard" | "flashcard") => {
     if (!canApplyCurrentSrsFilter || readySelectedSubjectIds.length === 0) {
       return;
     }
@@ -773,7 +793,7 @@ export default function CustomReviewSelectionScreen() {
     );
     router.push({
       pathname: "/custom-review",
-      params: { subjectIds: readySelectedSubjectIds.join(",") },
+      params: { subjectIds: readySelectedSubjectIds.join(","), reviewMode },
     });
   };
 
@@ -886,6 +906,7 @@ export default function CustomReviewSelectionScreen() {
     setFilters((currentFilters) => ({
       ...currentFilters,
       srsStages: new Set(ALL_SEARCH_SRS_STAGES),
+      studyDate: null,
     }));
   }, []);
 
@@ -898,6 +919,7 @@ export default function CustomReviewSelectionScreen() {
     filters.jlptLevels.size > 0 ||
     filters.vocabularyTypes.length > 0 ||
     filters.maxFrequencyRank !== null ||
+    Boolean(filters.studyDate) ||
     selectedListIds.length > 0;
   const activeFilterOptionCount = [
     filters.minLevel > 1 || filters.maxLevel < 60,
@@ -906,6 +928,7 @@ export default function CustomReviewSelectionScreen() {
     filters.jlptLevels.size > 0,
     filters.vocabularyTypes.length > 0,
     filters.maxFrequencyRank !== null,
+    Boolean(filters.studyDate),
   ].filter(Boolean).length;
   const filterAccessibilityHint =
     filters.maxFrequencyRank !== null
@@ -984,7 +1007,11 @@ export default function CustomReviewSelectionScreen() {
           }
         });
       } else if (!hasActiveFrequencyFilter) {
-        nextListSelectedSubjectIds.forEach((subjectId) => next.add(subjectId));
+        nextListSelectedSubjectIds.forEach((subjectId) => {
+          if (matchesStudyDate(subjectAssignments.get(subjectId), filters.studyDate)) {
+            next.add(subjectId);
+          }
+        });
       }
 
       return next;
@@ -1343,7 +1370,8 @@ export default function CustomReviewSelectionScreen() {
             canApplyCurrentSrsFilter ? selectedKanjiIds.length : 0
           }
           hasSelectedLists={selectedListIds.length > 0}
-          onStandardReview={startCustomReview}
+          onStandardReview={() => startCustomReview("standard")}
+          onFlashcardReview={() => startCustomReview("flashcard")}
           onKanjiMatch={startKanjiMatch}
           onCustomLessons={startCustomLessons}
           onRandomTest={() => openListStudyConfig("/test-config")}
@@ -1442,6 +1470,16 @@ export default function CustomReviewSelectionScreen() {
       </View>
 
       <View style={styles.bulkActionsRow}>
+        <TouchableOpacity
+          style={[styles.bulkActionButton, { backgroundColor: theme.cardBackground }, (!canApplyCurrentSrsFilter || readySelectedSubjectIds.length === 0) && styles.bulkActionButtonDisabled]}
+          onPress={() => setShowAddToLists(true)}
+          disabled={!canApplyCurrentSrsFilter || readySelectedSubjectIds.length === 0}
+          accessibilityRole="button"
+          accessibilityLabel="Add selected subjects to lists"
+        >
+          <Ionicons name="list-outline" size={18} color={theme.textSecondary} />
+          <Text style={[styles.bulkActionText, { color: theme.textSecondary }]}>Add to Lists</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={[
             styles.bulkActionButton,
@@ -1579,14 +1617,14 @@ export default function CustomReviewSelectionScreen() {
             {cacheRebuildProgress}% Complete
           </Text>
         </View>
-      ) : hasActiveSrsFilter && isLoadingSubjectSrsStages ? (
+      ) : needsAssignmentData && isLoadingSubjectSrsStages ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
             Loading study progress...
           </Text>
         </View>
-      ) : hasActiveSrsFilter && subjectSrsStageLoadError ? (
+      ) : needsAssignmentData && subjectSrsStageLoadError ? (
         <View style={styles.frequencyLookupNotice}>
           <Ionicons
             name="warning-outline"
@@ -1628,7 +1666,7 @@ export default function CustomReviewSelectionScreen() {
               activeOpacity={0.7}
               accessibilityRole="button"
             >
-              <Text style={{ color: theme.textSecondary }}>Use All Stages</Text>
+              <Text style={{ color: theme.textSecondary }}>{filters.studyDate ? "Clear Progress Filters" : "Use All Stages"}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1916,7 +1954,7 @@ export default function CustomReviewSelectionScreen() {
                   </TouchableOpacity>
                 ) : null}
               </View>
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -2109,6 +2147,7 @@ export default function CustomReviewSelectionScreen() {
       </Modal>
 
       <SearchFilterModal
+        showDateFilters
         visible={isFilterConfigHydrated && showFilters}
         currentFilters={filters}
         subjects={allSubjects ?? undefined}
@@ -2118,6 +2157,13 @@ export default function CustomReviewSelectionScreen() {
         showFrequencyFilters
         frequencyFiltersEnabled={showVocabularyFrequency}
         onEnableFrequencyFilters={handleEnableFrequencyFilters}
+      />
+      <AddToSubjectListsModal
+        visible={showAddToLists}
+        subjectIds={readySelectedSubjectIds}
+        appendOnly
+        onClose={() => setShowAddToLists(false)}
+        onSaved={loadAvailableLists}
       />
     </View>
   );
@@ -2165,6 +2211,7 @@ const styles = StyleSheet.create({
   },
   bulkActionsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     paddingHorizontal: 16,
     marginBottom: 12,
@@ -2172,6 +2219,7 @@ const styles = StyleSheet.create({
   },
   bulkActionButton: {
     flex: 1,
+    minWidth: 130,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

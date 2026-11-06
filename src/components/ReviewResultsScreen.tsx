@@ -842,7 +842,7 @@ export default function ReviewResultsScreen({
         </View>
       </ScrollView>
 
-      {/* Bottom Action Button */}
+      {/* Bottom actions */}
       <View
         style={[
           styles.bottomContainer,
@@ -850,14 +850,31 @@ export default function ReviewResultsScreen({
           { paddingBottom: bottomActionPadding },
         ]}
       >
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.secondary }]}
-          onPress={onBackToDashboard}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.backButtonText}>Back to Dashboard</Text>
-        </TouchableOpacity>
-        {hasMistakeSubjects || hasRedoAction ? (
+        <View style={styles.mainActionsRow}>
+          <TouchableOpacity
+            style={[styles.backButton, { backgroundColor: theme.secondary }]}
+            onPress={onBackToDashboard}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.backButtonText}>Back to Dashboard</Text>
+          </TouchableOpacity>
+          {hasRedoAction ? (
+            <TouchableOpacity
+              style={[
+                styles.iconOnlyActionButton,
+                { borderColor: theme.secondary },
+              ]}
+              onPress={onRedo}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Redo"
+              accessibilityHint="Start this review session again as extra practice"
+            >
+              <Ionicons name="refresh-outline" size={20} color={theme.secondary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        {hasMistakeSubjects ? (
           <View style={styles.mistakesActionsRow}>
             {hasMistakeSubjects ? (
               <>
@@ -904,21 +921,6 @@ export default function ReviewResultsScreen({
                   </TouchableOpacity>
                 ) : null}
               </>
-            ) : null}
-            {hasRedoAction ? (
-              <TouchableOpacity
-                style={[
-                  styles.iconOnlyActionButton,
-                  { borderColor: theme.secondary },
-                ]}
-                onPress={onRedo}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Redo"
-                accessibilityHint="Start this review session again as extra practice"
-              >
-                <Ionicons name="refresh-outline" size={20} color={theme.secondary} />
-              </TouchableOpacity>
             ) : null}
           </View>
         ) : null}
@@ -1268,10 +1270,18 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: Platform.OS === "ios" ? 34 : 16,
   },
+  mainActionsRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+  },
   backButton: {
+    flex: 1,
+    minHeight: 54,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
+    justifyContent: "center",
   },
   backButtonText: {
     color: "white",

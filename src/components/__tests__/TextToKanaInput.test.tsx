@@ -1,3 +1,4 @@
+import type { TextInputProps } from "react-native";
 import React, { createRef } from "react";
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { Platform, TextInput } from "react-native";
@@ -12,6 +13,10 @@ jest.mock("../../modules/KeyboardManager", () => ({
   default: { setUseJapaneseKeyboard: jest.fn(() => Promise.resolve(true)) },
 }));
 
+type MockTextInputInstance = React.Component<TextInputProps> & {
+  setNativeProps: (props: Partial<TextInputProps> & { text?: string }) => void;
+};
+
 const originalPlatform = Platform.OS;
 const platformDescriptors = ["isPad", "constants"].map((property) => ({
   property,
@@ -22,7 +27,7 @@ function renderInput(props: React.ComponentProps<typeof KanaInput> = {}) {
   const ref = createRef<KanaInputHandle>();
   const screen = render(<KanaInput ref={ref} testID="kana-input" {...props} />);
   const input = () => screen.getByTestId("kana-input");
-  const nativeInput = screen.UNSAFE_getByType(TextInput).instance;
+  const nativeInput = screen.UNSAFE_getByType(TextInput).instance as MockTextInputInstance;
   const writes = jest.spyOn(nativeInput, "setNativeProps");
   return { ...screen, ref, input, writes };
 }
@@ -86,8 +91,8 @@ describe("KanaInput event ordering", () => {
     // Native preserves the cursor's distance from the end when applying the
     // shorter conversion. A late JS selection must not move it back to zero.
     let nativeSelection = { start: 1, end: 1 };
-    writes.mockImplementation(({ selection }: { selection?: typeof nativeSelection }) => {
-      if (selection) nativeSelection = selection;
+    writes.mockImplementation(({ selection }) => {
+      if (selection) nativeSelection = { start: selection.start, end: selection.end ?? selection.start };
     });
     fireEvent(input(), "selectionChange", { nativeEvent: { selection: { start: 0, end: 0 } } });
     fireEvent.changeText(input(), "naかき");
@@ -243,7 +248,7 @@ describe("KanaInput event ordering", () => {
     Platform.OS = "android";
     const renderedSelections: (typeof TextInput.prototype.props.selection)[] = [];
     const nativeRender = TextInput.prototype.render;
-    jest.spyOn(TextInput.prototype, "render").mockImplementation(function (this: TextInput) {
+    jest.spyOn(TextInput.prototype, "render").mockImplementation(function (this: MockTextInputInstance) {
       renderedSelections.push(this.props.selection);
       return nativeRender.call(this);
     });
@@ -265,7 +270,7 @@ describe("KanaInput event ordering", () => {
     Platform.OS = "android";
     const renderedSelections: (typeof TextInput.prototype.props.selection)[] = [];
     const nativeRender = TextInput.prototype.render;
-    jest.spyOn(TextInput.prototype, "render").mockImplementation(function (this: TextInput) {
+    jest.spyOn(TextInput.prototype, "render").mockImplementation(function (this: MockTextInputInstance) {
       renderedSelections.push(this.props.selection);
       return nativeRender.call(this);
     });
@@ -286,7 +291,7 @@ describe("KanaInput event ordering", () => {
     Platform.OS = "android";
     const renderedSelections: (typeof TextInput.prototype.props.selection)[] = [];
     const nativeRender = TextInput.prototype.render;
-    jest.spyOn(TextInput.prototype, "render").mockImplementation(function (this: TextInput) {
+    jest.spyOn(TextInput.prototype, "render").mockImplementation(function (this: MockTextInputInstance) {
       renderedSelections.push(this.props.selection);
       return nativeRender.call(this);
     });
@@ -307,7 +312,7 @@ describe("KanaInput event ordering", () => {
     Platform.OS = "android";
     const renderedSelections: (typeof TextInput.prototype.props.selection)[] = [];
     const nativeRender = TextInput.prototype.render;
-    jest.spyOn(TextInput.prototype, "render").mockImplementation(function (this: TextInput) {
+    jest.spyOn(TextInput.prototype, "render").mockImplementation(function (this: MockTextInputInstance) {
       renderedSelections.push(this.props.selection);
       return nativeRender.call(this);
     });

@@ -13,6 +13,7 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import Animated, {
     runOnJS,
@@ -56,6 +57,8 @@ type TabSegment = 'level' | 'items' | 'analytics';
 type ProgressCategory = 'jlpt' | 'joyo' | 'frequency';
 
 export default function ProgressTab() {
+  const insets = useSafeAreaInsets();
+  const horizontalSafeArea = { paddingLeft: insets.left, paddingRight: insets.right };
   const { userData } = useAuthStore();
   const { customTabOrder } = useSettingsStore();
   const homeSrsBreakdownDisplayMode = useSettingsStore(
@@ -380,7 +383,8 @@ export default function ProgressTab() {
   }
 
   const shouldUseNativeTabsPadding = supportsNativeTabs();
-  const isIPadLandscape = width > 768 && width > height;
+  const contentWidth = width - insets.left - insets.right;
+  const isIPadLandscape = contentWidth > 768 && contentWidth > height;
 
   const getHeaderTitle = () => {
     switch (activeSegment) {
@@ -409,7 +413,10 @@ export default function ProgressTab() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <StatusBar style={theme.statusBarStyle} />
-      <View style={[styles.header, { backgroundColor: theme.headerBackground }]}>
+      <View style={[
+        styles.header,
+        { backgroundColor: theme.headerBackground, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+      ]}>
         <View style={styles.headerOverlay} />
         <View style={styles.headerContent}>
           <Text style={[styles.headerTitle, { color: theme.headerText }]}>{getHeaderTitle()}</Text>
@@ -433,7 +440,10 @@ export default function ProgressTab() {
 
       {/* Segmented Control - only show if there's more than one segment */}
       {availableSegments.length > 1 && (
-        <View style={[styles.segmentedControlWrapper, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
+        <View style={[
+          styles.segmentedControlWrapper,
+          { backgroundColor: theme.cardBackground, borderBottomColor: theme.border, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+        ]}>
           <SegmentedControl
             values={availableSegments.map(s => s.label)}
             selectedIndex={selectedIndex}
@@ -448,7 +458,7 @@ export default function ProgressTab() {
         </View>
       )}
 
-      {activeSegment === "analytics" && canAccessBunpro ? <BunproAnalyticsSourceTabs source={analyticsSource} onChange={setAnalyticsSource} /> : null}
+      {activeSegment === "analytics" && canAccessBunpro ? <View style={horizontalSafeArea}><BunproAnalyticsSourceTabs source={analyticsSource} onChange={setAnalyticsSource} /></View> : null}
 
       {!showingBunpro ? <LoadingProgressBar
         isLoading={isLoading}
@@ -456,9 +466,13 @@ export default function ProgressTab() {
         color={theme.secondary}
       /> : null}
 
-      {showingBunpro ? <BunproAnalytics /> : <ScrollView
+      {showingBunpro ? <View style={[styles.content, horizontalSafeArea]}><BunproAnalytics /></View> : <ScrollView
         style={styles.content}
-        contentContainerStyle={[styles.scrollViewContent, shouldUseNativeTabsPadding && styles.nativeTabsPadding]}
+        contentContainerStyle={[
+          styles.scrollViewContent,
+          horizontalSafeArea,
+          shouldUseNativeTabsPadding && { paddingBottom: Math.max(insets.bottom, 16) },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -1022,9 +1036,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollViewContent: {
-  },
-  nativeTabsPadding: {
-    paddingBottom: 120,
   },
   cardsContainer: {
     padding: 16,

@@ -30,6 +30,19 @@ jest.mock('expo-web-browser', () => ({
   openAuthSessionAsync: jest.fn(() => Promise.resolve({ type: 'success' })),
 }));
 
+// Native runtimes are unavailable in Jest; use Worklets' supported test runtime.
+jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
+
+// SDK 58 subscribes immediately on import and removes subscriptions when replacing
+// the foreground handler. The native-module fallback must return removable handles.
+jest.mock('expo-notifications/build/NotificationsHandlerModule', () => ({
+  __esModule: true,
+  default: {
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    handleNotificationAsync: jest.fn(async () => undefined),
+  },
+}));
+
 // Mock the global object for features that might be used but are not available in jest
 global.apiToken = null;
 
@@ -45,4 +58,4 @@ if (typeof TextEncoder === 'undefined') {
 }
 if (typeof TextDecoder === 'undefined') {
   global.TextDecoder = require('util').TextDecoder;
-} 
+}

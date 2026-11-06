@@ -29,10 +29,11 @@ import {
 import type { WidgetEnvironment } from "expo-widgets";
 import type { HomeWidgetProps } from "./homeWidget";
 
-export default function KakehashiHomeWidget(
+// Keep a module binding for Fast Refresh after Expo serializes the widget.
+const KakehashiHomeWidget = (
   props: HomeWidgetProps,
   environment: WidgetEnvironment,
-) {
+) => {
   "widget";
 
   const isMedium = environment.widgetFamily === "systemMedium";
@@ -347,8 +348,8 @@ export default function KakehashiHomeWidget(
               modifiers={[
                 frame({
                   width: imageLayerWidth,
-                  maxHeight: 999,
                 }),
+                frame({ maxHeight: 999 }),
                 clipped(true),
               ]}
             >
@@ -367,7 +368,8 @@ export default function KakehashiHomeWidget(
           <RoundedRectangle
             cornerRadius={12}
             modifiers={[
-              frame({ width: textScrimWidth, maxHeight: 999 }),
+              frame({ width: textScrimWidth }),
+              frame({ maxHeight: 999 }),
               foregroundStyle({
                 type: "linearGradient",
                 colors: [
@@ -818,5 +820,7 @@ export default function KakehashiHomeWidget(
       </VStack>
     </ZStack>
   );
-}
+};
+
+export default KakehashiHomeWidget;
 

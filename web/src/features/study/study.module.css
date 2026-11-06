@@ -138,6 +138,9 @@
 .reviewFilterHeader h3 { font-size: var(--text-base); }
 .reviewFilterHeader p, .reviewFilterGroup > p { color: var(--color-muted); font-size: var(--text-xs); line-height: 1.45; }
 .reviewFilterGrid { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
+.studyDateFields { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-block-start: var(--space-xs); }
+.studyDateFields label { flex: 1; min-width: 8rem; display: grid; gap: var(--space-2xs); color: var(--color-muted); font-size: var(--text-xs); }
+.studyDateFields input { min-width: 0; width: 100%; min-height: 2.75rem; border: 1px solid var(--color-rule); border-radius: var(--radius-sm); background: var(--color-paper); color: var(--color-ink); padding: 0 var(--space-sm); font: inherit; font-size: var(--text-sm); color-scheme: light dark; }
 .reviewFilterGroup { min-width: 0; display: grid; align-content: start; gap: var(--space-sm); margin: 0; border: 0; padding: 0; }
 .reviewFilterGroup legend { margin-block-end: var(--space-sm); color: var(--color-ink); font-size: var(--text-sm); font-weight: 750; }
 .reviewFilterOptions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
@@ -147,6 +150,7 @@
 .reviewBulkBar { min-height: 3.5rem; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: var(--space-xs) var(--space-md); padding: var(--space-xs) clamp(var(--space-sm), 3vw, var(--space-lg)); border-block-end: var(--rule-thin) solid var(--color-rule); }
 .reviewResultCount { color: var(--color-muted); font-size: var(--text-xs); font-weight: 700; }
 .reviewBulkActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-xs); }
+.reviewBulkActions:has(> :nth-child(3)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .reviewBulkActions .textButton { width: 100%; min-width: 0; min-height: var(--control-height); padding-inline: var(--space-2xs); }
 .reviewBulkActions .textButton:disabled { color: var(--color-muted); opacity: 0.55; cursor: not-allowed; }
 .reviewBulkActionShort { display: none; }
@@ -547,7 +551,7 @@
 .crosswordClueButton:disabled { opacity: 0.55; cursor: not-allowed; }
 .crosswordBoardPane { grid-area: board; min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; overflow: hidden; }
 .crosswordBoardViewport { min-width: 0; min-height: 0; height: 100%; container-type: size; overflow: auto; overscroll-behavior: contain; padding: clamp(var(--space-2xs), 2vw, var(--space-md)); background: var(--color-paper-2); }
-.crosswordGrid { --crossword-cell-size: max(1.25rem, min(3.5rem, calc(100cqw / var(--crossword-cols) - var(--rule-thin)), calc(100cqh / var(--crossword-rows) - var(--rule-thin)))); width: max-content; display: grid; grid-template-columns: repeat(var(--crossword-cols), var(--crossword-cell-size)); gap: var(--rule-thin); margin: auto; }
+.crosswordGrid { position: relative; --crossword-cell-size: max(1.25rem, min(3.5rem, calc(100cqw / var(--crossword-cols) - var(--rule-thin)), calc(100cqh / var(--crossword-rows) - var(--rule-thin)))); width: max-content; display: grid; grid-template-columns: repeat(var(--crossword-cols), var(--crossword-cell-size)); gap: var(--rule-thin); margin: auto; }
 .crosswordGrid[data-feedback="incorrect"] { animation: crossword-grid-shake 240ms ease-in-out; }
 .blockedCell, .crosswordCell { width: var(--crossword-cell-size); height: var(--crossword-cell-size); min-width: 0; min-height: 0; }
 .blockedCell { background: transparent; }
@@ -571,14 +575,10 @@
 .crosswordHintButton { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-sm); background: transparent; color: var(--color-ink-2); padding-inline: var(--space-sm); cursor: pointer; white-space: nowrap; transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out); }
 .crosswordHintButton:active { background: var(--color-paper-3); }
 .crosswordHintButton:disabled { opacity: 0.55; cursor: not-allowed; }
-.crosswordWordForm { min-width: 0; display: grid; grid-template-columns: auto minmax(7rem, 1fr) auto; align-items: center; gap: var(--space-xs); }
-.crosswordWordForm > label { color: var(--color-muted); font-size: var(--text-xs); font-weight: 700; }
-.crosswordWordForm > input { min-width: 0; min-height: 2.75rem; border: var(--rule-thin) solid var(--color-rule); border-radius: var(--radius-sm); outline: 2px solid transparent; background: var(--color-paper); color: var(--color-ink); padding-inline: var(--space-sm); font-family: var(--font-japanese); font-size: var(--text-md); }
-.crosswordWordForm > input:focus { border-color: var(--color-focus); outline-color: color-mix(in oklch, var(--color-focus) 25%, transparent); }
-.crosswordWordForm[data-feedback="empty"] > input, .crosswordWordForm[data-feedback="incorrect"] > input { border-color: var(--color-danger); background: var(--color-danger-soft); }
-.crosswordWordForm[data-feedback="correct"] > input { border-color: var(--color-success); background: var(--color-success-soft); }
-.crosswordWordForm > input:disabled { opacity: 1; color: var(--color-ink); }
-.crosswordWordForm .primaryButton { min-height: 2.75rem; margin-block-start: 0; white-space: nowrap; }
+.crosswordGridInput { position: absolute; width: var(--crossword-cell-size); height: var(--crossword-cell-size); min-width: 0; padding: 0; border: 0; opacity: 0.01; color: transparent; background: transparent; caret-color: transparent; pointer-events: none; font-size: 16px; }
+.crosswordCell[data-cursor="true"] { outline: 3px solid var(--color-focus); outline-offset: -3px; }
+.crosswordGridActions { display: flex; justify-content: flex-end; }
+.crosswordGridActions .primaryButton { min-height: 2.75rem; margin-block-start: 0; }
 .crosswordFooter { min-width: 0; min-height: 0; height: 4.5rem; display: grid; align-content: start; gap: var(--space-2xs); overflow: auto; overscroll-behavior: contain; padding: var(--space-sm) var(--space-md); border-block-start: var(--rule-thin) solid var(--color-rule); }
 .crosswordFooter > p { color: var(--color-muted); font-size: var(--text-xs); }
 .crosswordFooter > .crosswordHint { color: var(--color-ink-2); font-size: var(--text-sm); overflow-wrap: anywhere; }

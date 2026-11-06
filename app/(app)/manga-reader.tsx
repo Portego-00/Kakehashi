@@ -1,3 +1,4 @@
+import type { FlatListInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -493,7 +494,7 @@ export default function MangaReaderScreen() {
   } | null>(null);
 
   const tooltipOpacity = useSharedValue(0);
-  const listRef = useRef<FlatList<ReaderSpreadItem>>(null);
+  const listRef = useRef<FlatListInstance>(null);
   const chromeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sentenceJobIdRef = useRef(0);

@@ -1,3 +1,4 @@
+import type { ViewInstance } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, {
@@ -25,6 +26,7 @@ export function SettingsFoldout({
   icon = "settings",
   children,
   accessibilityLabel,
+  showTopBorder = true,
   theme,
 }: {
   title: string;
@@ -32,11 +34,12 @@ export function SettingsFoldout({
   icon?: string;
   children: React.ReactNode;
   accessibilityLabel?: string;
+  showTopBorder?: boolean;
   theme: Theme;
 }) {
   const [open, setOpen] = useState(false);
   const [bodyHeight, setBodyHeight] = useState(0);
-  const heading = useRef<View>(null);
+  const heading = useRef<ViewInstance>(null);
   const reveal = useCallback(() => setOpen(true), []);
   const measure = useCallback((callback: (y: number) => void) => {
     setOpen(true);
@@ -58,7 +61,10 @@ export function SettingsFoldout({
   return (
     <Animated.View
       layout={settingsLayoutTransition}
-      style={{ borderTopWidth: 1, borderTopColor: theme.border }}
+      style={{
+        borderTopWidth: showTopBorder ? 1 : 0,
+        borderTopColor: theme.border,
+      }}
     >
       <Pressable
         ref={heading}

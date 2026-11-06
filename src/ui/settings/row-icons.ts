@@ -38,6 +38,7 @@ export const settingRowIcons = {
   "shortcuts": "rowKeyboard",
   "japanese-keyboard": "rowLanguages",
   "voice-input": "rowMic",
+  "left-handed": "rowHand",
   "daily-cap": "rowCalendarDays",
   "daily-count": "rowHash",
   "apprentice-cap": "rowGauge",

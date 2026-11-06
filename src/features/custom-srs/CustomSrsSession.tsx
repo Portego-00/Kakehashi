@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
   secondaryButton: { minHeight: 50, borderRadius: 10, borderWidth: 1, paddingHorizontal: 20, paddingVertical: 14, alignItems: "center", justifyContent: "center" },
   textButton: { minHeight: 44, padding: 12, alignItems: "center", justifyContent: "center" },
   textButtonText: { fontSize: 16, fontWeight: "600" },
-  savingBlocker: { ...StyleSheet.absoluteFillObject, zIndex: 30 },
+  savingBlocker: { ...StyleSheet.absoluteFill, zIndex: 30 },
   savingIndicator: { position: "absolute", alignSelf: "center", paddingHorizontal: 16, paddingVertical: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, flexDirection: "row", gap: 10, alignItems: "center" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", padding: 24, justifyContent: "center", alignItems: "center" },
   saveDialog: { width: "100%", maxWidth: 400, borderRadius: 12, padding: 24, gap: 16, alignItems: "stretch" },

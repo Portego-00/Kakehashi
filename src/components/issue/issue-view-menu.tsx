@@ -27,7 +27,7 @@ export function IssueViewMenu({ selected, counts, onSelect }: { selected: IssueV
 
   if (SwiftUI && modifiers) return <View style={styles.trigger} onTouchStart={Keyboard.dismiss}>
     <SwiftUI.Host matchContents style={styles.trigger}>
-      <SwiftUI.Menu modifiers={[modifiers.accessibilityLabel(`Community views, ${labels[selected]}`)]} label={<SwiftUI.Image systemName="line.3.horizontal.decrease" size={22} color={iconColor} modifiers={[modifiers.frame({ width: 44, height: 44 }), modifiers.glassEffect({ glass: { variant: "clear", interactive: true, tint: `${theme.headerBackground}40` }, shape: "circle" })]} />}
+      <SwiftUI.Menu modifiers={[modifiers.buttonStyle("plain"), modifiers.accessibilityLabel(`Community views, ${labels[selected]}`)]} label={<SwiftUI.Image systemName="line.3.horizontal.decrease" size={22} color={iconColor} modifiers={[modifiers.frame({ width: 44, height: 44 }), modifiers.glassEffect({ glass: { variant: "clear", interactive: true, tint: `${theme.headerBackground}40` }, shape: "circle" })]} />}
       >
         {options.map((view) => <SwiftUI.Button key={view} label={label(view)} systemImage={selected === view ? "checkmark" : undefined} onPress={() => select(view)} />)}
       </SwiftUI.Menu>

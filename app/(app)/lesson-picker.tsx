@@ -18,7 +18,7 @@ import {
   getSubjects,
 } from "../../src/utils/api";
 import { getRemainingDailyLessonSlots } from "../../src/utils/dailyLessonLimit";
-import { getLessonVocabularyUnlockCounts } from "../../src/utils/lessonVocabularyUnlocks";
+import { getLessonUnlocks, type LessonUnlocks } from "../../src/utils/lessonUnlocks";
 import {
   createLearningPageSubjectMatcher,
   getLearningPage,
@@ -38,7 +38,7 @@ export default function LessonPickerScreen() {
   const { theme } = useTheme();
   const { apiToken } = useAuthStore();
   const dailyLessonLimit = useSettingsStore((state) => state.dailyLessonLimit);
-  const showVocabularyUnlockCounts = useSettingsStore(
+  const showUnlockCounts = useSettingsStore(
     (state) => state.showLessonVocabularyUnlockCounts,
   );
   const excludeKanaVocabularyFromLessons = useSettingsStore(
@@ -51,29 +51,33 @@ export default function LessonPickerScreen() {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [allLessons, setAllLessons] = useState<LessonPickerItem[]>([]);
-  const [vocabularyUnlockCounts, setVocabularyUnlockCounts] = useState<ReadonlyMap<number, number>>();
-  const [vocabularyUnlockStatus, setVocabularyUnlockStatus] = useState<"loading" | "error">();
+  const [lessonUnlocks, setLessonUnlocks] = useState<LessonUnlocks>();
+  const [unlockStatus, setUnlockStatus] = useState<"loading" | "error">();
   const [unlockRetry, setUnlockRetry] = useState(0);
 
   useEffect(() => {
-    if (!showVocabularyUnlockCounts || !apiToken || allLessons.length === 0) return;
+    if (!showUnlockCounts || !apiToken || allLessons.length === 0) return;
     const subjects = allLessons.map((lesson) => lesson.subject);
-    const levels = [...new Set(subjects.filter((subject) => subject.object === "kanji").map((subject) => subject.data.level))];
+    const components = subjects.filter((subject) => subject.object === "radical" || subject.object === "kanji");
+    const levels = [...new Set(components.map((subject) => subject.data.level))];
     if (!levels.length) return;
+    const types: ("kanji" | "vocabulary")[] = [];
+    if (components.some((subject) => subject.object === "radical")) types.push("kanji");
+    if (components.some((subject) => subject.object === "kanji")) types.push("vocabulary");
     let cancelled = false;
-    setVocabularyUnlockCounts(undefined);
-    setVocabularyUnlockStatus("loading");
-    void getSubjects(apiToken, { types: ["vocabulary"], levels, hidden: false }).then((response) => {
+    setLessonUnlocks(undefined);
+    setUnlockStatus("loading");
+    void getSubjects(apiToken, { types, levels, hidden: false }).then((response) => {
       if (cancelled) return;
-      setVocabularyUnlockCounts(getLessonVocabularyUnlockCounts(subjects, response.data));
-      setVocabularyUnlockStatus(undefined);
+      setLessonUnlocks(getLessonUnlocks(subjects, response.data));
+      setUnlockStatus(undefined);
     }).catch((error) => {
       if (cancelled) return;
-      console.warn("[LessonPicker] Failed to load vocabulary unlock counts:", error);
-      setVocabularyUnlockStatus("error");
+      console.warn("[LessonPicker] Failed to load lesson unlocks:", error);
+      setUnlockStatus("error");
     });
     return () => { cancelled = true; };
-  }, [allLessons, apiToken, showVocabularyUnlockCounts, unlockRetry]);
+  }, [allLessons, apiToken, showUnlockCounts, unlockRetry]);
 
   const loadLessons = useCallback(async () => {
     if (isAuthLoading) {
@@ -275,9 +279,9 @@ export default function LessonPickerScreen() {
       lessons={allLessons}
       onStart={handleStartLessons}
       onCancel={handleCancel}
-      vocabularyUnlockCounts={showVocabularyUnlockCounts ? vocabularyUnlockCounts : undefined}
-      vocabularyUnlockStatus={showVocabularyUnlockCounts ? vocabularyUnlockStatus : undefined}
-      onRetryVocabularyUnlockCounts={() => setUnlockRetry((value) => value + 1)}
+      lessonUnlocks={showUnlockCounts ? lessonUnlocks : undefined}
+      unlockStatus={showUnlockCounts ? unlockStatus : undefined}
+      onRetryUnlocks={() => setUnlockRetry((value) => value + 1)}
     />
   );
 }

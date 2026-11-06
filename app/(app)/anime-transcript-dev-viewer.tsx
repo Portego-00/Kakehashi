@@ -4,7 +4,7 @@ import { subtitlePlaybackTime } from "../../shared/subtitleTiming";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import Slider from "@react-native-community/slider";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { File, Paths } from "expo-file-system";
@@ -843,7 +843,7 @@ export default function AnimeTranscriptDevViewerScreen() {
     try {
       const emptySubtitleFile = new File(Paths.cache, EMPTY_VLC_SUBTITLE_FILE_NAME);
       if (!emptySubtitleFile.exists) {
-        emptySubtitleFile.write("1\n00:00:00,000 --> 00:00:00,001\n \n");
+        emptySubtitleFile.writeSync("1\n00:00:00,000 --> 00:00:00,001\n \n");
       }
       setVlcEmptySubtitleUri(emptySubtitleFile.uri);
     } catch {

@@ -1,6 +1,10 @@
 import { Stack } from 'expo-router';
 import { useTheme } from '../../src/utils/theme';
 
+export const unstable_settings = {
+  anchor: "(tabs)",
+};
+
 const INTENTIONAL_EXIT_SCREEN_OPTIONS = {
   gestureEnabled: false,
   fullScreenGestureEnabled: false,
@@ -11,7 +15,6 @@ export default function AppLayout() {
 
   return (
     <Stack
-      initialRouteName="(tabs)"
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: theme.backgroundColor },

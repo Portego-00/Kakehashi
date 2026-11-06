@@ -307,6 +307,7 @@ export function sortReviewItemsForQueue<T extends OrderableReviewItem>(
     randomFn = Math.random,
   } = options;
 
+  const isSrsOrder = reviewOrder === "ascendingSrsStage" || reviewOrder === "descendingSrsStage";
   const normalizedTypeOrder = normalizeReviewTypeOrder(reviewTypeOrder);
   const typeOrderMap = new Map<ReviewTypeOrderSetting, number>();
   normalizedTypeOrder.forEach((subjectType, index) => {
@@ -361,9 +362,11 @@ export function sortReviewItemsForQueue<T extends OrderableReviewItem>(
     );
     if (reviewOrderComparison !== 0) return reviewOrderComparison;
 
-    const subjectTypeComparison =
-      getFallbackSubjectTypeOrder(left) - getFallbackSubjectTypeOrder(right);
-    if (subjectTypeComparison !== 0) return subjectTypeComparison;
+    if (!isSrsOrder) {
+      const subjectTypeComparison =
+        getFallbackSubjectTypeOrder(left) - getFallbackSubjectTypeOrder(right);
+      if (subjectTypeComparison !== 0) return subjectTypeComparison;
+    }
 
     return (shuffledIndex.get(left.id) ?? 0) - (shuffledIndex.get(right.id) ?? 0);
   });

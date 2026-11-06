@@ -118,7 +118,11 @@ beforeEach(() => {
   jest.mocked(getSubject).mockResolvedValue(mockSubject as never);
   jest.mocked(getAssignmentsForSubjectsCached).mockResolvedValue({ data: [] } as never);
   jest.mocked(getStudyMaterials).mockResolvedValue({ data: [mockMaterial] });
-  jest.mocked(getReviewStatistics).mockResolvedValue({ data: [] });
+  jest.mocked(getReviewStatistics).mockResolvedValue({
+    object: "collection", url: "https://api.wanikani.com/v2/review_statistics",
+    pages: { per_page: 500, next_url: null, previous_url: null },
+    total_count: 0, data_updated_at: "2026-10-25T00:00:00Z", data: [],
+  });
   jest.mocked(getSpacedRepetitionSystems).mockResolvedValue({ data: [] });
   jest.mocked(updateStudyMaterial).mockImplementation(async (_token, _id, updates) => ({
     ...mockMaterial, data: { ...mockMaterial.data, ...updates },
@@ -276,7 +280,7 @@ it.each(["synonym", "note"])("still applies a pending personal-data read when a 
   } else {
     fireEvent.press(screen.getByText("Edit meaning note"));
     fireEvent.changeText(screen.getByLabelText("Meaning note text"), "New note");
-    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { fireEvent.press(screen.getByRole("button", { name: "Save note" })); });
     expect(createStudyMaterial).toHaveBeenCalled();
   }
   await act(async () => { pendingRead.resolve({ data: [mockMaterial] }); });
@@ -312,7 +316,7 @@ it("keeps a newer note when an earlier synonym save response arrives last", asyn
   });
   fireEvent.press(screen.getByText("Edit meaning note"));
   fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
-  await act(async () => { fireEvent.press(screen.getByText("Save")); });
+  await act(async () => { fireEvent.press(screen.getByRole("button", { name: "Save note" })); });
   expect(mockVocabularyProps.vocabulary.meaningNote).toBe("My newer saved note");
   await act(async () => { finishSynonymSave(); await saveSynonyms; });
   expect(mockVocabularyProps.vocabulary.meaningNote).toBe("My newer saved note");
@@ -336,7 +340,7 @@ it("keeps newer synonyms when an earlier note save response arrives last", async
   const screen = await openCard();
   fireEvent.press(screen.getByText("Edit meaning note"));
   fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
-  await act(async () => { fireEvent.press(screen.getByText("Save")); });
+  await act(async () => { fireEvent.press(screen.getByRole("button", { name: "Save note" })); });
   await act(async () => {
     await mockVocabularyProps.onSynonymsChange(["grown-up", "mature person"], ["grown-up"]);
   });

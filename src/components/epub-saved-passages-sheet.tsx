@@ -78,7 +78,7 @@ export function EpubSavedPassagesSheet({ visible, annotations, isSaving, error, 
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: "flex-end" },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.3)" },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.3)" },
   sheet: { maxHeight: "70%", borderTopLeftRadius: 12, borderTopRightRadius: 12, overflow: "hidden" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingLeft: 20, paddingRight: 8, paddingTop: 8 },
   title: { fontSize: 18, fontWeight: "600" },

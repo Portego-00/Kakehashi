@@ -1,8 +1,9 @@
+import type { ViewInstance } from "react-native";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -95,7 +96,9 @@ interface RadicalDetailsProps {
     meaningIncorrect?: number;
     percentageCorrect?: number;
     nextReviewAt?: string;
+    burnedAt?: string | null;
     onEditNote?: () => void;
+    onRemoveNoteImage?: (index: number) => Promise<void>;
   };
   progressionStatus: "loading" | "success" | "offline";
   onKanjiPress?: (kanjiId: number) => void;
@@ -167,7 +170,7 @@ export default function RadicalDetails({
         : null,
     [mnemonicSvgXml, theme.textColor, theme.isDark]
   );
-  const mainCharacterRef = useRef<View>(null);
+  const mainCharacterRef = useRef<ViewInstance>(null);
   const {
     containerRef,
     tooltipVisible,
@@ -180,6 +183,7 @@ export default function RadicalDetails({
 
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const headerTop = Math.max(HEADER_TOP_OFFSET, insets.top + 16);
 
   // Scroll position for sticky header
   const scrollY = useSharedValue(0);
@@ -501,16 +505,23 @@ export default function RadicalDetails({
 
         {/* Header */}
         {!embedded && (
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            { paddingTop: headerTop, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+          ]}
+        >
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Back"
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={[styles.backButton, { top: headerTop, left: 20 + insets.left }]}
             hitSlop={BACK_BUTTON_HIT_SLOP}
           >
             <Ionicons name="arrow-back" size={24} color={radicalHeaderTextColor} />
           </TouchableOpacity>
 
-          <View style={styles.headerActions}>
+          <View style={[styles.headerActions, { top: headerTop, right: 16 + insets.right }]}>
             <SubjectHistoryButton subjectType="radical" iconColor={radicalHeaderTextColor} meaning={radical.meanings.find(item => item.primary)?.meaning} subjectId={radical.id} label={radical.characters || "Radical"} />
             {onAddToList && (
               <TouchableOpacity
@@ -538,7 +549,7 @@ export default function RadicalDetails({
           {onOpenConstellation && (
             <TouchableOpacity
               onPress={onOpenConstellation}
-              style={styles.constellationButton}
+              style={[styles.constellationButton, { right: 20 + insets.right }]}
             >
               <Ionicons
                 name="planet-outline"
@@ -709,6 +720,7 @@ export default function RadicalDetails({
                 </View>
                 <FormattedNoteText
                   text={radical.meaningNote}
+                  onRemoveImage={radical.onRemoveNoteImage}
                   style={[styles.noteContent, { color: theme.textColor }]}
                 />
               </View>
@@ -930,11 +942,15 @@ export default function RadicalDetails({
                           { color: theme.textSecondary },
                         ]}
                       >
-                        Next review:{" "}
+                        {radical.srsStage === 9 ? "Burned on: " : "Next review: "}
                         <Text
                           style={{ fontWeight: "600", color: theme.textColor }}
                         >
-                          {formatNextReviewTime(radical.nextReviewAt)}
+                          {radical.srsStage === 9
+                            ? radical.burnedAt
+                              ? new Date(radical.burnedAt).toLocaleDateString()
+                              : "Date unavailable"
+                            : formatNextReviewTime(radical.nextReviewAt)}
                         </Text>
                       </Text>
                     </View>
@@ -1053,6 +1069,8 @@ export default function RadicalDetails({
             {
               backgroundColor: subjectColors.radical,
               paddingTop: insets.top + 8,
+              paddingLeft: 16 + insets.left,
+              paddingRight: 16 + insets.right,
               paddingBottom: 8,
               minHeight: insets.top + 68,
             },
@@ -1061,6 +1079,8 @@ export default function RadicalDetails({
           pointerEvents="box-none"
         >
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Back"
             onPress={() => navigation.goBack()}
             style={styles.stickyBackButton}
             hitSlop={BACK_BUTTON_HIT_SLOP}

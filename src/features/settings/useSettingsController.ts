@@ -1,3 +1,5 @@
+import type { TextInputInstance, ScrollViewInstance } from "react-native";
+import { scheduleIdleTask } from "../../utils/scheduleIdleTask";
 import { createSettingsScrollGuard } from "./settings-scroll-guard";
 import { Ionicons } from "@expo/vector-icons";
 import { File, Paths } from "expo-file-system";
@@ -12,7 +14,6 @@ import React, {
 } from "react";
 import {
   Alert,
-  InteractionManager,
   Linking,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -21,7 +22,7 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
-  type TextInputKeyPressEventData,
+  type TextInputKeyPressEvent,
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -470,6 +471,8 @@ export function useSettingsController() {
     setShowSingleKanjiVocabularySimilarKanji,
     showMediaContextSentences,
     setShowMediaContextSentences,
+    showYouGlishContext,
+    setShowYouGlishContext,
     hideContextSentenceTranslations,
     setHideContextSentenceTranslations,
     hideContextSentenceTranslationsCompletely,
@@ -625,7 +628,7 @@ export function useSettingsController() {
     );
   const [capturingReviewShortcutKey, setCapturingReviewShortcutKey] =
     useState<ReviewShortcutCaptureTarget | null>(null);
-  const reviewShortcutCaptureInputRef = useRef<TextInput>(null);
+  const reviewShortcutCaptureInputRef = useRef<TextInputInstance>(null);
   const offlineCacheRefreshInFlightRef = useRef(false);
   const previousOfflineAudioInProgressRef = useRef(
     getOfflineVocabularyAudioProgress().inProgress,
@@ -682,10 +685,10 @@ export function useSettingsController() {
   const isPortegoUser = isPortegoUsername(userData?.username);
   const showBunproSurvey = !bunproSurveyCompleted;
   const canAccessApiDebugTools = __DEV__ || isPortegoUser;
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const [sectionScrollGuard] = useState(createSettingsScrollGuard);
   useEffect(() => () => sectionScrollGuard.endNavigation(), [sectionScrollGuard]);
-  const sectionChipScrollViewRef = useRef<ScrollView>(null);
+  const sectionChipScrollViewRef = useRef<ScrollViewInstance>(null);
   const showMusicPlaybackSection = !isSongsHiddenForEmail;
   const showWidgetsSection = Platform.OS === "ios" || Platform.OS === "android";
   const showDataStorageSection = hasFeatureAccess(
@@ -1156,7 +1159,7 @@ export function useSettingsController() {
   }, []);
 
   useEffect(() => {
-    const interaction = InteractionManager.runAfterInteractions(() => {
+    const interaction = scheduleIdleTask(() => {
       void refreshOfflineAudioCacheSize();
     });
 
@@ -2296,7 +2299,7 @@ export function useSettingsController() {
   };
 
   const handleReviewShortcutCaptureKeyPress = (
-    event: NativeSyntheticEvent<TextInputKeyPressEventData>,
+    event: TextInputKeyPressEvent,
   ) => {
     if (!capturingReviewShortcutKey) {
       return;
@@ -2552,7 +2555,7 @@ export function useSettingsController() {
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const filename = `wanikani-api-timeline-${timestamp}.json`;
       const exportFile = new File(Paths.document, filename);
-      exportFile.write(JSON.stringify(payload, null, 2));
+      await exportFile.write(JSON.stringify(payload, null, 2));
 
       await Share.share({
         title: "WaniKani API timeline JSON",
@@ -2761,7 +2764,7 @@ export function useSettingsController() {
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const filename = `${filenamePrefix}-${timestamp}.csv`;
       const exportFile = new File(Paths.document, filename);
-      exportFile.write(csv);
+      await exportFile.write(csv);
 
       // Stop showing spinner before opening system share sheet.
       setIsExportingLevelAnalytics(false);
@@ -3133,6 +3136,7 @@ export function useSettingsController() {
     setShowLevelAnalyticsExportModal,
     setShowMediaContextSentences,
     setShowMnemonicIllustrations,
+    setShowYouGlishContext,
     setShowInlineRadicalReminders,
     setShowKanjiEtymology,
     setKanjiReadingTextToSpeechEnabled,
@@ -3180,6 +3184,7 @@ export function useSettingsController() {
     showLevelRecapSection,
     showMediaContextSentences,
     showMnemonicIllustrations,
+    showYouGlishContext,
     showInlineRadicalReminders,
     showKanjiEtymology,
     kanjiReadingTextToSpeechEnabled,

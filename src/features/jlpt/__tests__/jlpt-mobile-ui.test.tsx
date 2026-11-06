@@ -60,10 +60,10 @@ jest.mock("../../../utils/store", () => ({
     selector({ userData: null }),
 }));
 
-jest.mock("@react-navigation/native", () => {
+jest.mock("expo-router/react-navigation", () => {
   const mockReact = require("react");
   return {
-    ...jest.requireActual("@react-navigation/native"),
+    ...jest.requireActual("expo-router/react-navigation"),
     useFocusEffect: (callback: () => void | (() => void)) =>
       mockReact.useEffect(callback, [callback]),
   };

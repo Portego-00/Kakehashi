@@ -75,8 +75,8 @@ const mockGetPendingProgressAssignmentIds = jest.fn(async () => ({
   lesson: new Set<number>(),
   review: new Set<number>(),
 }));
-const mockGetStudyMaterials = jest.fn(async () => ({ data: [] }));
-const mockGetCachedStudyMaterials = jest.fn(async () => []);
+const mockGetStudyMaterials = jest.fn(async (..._args: unknown[]): Promise<{ data: unknown[] }> => ({ data: [] }));
+const mockGetCachedStudyMaterials = jest.fn(async (_subjectIds: number[]): Promise<{ data: { subject_id: number; meaning_synonyms: string[]; meaning_note: string; reading_note: string } }[] | null> => []);
 let mockAcceptUserSynonymsAsAnswers = false;
 
 jest.mock("expo-router", () => ({
@@ -86,7 +86,7 @@ jest.mock("expo-router", () => ({
   }),
   router: { back: jest.fn(), replace: jest.fn(), dismissAll: jest.fn() },
 }));
-jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
+jest.mock("expo-router/react-navigation", () => ({ useIsFocused: () => true }));
 jest.mock("@expo/vector-icons", () => ({ MaterialCommunityIcons: () => null }));
 jest.mock("../../src/contexts/AuthContext", () => ({
   useSession: () => ({ isLoading: false }),

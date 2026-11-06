@@ -1,5 +1,6 @@
+import type { ScaledSize } from "react-native";
+import type { FlatListInstance } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import Slider from "@react-native-community/slider";
 import { useRouter } from "expo-router";
 import {
   ReactElement,
@@ -64,6 +65,9 @@ import { useTheme } from "../utils/theme";
 import { LyricsQuizLine } from "./LyricsQuizLine";
 import { LyricsQuizResultsModal } from "./LyricsQuizResultsModal";
 import { VocabularyTooltip } from "./VocabularyTooltip";
+import { MusicPlayerLayout, supportsPlayerArrangement } from "./MusicPlayerLayout";
+import { PlaybackPositionSlider } from "./PlaybackPositionSlider";
+import { getFullBleedPlayerVideoGeometry, type PlayerNativeFrame, type PlayerNativeFrames } from "./music-player-geometry";
 
 const GRAMMAR_TOOLTIP_ID_MIN = -9100000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
@@ -150,6 +154,7 @@ export default function MiniPlayer({
   const [shouldRender, setShouldRender] = useState(false);
   const [backgroundColor, setBackgroundColor] = useState("#1a1a1a");
   const [isExpanded, setIsExpanded] = useState(false);
+  const acceptsVideoLayoutUpdates = useRef(false);
   const [sliderValue, setSliderValue] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekTarget, setSeekTarget] = useState<number | null>(null);
@@ -322,7 +327,7 @@ export default function MiniPlayer({
     mediaSource === "apple" ? "logo-apple" : "musical-notes";
   const expandedTopPadding = videoId ? 8 : insets.top + 12;
 
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<FlatListInstance>(null);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [showLyricsList, setShowLyricsList] = useState(false); // Optimization: Delay rendering of list
   const [screenHeight, setScreenHeight] = useState(
@@ -368,7 +373,7 @@ export default function MiniPlayer({
 
   // Listen to dimension changes (device rotation)
   useEffect(() => {
-    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+    const subscription = Dimensions.addEventListener("change", ({ window }: { window: ScaledSize }) => {
       setScreenHeight(window.height);
       setScreenWidth(window.width);
     });
@@ -403,8 +408,51 @@ export default function MiniPlayer({
   // For iPad and larger screens, use a larger player
   // YouTube player aspect ratio is 16:9
   const isTablet = screenWidth >= 768;
-  const videoWidth = isTablet ? Math.min(screenWidth - 32, 700) : screenWidth;
-  const videoHeight = (videoWidth * 9) / 16; // Maintain 16:9 aspect ratio
+  const canUsePlayerArrangement = supportsPlayerArrangement && Boolean(videoId);
+  const [hasFoldedPlayerLayout, setHasFoldedPlayerLayout] = useState(false);
+  const usePlayerArrangement = canUsePlayerArrangement && hasFoldedPlayerLayout;
+  const useRoomyLyrics =
+    usePlayerArrangement && screenWidth >= 600 && screenHeight > screenWidth;
+  const [videoRegion, setVideoRegion] = useState({
+    width: screenWidth,
+    height: screenHeight / 2,
+  });
+  const [nativeFrames, setNativeFrames] = useState<PlayerNativeFrames>({});
+  const fullBleedGeometry = useRoomyLyrics
+    ? getFullBleedPlayerVideoGeometry(nativeFrames)
+    : null;
+  const availableVideoWidth = usePlayerArrangement
+    ? videoRegion.width
+    : screenWidth;
+  const preferredVideoWidth =
+    availableVideoWidth >= 768
+      ? Math.min(availableVideoWidth - 32, 700)
+      : availableVideoWidth;
+  const videoWidth =
+    fullBleedGeometry?.videoWidth ??
+    (usePlayerArrangement
+      ? Math.min(
+          preferredVideoWidth,
+          (Math.max(0, videoRegion.height - insets.top) * 16) / 9,
+        )
+      : preferredVideoWidth);
+  const videoHeight = (videoWidth * 9) / 16;
+  const preferredVideoRatio =
+    screenWidth >= 600 && screenHeight > screenWidth
+      ? 0.5
+      : Math.min(0.5, ((screenWidth * 9) / 16 + insets.top) / screenHeight);
+
+  const handleNativeGeometryChange = useCallback((part: "primary" | "secondary", rect: PlayerNativeFrame) => {
+    if (!isExpanded || !acceptsVideoLayoutUpdates.current) return;
+    setNativeFrames((current) => {
+      const previous = current[part];
+      if (previous && previous.x === rect.x && previous.y === rect.y &&
+          previous.width === rect.width && previous.height === rect.height) {
+        return current;
+      }
+      return { ...current, [part]: rect };
+    });
+  }, [isExpanded]);
 
   // Extract dominant color from album art
   useEffect(() => {
@@ -662,6 +710,7 @@ export default function MiniPlayer({
   };
 
   const handleExpand = () => {
+    acceptsVideoLayoutUpdates.current = true;
     setIsExpanded(true);
     onExpandChange?.(true);
     expandAnim.value = withSpring(
@@ -680,6 +729,8 @@ export default function MiniPlayer({
   };
 
   const handleCollapse = (onComplete?: () => void) => {
+    // Keep the playing iframe at its last expanded size throughout collapse.
+    acceptsVideoLayoutUpdates.current = false;
     // Hide lyrics immediately to save frames during collapse
     setShowLyricsList(false);
     expandAnim.value = withSpring(
@@ -1359,7 +1410,14 @@ export default function MiniPlayer({
                   },
                 ]}
               >
-                <Text style={styles.inlineChipText}>{segment.text}</Text>
+                <Text
+                  style={[
+                    styles.inlineChipText,
+                    useRoomyLyrics && styles.roomyLyricChipText,
+                  ]}
+                >
+                  {segment.text}
+                </Text>
                 {showLevelBadge && (
                   <View
                     style={[styles.levelBadgeChip, { backgroundColor: color }]}
@@ -1432,6 +1490,7 @@ export default function MiniPlayer({
               onSkip={handleLyricsQuizSkip}
               textStyle={[
                 styles.timedLyricText,
+                useRoomyLyrics && styles.roomyTimedLyricText,
                 isActive && styles.currentTimedLyric,
                 isPast && styles.pastTimedLyric,
               ]}
@@ -1444,6 +1503,7 @@ export default function MiniPlayer({
               timedLineOffsets[index] ?? 0,
               [
                 styles.timedLyricText,
+                useRoomyLyrics && styles.roomyTimedLyricText,
                 fontStyles.japaneseText,
                 isActive && styles.currentTimedLyric,
                 isPast && styles.pastTimedLyric,
@@ -1453,6 +1513,7 @@ export default function MiniPlayer({
             <Text
               style={[
                 styles.timedLyricText,
+                useRoomyLyrics && styles.roomyTimedLyricText,
                 fontStyles.japaneseText,
                 isActive && styles.currentTimedLyric,
                 isPast && styles.pastTimedLyric,
@@ -1464,6 +1525,7 @@ export default function MiniPlayer({
             <Text
               style={[
                 styles.timedLyricText,
+                useRoomyLyrics && styles.roomyTimedLyricText,
                 fontStyles.japaneseText,
                 isActive && styles.currentTimedLyric,
                 isPast && styles.pastTimedLyric,
@@ -1477,6 +1539,7 @@ export default function MiniPlayer({
     },
     [
       currentIndex,
+      useRoomyLyrics,
       playerRef,
       fullAnalysisEnabled,
       handleLyricsQuizAnswer,
@@ -1523,13 +1586,17 @@ export default function MiniPlayer({
   }, [screenHeight]);
 
   const animatedVideoContainerStyle = useAnimatedStyle(() => {
-    const height = interpolate(expandAnim.value, [0, 1], [0, videoHeight]);
     return {
-      marginTop: isExpanded ? insets.top : 0,
+      marginTop: usePlayerArrangement ? 0 : isExpanded ? insets.top : 0,
+      paddingTop: fullBleedGeometry ? 0 : usePlayerArrangement ? insets.top : 0,
       opacity: expandAnim.value,
-      height,
+      height:
+        fullBleedGeometry?.stageHeight ??
+        (usePlayerArrangement
+          ? "100%"
+          : interpolate(expandAnim.value, [0, 1], [0, videoHeight])),
     };
-  }, [videoHeight, isExpanded, insets.top]);
+  }, [videoHeight, isExpanded, insets.top, usePlayerArrangement, fullBleedGeometry]);
 
   const animatedCollapsedStyle = useAnimatedStyle(() => {
     return {
@@ -1548,8 +1615,37 @@ export default function MiniPlayer({
     return null;
   }
 
+  const songInformation = (
+    <View
+      style={[
+        styles.expandedSongInfo,
+        usePlayerArrangement && styles.arrangedSongInfo,
+      ]}
+    >
+      <Text style={styles.expandedSongTitle} numberOfLines={1}>
+        {songTitle}
+      </Text>
+      <Text style={styles.expandedArtist} numberOfLines={1}>
+        {artist}
+      </Text>
+      {isExternalMusicPreviewMode && trackUrl && (
+        <TouchableOpacity
+          style={styles.openAppleButton}
+          onPress={handleOpenTrackUrl}
+          activeOpacity={0.7}
+        >
+          <Ionicons name={externalMusicIcon} size={14} color="white" />
+          <Text style={styles.openAppleButtonText}>
+            Open in {externalMusicLabel}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   return (
     <Animated.View
+      accessibilityViewIsModal={isExpanded}
       style={[
         styles.miniPlayer,
         { backgroundColor: backgroundColor },
@@ -1557,48 +1653,233 @@ export default function MiniPlayer({
       ]}
     >
       <Animated.View style={{ height: "100%", width: "100%" }}>
-        {/* Video Player - Always rendered but hidden when collapsed */}
-        {videoId && (
-          <Animated.View
-            style={[
-              styles.videoContainer,
-              isTablet && { alignItems: "center" },
-              animatedVideoContainerStyle,
-            ]}
-          >
-            <View style={{ width: videoWidth, height: videoHeight, position: "relative" }}>
-              <View pointerEvents={isExpanded ? "none" : "auto"}>
-                <YoutubePlayer
-                  key={videoId}
-                  ref={playerRef}
-                  height={videoHeight}
-                  videoId={videoId}
-                  play={isPlaying}
-                  onChangeState={onStateChange}
-                  webViewProps={{
-                    allowsFullscreenVideo: true,
-                  }}
-                />
-              </View>
-              {/* Transparent overlay to prevent YouTube player interaction when expanded */}
-              {isExpanded && (
-                <GestureDetector gesture={panGesture}>
-                  <Animated.View
-                    pointerEvents="box-only"
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: videoWidth,
-                      height: videoHeight,
-                      backgroundColor: "rgba(0,0,0,0.01)", // Very subtle tint to ensure touch events work
+        <MusicPlayerLayout
+          useArrangement={canUsePlayerArrangement}
+          onArrangementChange={setHasFoldedPlayerLayout}
+          preferredVideoRatio={preferredVideoRatio}
+          onNativeGeometryChange={handleNativeGeometryChange}
+          onVideoLayout={({ nativeEvent: { layout } }) => {
+            if (
+              isExpanded &&
+              acceptsVideoLayoutUpdates.current &&
+              layout.width > 0 &&
+              layout.height > insets.top
+            ) {
+              setVideoRegion((current) =>
+                current.width === layout.width && current.height === layout.height
+                  ? current
+                  : { width: layout.width, height: layout.height },
+              );
+            }
+          }}
+          video={videoId ? (
+            <Animated.View
+              style={[
+                styles.videoContainer,
+                (isTablet || usePlayerArrangement) && { alignItems: "center", justifyContent: "center" },
+                animatedVideoContainerStyle,
+              ]}
+            >
+              <View style={{ width: videoWidth, height: videoHeight, position: "relative" }}>
+                <View pointerEvents={isExpanded ? "none" : "auto"}>
+                  <YoutubePlayer
+                    key={videoId}
+                    ref={playerRef}
+                    height={videoHeight}
+                    videoId={videoId}
+                    play={isPlaying}
+                    onChangeState={onStateChange}
+                    webViewProps={{
+                      allowsFullscreenVideo: true,
                     }}
                   />
-                </GestureDetector>
-              )}
-            </View>
-          </Animated.View>
-        )}
+                </View>
+                {/* Transparent overlay to prevent YouTube player interaction when expanded */}
+                {isExpanded && (
+                  <GestureDetector gesture={panGesture}>
+                    <Animated.View
+                      pointerEvents="box-only"
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: videoWidth,
+                        height: videoHeight,
+                        backgroundColor: "rgba(0,0,0,0.01)", // Very subtle tint to ensure touch events work
+                      }}
+                    />
+                  </GestureDetector>
+                )}
+              </View>
+            </Animated.View>
+          ) : null}
+          lyrics={isExpanded ? (
+            <Animated.View
+              style={[
+                styles.expandedContent,
+                { paddingTop: expandedTopPadding },
+                animatedExpandedContentStyle,
+              ]}
+            >
+              {/* Header Row with Close and Lyrics Buttons - with swipe down gesture */}
+              <GestureDetector gesture={panGesture}>
+                <Animated.View>
+                  <View style={styles.expandedHeader}>
+                    {!usePlayerArrangement && <View style={styles.headerSpacer} />}
+                    <TouchableOpacity
+                      onPress={() => handleCollapse()}
+                      style={styles.collapseButton}
+                      accessibilityLabel="Collapse player"
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="chevron-down" size={24} color="white" />
+                    </TouchableOpacity>
+                    {usePlayerArrangement && songInformation}
+                    {showLyricsButton && onNavigateToLyrics ? (
+                      <TouchableOpacity
+                        style={styles.lyricsButton}
+                        onPress={() => {
+                          handleCollapse();
+                          onNavigateToLyrics();
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="open-outline" size={20} color="white" />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.headerSpacer} />
+                    )}
+                  </View>
+
+                  {!usePlayerArrangement && songInformation}
+                </Animated.View>
+              </GestureDetector>
+
+              {/* Flexible Space for Lyrics */}
+              <View style={{ flex: 1, justifyContent: "center" }}>
+                {/* Lyrics Preview with Auto-Scroll */}
+                {timedLyrics.length > 0 ? (
+                  <View style={styles.lyricsPreviewContainer}>
+                    {lyricsQuizModeEnabled ? (
+                      <View style={styles.lyricsQuizHeader}>
+                        <TouchableOpacity
+                          style={styles.lyricsQuizHeaderInfo}
+                          accessibilityRole={
+                            lyricsQuizQuestions.length > 0 ? "button" : undefined
+                          }
+                          accessibilityLabel={
+                            lyricsQuizQuestions.length > 0
+                              ? "Open song quiz results"
+                              : undefined
+                          }
+                          disabled={lyricsQuizQuestions.length === 0}
+                          onPress={() => setIsLyricsQuizResultsVisible(true)}
+                          activeOpacity={0.65}
+                        >
+                          <Ionicons name="ear-outline" size={16} color="white" />
+                          <Text style={styles.lyricsQuizHeaderText}>
+                            {lyricsQuizQuestions.length > 0
+                              ? `Quiz · ${completedLyricsQuizQuestionCount} of ${lyricsQuizQuestions.length}`
+                              : "Not enough recognized vocabulary for a quiz"}
+                          </Text>
+                        </TouchableOpacity>
+                        {lyricsQuizQuestions.length > 0 ? (
+                          <TouchableOpacity
+                            style={styles.lyricsQuizResetButton}
+                            accessibilityRole="button"
+                            accessibilityLabel="Reset lyric quiz progress"
+                            onPress={() => resetLyricsQuiz(lyricsQuizSessionKey)}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="refresh" size={15} color="white" />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    ) : null}
+                    <FlatList
+                      ref={flatListRef}
+                      style={styles.lyricsQuizList}
+                      data={timedLyrics}
+                      renderItem={renderLyricItem}
+                      keyExtractor={(item, index) => index.toString()}
+                      scrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                      contentContainerStyle={{
+                        paddingVertical: 40,
+                        paddingHorizontal: 4,
+                      }}
+                      onScrollToIndexFailed={handleScrollToIndexFailed}
+                      // Helper to ensure we can scroll immediately
+                      onLayout={() => {
+                        if (currentIndex >= 0) {
+                          flatListRef.current?.scrollToIndex({
+                            index: currentIndex,
+                            animated: false,
+                            viewPosition: 0.5,
+                          });
+                        }
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <View style={{ flex: 1 }} />
+                )}
+              </View>
+
+              {/* Bottom Controls Section */}
+              <View style={{ paddingBottom: insets.bottom + 20 }}>
+                {/* Progress Slider */}
+                <View style={styles.sliderContainer}>
+                  <Text style={styles.timeText}>{formatTime(sliderValue)}</Text>
+                  <PlaybackPositionSlider
+                    style={styles.slider}
+                    duration={duration}
+                    value={sliderValue}
+                    onSlidingStart={handleSeekStart}
+                    onValueChange={handleSeekChange}
+                    onSlidingComplete={handleSeekComplete}
+                  />
+                  <Text style={styles.timeText}>{formatTime(duration)}</Text>
+                </View>
+
+                {/* Controls */}
+                <View style={styles.expandedControls}>
+                  <TouchableOpacity
+                    style={styles.expandedControlButton}
+                    onPress={handleQuizAwareSkipBackward}
+                    accessibilityLabel="Skip backward 10 seconds"
+                    accessibilityRole="button"
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="replay-10" size={32} color="white" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.expandedMainControlButton}
+                    onPress={handleQuizAwarePlayPause}
+                    accessibilityLabel={isPlaying ? "Pause playback" : "Play playback"}
+                    accessibilityRole="button"
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={isPlaying ? "pause" : "play"}
+                      size={36}
+                      color="white"
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.expandedControlButton}
+                    onPress={handleQuizAwareSkipForward}
+                    accessibilityLabel="Skip forward 10 seconds"
+                    accessibilityRole="button"
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="forward-10" size={32} color="white" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Animated.View>
+          ) : null}
+        />
 
         {/* Collapsed Mini Player Content - Rendered always but faded out */}
         <Animated.View
@@ -1609,7 +1890,11 @@ export default function MiniPlayer({
           ]}
           pointerEvents={isExpanded ? "none" : "auto"}
         >
-          <TouchableWithoutFeedback onPress={handleExpand}>
+          <TouchableWithoutFeedback
+            onPress={handleExpand}
+            accessibilityRole="button"
+            accessibilityLabel="Expand player"
+          >
             <View style={styles.miniPlayerContent}>
               <Image source={{ uri: albumArt }} style={styles.miniPlayerArt} />
               <View style={styles.miniPlayerInfo}>
@@ -1624,6 +1909,8 @@ export default function MiniPlayer({
                 <TouchableOpacity
                   style={styles.miniControlButton}
                   onPress={handleQuizAwareSkipBackward}
+                  accessibilityLabel="Skip backward 10 seconds"
+                  accessibilityRole="button"
                   activeOpacity={0.7}
                 >
                   <MaterialIcons name="replay-10" size={24} color="white" />
@@ -1631,6 +1918,8 @@ export default function MiniPlayer({
                 <TouchableOpacity
                   style={styles.miniMainControlButton}
                   onPress={handleQuizAwarePlayPause}
+                  accessibilityLabel={isPlaying ? "Pause playback" : "Play playback"}
+                  accessibilityRole="button"
                   activeOpacity={0.7}
                 >
                   <Ionicons
@@ -1642,6 +1931,8 @@ export default function MiniPlayer({
                 <TouchableOpacity
                   style={styles.miniControlButton}
                   onPress={handleQuizAwareSkipForward}
+                  accessibilityLabel="Skip forward 10 seconds"
+                  accessibilityRole="button"
                   activeOpacity={0.7}
                 >
                   <MaterialIcons name="forward-10" size={24} color="white" />
@@ -1656,198 +1947,6 @@ export default function MiniPlayer({
           </View>
         </Animated.View>
 
-        {/* Expanded Content */}
-        {isExpanded && (
-          <Animated.View
-            style={[
-              styles.expandedContent,
-              { paddingTop: expandedTopPadding },
-              // Add absolute positioning to cover collapsed content?
-              // The container grows, so standard flex logic usually works.
-              // BUT if we have the collapsed content freely absolutely positioned,
-              // then expanded content can just take the space naturally?
-              // YES, because expandedContent is conditional.
-              // When it is present, it will take flex space.
-              // BUT wait, videoContainer is also there.
-              // If we position collapsed content absolute, it won't affect layout.
-              // So expandedContent (and videoContainer) will layout as if collapsed isn't there.
-              // Which is correct.
-              animatedExpandedContentStyle,
-            ]}
-          >
-            {/* Header Row with Close and Lyrics Buttons - with swipe down gesture */}
-            <GestureDetector gesture={panGesture}>
-              <Animated.View>
-                <View style={styles.expandedHeader}>
-                  <View style={styles.headerSpacer} />
-                  <TouchableOpacity
-                    onPress={() => handleCollapse()}
-                    style={styles.collapseButton}
-                  >
-                    <Ionicons name="chevron-down" size={24} color="white" />
-                  </TouchableOpacity>
-                  {showLyricsButton && onNavigateToLyrics ? (
-                    <TouchableOpacity
-                      style={styles.lyricsButton}
-                      onPress={() => {
-                        handleCollapse();
-                        onNavigateToLyrics();
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="open-outline" size={20} color="white" />
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={styles.headerSpacer} />
-                  )}
-                </View>
-
-                {/* Song Info */}
-                <View style={styles.expandedSongInfo}>
-                  <Text style={styles.expandedSongTitle} numberOfLines={1}>
-                    {songTitle}
-                  </Text>
-                  <Text style={styles.expandedArtist} numberOfLines={1}>
-                    {artist}
-                  </Text>
-                  {isExternalMusicPreviewMode && trackUrl && (
-                    <TouchableOpacity
-                      style={styles.openAppleButton}
-                      onPress={handleOpenTrackUrl}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name={externalMusicIcon} size={14} color="white" />
-                      <Text style={styles.openAppleButtonText}>
-                        Open in {externalMusicLabel}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </Animated.View>
-            </GestureDetector>
-
-            {/* Flexible Space for Lyrics */}
-            <View style={{ flex: 1, justifyContent: "center" }}>
-              {/* Lyrics Preview with Auto-Scroll */}
-              {timedLyrics.length > 0 ? (
-                <View style={styles.lyricsPreviewContainer}>
-                  {lyricsQuizModeEnabled ? (
-                    <View style={styles.lyricsQuizHeader}>
-                      <TouchableOpacity
-                        style={styles.lyricsQuizHeaderInfo}
-                        accessibilityRole={
-                          lyricsQuizQuestions.length > 0 ? "button" : undefined
-                        }
-                        accessibilityLabel={
-                          lyricsQuizQuestions.length > 0
-                            ? "Open song quiz results"
-                            : undefined
-                        }
-                        disabled={lyricsQuizQuestions.length === 0}
-                        onPress={() => setIsLyricsQuizResultsVisible(true)}
-                        activeOpacity={0.65}
-                      >
-                        <Ionicons name="ear-outline" size={16} color="white" />
-                        <Text style={styles.lyricsQuizHeaderText}>
-                          {lyricsQuizQuestions.length > 0
-                            ? `Quiz · ${completedLyricsQuizQuestionCount} of ${lyricsQuizQuestions.length}`
-                            : "Not enough recognized vocabulary for a quiz"}
-                        </Text>
-                      </TouchableOpacity>
-                      {lyricsQuizQuestions.length > 0 ? (
-                        <TouchableOpacity
-                          style={styles.lyricsQuizResetButton}
-                          accessibilityRole="button"
-                          accessibilityLabel="Reset lyric quiz progress"
-                          onPress={() => resetLyricsQuiz(lyricsQuizSessionKey)}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="refresh" size={15} color="white" />
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  ) : null}
-                  <FlatList
-                    ref={flatListRef}
-                    style={styles.lyricsQuizList}
-                    data={timedLyrics}
-                    renderItem={renderLyricItem}
-                    keyExtractor={(item, index) => index.toString()}
-                    scrollEnabled={true}
-                    showsVerticalScrollIndicator={true}
-                    contentContainerStyle={{
-                      paddingVertical: 40,
-                      paddingHorizontal: 4,
-                    }}
-                    onScrollToIndexFailed={handleScrollToIndexFailed}
-                    // Helper to ensure we can scroll immediately
-                    onLayout={() => {
-                      if (currentIndex >= 0) {
-                        flatListRef.current?.scrollToIndex({
-                          index: currentIndex,
-                          animated: false,
-                          viewPosition: 0.5,
-                        });
-                      }
-                    }}
-                  />
-                </View>
-              ) : (
-                <View style={{ flex: 1 }} />
-              )}
-            </View>
-
-            {/* Bottom Controls Section */}
-            <View style={{ paddingBottom: insets.bottom + 20 }}>
-              {/* Progress Slider */}
-              <View style={styles.sliderContainer}>
-                <Text style={styles.timeText}>{formatTime(sliderValue)}</Text>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={0}
-                  maximumValue={duration || 100}
-                  value={sliderValue}
-                  onSlidingStart={handleSeekStart}
-                  onValueChange={handleSeekChange}
-                  onSlidingComplete={handleSeekComplete}
-                  minimumTrackTintColor="rgba(255, 255, 255, 0.9)"
-                  maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
-                  thumbTintColor="white"
-                />
-                <Text style={styles.timeText}>{formatTime(duration)}</Text>
-              </View>
-
-              {/* Controls */}
-              <View style={styles.expandedControls}>
-                <TouchableOpacity
-                  style={styles.expandedControlButton}
-                  onPress={handleQuizAwareSkipBackward}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="replay-10" size={32} color="white" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.expandedMainControlButton}
-                  onPress={handleQuizAwarePlayPause}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={isPlaying ? "pause" : "play"}
-                    size={36}
-                    color="white"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.expandedControlButton}
-                  onPress={handleQuizAwareSkipForward}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="forward-10" size={32} color="white" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Animated.View>
-        )}
       </Animated.View>
       <LyricsQuizResultsModal
         visible={isLyricsQuizResultsVisible}
@@ -2059,6 +2158,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignItems: "center",
   },
+  arrangedSongInfo: {
+    flex: 1,
+    minWidth: 0,
+    marginBottom: 0,
+  },
   expandedSongTitle: {
     fontSize: 18,
     fontWeight: "bold",
@@ -2224,6 +2328,13 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     color: "white",
     textAlign: "left", // Left align
+  },
+  roomyTimedLyricText: {
+    fontSize: 28,
+    lineHeight: 48,
+  },
+  roomyLyricChipText: {
+    fontSize: 26,
   },
   currentTimedLyric: {
     opacity: 1,

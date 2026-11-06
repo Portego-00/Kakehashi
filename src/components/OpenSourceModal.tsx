@@ -81,11 +81,18 @@ export default function OpenSourceModal({
           {
             paddingTop: insets.top + 20,
             paddingBottom: insets.bottom + 20,
+            paddingLeft: insets.left + 20,
+            paddingRight: insets.right + 20,
           },
         ]}
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
         <Pressable
+          accessible={false}
+          style={StyleSheet.absoluteFill}
+          onPress={handleClose}
+        />
+        <Pressable
+          accessible={false}
           style={[
             styles.card,
             {

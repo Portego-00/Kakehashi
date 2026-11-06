@@ -12,6 +12,7 @@ import LessonDetailScreen from "../LessonDetailScreen";
 import { searchImmersionKit } from "../../services/immersionKitService";
 import { getWaniKaniVocabularyPatterns } from "../../utils/wanikaniVocabularyPatterns";
 import { createStudyMaterial, getStudyMaterials, updateStudyMaterial } from "../../utils/api";
+import * as subjectCache from "../../utils/cache";
 
 let mockFlushedNoteText: string | undefined;
 let mockLessonSynonymsProps: { currentSynonyms: string[]; onSave: (edited: string[], original: string[]) => Promise<void> };
@@ -33,6 +34,7 @@ let mockRenderRadicalsTab = false;
 const mockContextSettings = {
   showJLPTLevel: false,
   showVocabularyFrequency: false,
+  showSimilarVocabulary: false,
   showPatternsOfUse: false,
   showMediaContextSentences: false,
   hideContextSentenceTranslations: false,
@@ -328,7 +330,7 @@ describe("LessonDetailScreen Japanese-only examples", () => {
     mockContextSettings.hideContextSentenceTranslationsCompletely = true;
     const context = { ja: "やっぱり歩いて行く。", en: "After all, I'll walk." };
     const pattern = { ja: "やっぱりそうだ。", en: "It is as I thought." };
-    const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime", imageUrl: "https://example.com/anime.jpg" };
+    const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime" as const, imageUrl: "https://example.com/anime.jpg" };
     jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([{ name: "やっぱり〜", examples: [pattern] }]);
     jest.mocked(searchImmersionKit).mockResolvedValue({ results: [media], nextOffset: 1 });
     const subject = { id: -2026, object, data: { characters: "やっぱり", level: 1, meanings: [{ meaning: "As Expected", primary: true }], readings: [], context_sentences: [context] } };
@@ -372,6 +374,77 @@ describe("LessonDetailScreen Japanese-only examples", () => {
     expect(screen.queryByText(pattern.en)).toBeNull();
     expect(screen.queryByText(media.translation)).toBeNull();
     expect(screen.queryByText("Tap to reveal translation")).toBeNull();
+  });
+});
+
+describe("LessonDetailScreen similar vocabulary matching", () => {
+  it("matches English casing and whitespace and kana readings within their sections", async () => {
+    mockSinglePageLessonView = true;
+    mockContextSettings.showSimilarVocabulary = true;
+    const subject = {
+      id: 2652,
+      object: "vocabulary",
+      data: {
+        characters: "先日",
+        level: 4,
+        meanings: [{ meaning: "The Other Day", primary: true }],
+        readings: [{ reading: "せんじつ", primary: true }],
+      },
+    };
+    const candidate = (id: number, characters: string, meaning: string, reading: string, object = "vocabulary") => ({
+      id,
+      object,
+      data: {
+        characters,
+        level: 4,
+        meanings: [{ meaning, primary: true }],
+        readings: [{ reading, primary: true }],
+      },
+    });
+    const cachedSubjects = jest.spyOn(subjectCache, "getAllSubjects").mockResolvedValue([
+      subject,
+      candidate(3001, "昨日", "  the OTHER day  ", "きのう"),
+      candidate(3002, "センジツ", "Recent fixture", " せんじつ ", "kana_vocabulary"),
+      candidate(3003, "別日", "Another Day", "せんじゅつ"),
+      candidate(3004, "先", "The Other Day", "せんじつ", "kanji"),
+    ]);
+    const screen = render(
+      <LessonDetailScreen
+        item={{ id: subject.id, subject }}
+        batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0}
+        onNext={jest.fn()}
+        onPrev={jest.fn()}
+        canGoBack={false}
+        canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }}
+        onExit={jest.fn()}
+      />,
+    );
+    try {
+      const meaningTitle = await screen.findByText("Similar Vocabulary by Meaning");
+      const readingTitle = await screen.findByText("Similar Vocabulary by Reading");
+      const [meanings, readings] = [meaningTitle, readingTitle].map((title) => {
+        let section = title.parent;
+        while (section && section.type !== View) section = section.parent;
+        expect(section).not.toBeNull();
+        return within(section!);
+      });
+      expect(meanings.getByText("昨日")).toBeTruthy();
+      expect(meanings.queryByText("センジツ")).toBeNull();
+      expect(readings.getByText("センジツ")).toBeTruthy();
+      expect(readings.queryByText("昨日")).toBeNull();
+      for (const section of [meanings, readings]) {
+        expect(section.queryByText("先日")).toBeNull();
+        expect(section.queryByText("別日")).toBeNull();
+        expect(section.queryByText("先")).toBeNull();
+      }
+    } finally {
+      screen.unmount();
+      cachedSubjects.mockRestore();
+      mockSinglePageLessonView = false;
+      mockContextSettings.showSimilarVocabulary = false;
+    }
   });
 });
 
@@ -458,7 +531,7 @@ describe("LessonDetailScreen kana vocabulary notes", () => {
     fireEvent.press(screen.getByLabelText(note ? "Edit meaning note" : "Add meaning note"), { stopPropagation: jest.fn() });
     expect(screen.getByLabelText("Meaning note text").props.value).toBe(note);
     fireEvent.changeText(screen.getByLabelText("Meaning note text"), savedNote);
-    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { fireEvent.press(screen.getByText("Save note")); });
     await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
     if (note) {
       expect(updateStudyMaterial).toHaveBeenCalledWith("test-token", material.id, { meaning_note: savedNote });
@@ -481,10 +554,10 @@ describe("LessonDetailScreen large-text summary", () => {
 
   it("closes an unchanged lesson note without asking to discard", async () => {
     const screen = renderNoteLesson();
-    fireEvent.press(screen.getByText("Cancel"));
-    await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
+    await act(async () => { fireEvent.press(screen.getByText("Cancel")); });
     expect(mockEditorFlush).toHaveBeenCalledTimes(1);
     expect(mockAlert).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Meaning note text")).toBeNull();
   });
 
   it("checks the freshly flushed lesson draft before closing", async () => {
@@ -582,6 +655,7 @@ describe("LessonDetailScreen large-text summary", () => {
       act(() => {
         keyboardShown?.({
           duration: 250,
+          isEventFromThisApp: true,
           easing: "keyboard",
           endCoordinates: { height: 300, width: 390, screenX: 0, screenY: 544 },
           startCoordinates: { height: 0, width: 390, screenX: 0, screenY: 844 },
@@ -823,7 +897,7 @@ describe("LessonDetailScreen synonym safety", () => {
       });
     } else {
       fireEvent.changeText(screen.getByLabelText("Meaning note text"), "New note");
-      await act(async () => { fireEvent.press(screen.getByText("Save")); });
+      await act(async () => { fireEvent.press(screen.getByText("Save note")); });
       expect(createStudyMaterial).toHaveBeenCalled();
     }
     await act(async () => { resolveInitial({ data: [remoteMaterial] }); });
@@ -854,7 +928,7 @@ describe("LessonDetailScreen synonym safety", () => {
     });
     fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
     fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
-    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { fireEvent.press(screen.getByText("Save note")); });
     await act(async () => { finishSynonymSave(); await saveSynonyms; });
     fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
     expect(screen.getByLabelText("Meaning note text").props.value).toBe("My newer saved note");
@@ -881,7 +955,7 @@ describe("LessonDetailScreen synonym safety", () => {
     await act(async () => {});
     fireEvent.press(screen.getByLabelText("Edit meaning note"), { stopPropagation: jest.fn() });
     fireEvent.changeText(screen.getByLabelText("Meaning note text"), "My newer saved note");
-    await act(async () => { fireEvent.press(screen.getByText("Save")); });
+    await act(async () => { fireEvent.press(screen.getByText("Save note")); });
     await act(async () => { await mockLessonSynonymsProps.onSave(["bridge synonym"], []); });
     expect(mockLessonSynonymsProps.currentSynonyms).toEqual(["existing on WaniKani", "bridge synonym"]);
     await act(async () => { finishNoteSave(); });

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../lib/supabase";
+import { errorService } from "../services/errorService";
 import { useAuthStore } from "./store";
 
 const SUBJECT_LISTS_STORAGE_KEY = "subject_lists:v1";
@@ -289,7 +290,25 @@ async function readPayload(): Promise<SubjectListsPayload> {
 
 async function writePayload(payload: SubjectListsPayload): Promise<void> {
   const normalized = normalizePayload(payload);
-  await AsyncStorage.setItem(SUBJECT_LISTS_STORAGE_KEY, JSON.stringify(normalized));
+  const serialized = JSON.stringify(normalized);
+  try {
+    await AsyncStorage.setItem(SUBJECT_LISTS_STORAGE_KEY, serialized);
+  } catch (failure) {
+    const error = failure instanceof Error
+      ? failure
+      : new Error(typeof failure === "string" ? failure : "Failed to save subject lists locally.");
+    void errorService.logError(error, {
+      extra: {
+        context: "subject_lists",
+        operation: "write_local",
+        listCount: normalized.lists.length,
+        payloadCharacters: serialized.length,
+      },
+    }).catch(() => {
+      // Reporting must not replace or delay the original storage failure.
+    });
+    throw failure;
+  }
 }
 
 function getCurrentUserId(): string | null {

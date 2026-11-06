@@ -1,0 +1,22 @@
+diff --git a/node_modules/@expo/vector-icons/build/createIconSet.d.ts b/node_modules/@expo/vector-icons/build/createIconSet.d.ts
+index abd34f2..dd67256 100644
+--- a/node_modules/@expo/vector-icons/build/createIconSet.d.ts
++++ b/node_modules/@expo/vector-icons/build/createIconSet.d.ts
+@@ -20,7 +20,7 @@ export interface IconProps<GLYPHS extends string> extends TextProps {
+      * PlatformColor(..))
+      *
+      */
+-    color?: string | OpaqueColorValue;
++    color?: ColorValue;
+ }
+ export interface IconButtonProps<GLYPHS extends string> extends IconProps<GLYPHS>, ViewProps, TouchableHighlightProps {
+     /**
+@@ -30,7 +30,7 @@ export interface IconButtonProps<GLYPHS extends string> extends IconProps<GLYPHS
+      *
+      *  @default 'white'
+      */
+-    color?: string | OpaqueColorValue;
++    color?: ColorValue;
+     /**
+      * Border radius of the button
+      * Set to 0 to disable.

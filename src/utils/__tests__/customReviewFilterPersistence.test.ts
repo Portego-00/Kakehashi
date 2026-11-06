@@ -19,6 +19,7 @@ const createFallbackFilters = (): CustomReviewFilterState => ({
   jlptLevels: new Set<JLPTLevel>(),
   maxFrequencyRank: null,
   vocabularyTypes: [],
+  studyDate: null,
 });
 
 describe("custom review filter persistence", () => {
@@ -31,6 +32,7 @@ describe("custom review filter persistence", () => {
       jlptLevels: new Set(["N1", "N5"]),
       maxFrequencyRank: 3_471,
       vocabularyTypes: ["verbal noun", "proper noun"],
+      studyDate: { field: "started_at", period: "custom", from: "2026-10-01", to: "2026-10-20" },
     };
 
     const serialized = serializeCustomReviewFilters(filters);
@@ -44,6 +46,7 @@ describe("custom review filter persistence", () => {
       jlptLevels: ["N5", "N1"],
       maxFrequencyRank: 3_471,
       vocabularyTypes: ["verbal noun", "proper noun"],
+      studyDate: filters.studyDate,
     });
 
     const restored = restoreCustomReviewFilters(
