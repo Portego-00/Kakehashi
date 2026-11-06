@@ -26,7 +26,8 @@ Files are limited to 20 MB, 12,000 subjects and 40,000 examples. Imports are
 validated before chunked storage and atomic activation. A malformed file or failed
 activation leaves the previous package active. Missing, draft or source-mismatched
 translations fall back to English. Optional mnemonic and hint fields require
-format v4; v1–v3 packages retain their existing behavior.
+format v4; v1–v3 packages retain their existing behavior. Each mnemonic source
+and translation is limited to 8,192 characters, including markup.
 
 ## Display coverage
 
@@ -112,6 +113,6 @@ Study screens do not hydrate packages while disabled. Summary lists validate aga
 
 Packages are JSON data, rendered as plain native text. Package URLs, schema names, and IDs are never executed, fetched, or used as storage paths. Importing or activating a package does not read credentials or make network requests. Account writes require a separately confirmed synonym transfer to the fixed WaniKani API.
 
-The runtime parser bounds individual strings and lists, validates each subject separately, and stops on the first invalid entry. This prevents oversized lists and validation-error floods in otherwise small files. Meanings are limited to 256 characters, example translations to 4,096, usage explanations to 8,192, and alternatives to 32 per subject; source meanings and readings are limited to 64 each. The file, subject, and total-example caps also apply. The v3 JSON schema records the field limits.
+The runtime parser bounds individual strings and lists, validates each subject separately, and stops on the first invalid entry. This prevents oversized lists and validation-error floods in otherwise small files. Meanings are limited to 256 characters, example translations to 4,096, usage explanations to 8,192, and alternatives to 32 per subject; source meanings and readings are limited to 64 each. The file, subject, and total-example caps also apply. The v3 and v4 JSON schemas record the field limits.
 
 An editorial review marker is publisher-supplied metadata, not a verified signature. Packages can still contain incorrect or misleading text; users should inspect synonym suggestions before confirming account changes.
