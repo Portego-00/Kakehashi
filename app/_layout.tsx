@@ -1106,8 +1106,9 @@ function RootLayoutContentInner() {
 }
 
 function RootLayoutContent() {
+  const { theme } = useTheme();
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.backgroundColor }}>
       <ErrorBoundary>
         <AppKeyboardProvider>
           <BackgroundTasksProvider>

@@ -1,9 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from "expo-router";
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { Appearance, type ColorSchemeName, Platform, useColorScheme } from "react-native";
@@ -126,6 +128,21 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   const currentTheme = themeMode === "system"
     ? systemColorScheme === "dark" ? darkTheme : lightTheme
     : explicitThemes[themeMode];
+  const navigationTheme = useMemo(() => {
+    const baseTheme = currentTheme.isDark ? DarkTheme : DefaultTheme;
+    return {
+      ...baseTheme,
+      colors: {
+        ...baseTheme.colors,
+        background: currentTheme.backgroundColor,
+        card: currentTheme.cardBackground,
+        text: currentTheme.textColor,
+        border: currentTheme.border,
+        primary: currentTheme.primary,
+        notification: currentTheme.secondary,
+      },
+    };
+  }, [currentTheme]);
 
   // Load saved preferences
   useEffect(() => {
@@ -210,7 +227,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
         setThemeMode,
       }}
     >
-      {children}
+      {/* Native stack containers and transitions use the navigation theme,
+          independently of each screen's contentStyle. */}
+      <NavigationThemeProvider value={navigationTheme}>
+        {children}
+      </NavigationThemeProvider>
     </ThemeContext.Provider>
   );
 };
