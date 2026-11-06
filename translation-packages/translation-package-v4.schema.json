@@ -3,26 +3,31 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 1024
     },
     "schemaVersion": {
       "const": 4
     },
     "packageId": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 256
     },
     "language": {
       "type": "string",
-      "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+      "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+      "maxLength": 64
     },
     "name": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 256
     },
     "version": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 256
     },
     "generatedAt": {
       "type": "string",
@@ -63,22 +68,27 @@
                     "string",
                     "null"
                   ],
-                  "minLength": 1
+                  "minLength": 1,
+                  "maxLength": 256
                 },
                 "meaningsEn": {
                   "type": "array",
                   "items": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "maxLength": 256
                   },
-                  "minItems": 1
+                  "minItems": 1,
+                  "maxItems": 64
                 },
                 "readingsJa": {
                   "type": "array",
                   "items": {
                     "type": "string",
-                    "minLength": 1
-                  }
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "maxItems": 64
                 },
                 "level": {
                   "type": "integer",
@@ -89,7 +99,8 @@
                   "type": [
                     "string",
                     "null"
-                  ]
+                  ],
+                  "maxLength": 256
                 },
                 "meaningBasisSha256": {
                   "type": "string",
@@ -112,14 +123,17 @@
               "properties": {
                 "primary": {
                   "type": "string",
-                  "minLength": 1
+                  "minLength": 1,
+                  "maxLength": 256
                 },
                 "alternatives": {
                   "type": "array",
                   "items": {
                     "type": "string",
-                    "minLength": 1
-                  }
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "maxItems": 32
                 },
                 "reviewStatus": {
                   "type": "string",
@@ -147,11 +161,13 @@
                     "properties": {
                       "ja": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "maxLength": 4096
                       },
                       "en": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "maxLength": 4096
                       }
                     },
                     "required": [
@@ -166,11 +182,13 @@
                   },
                   "translation": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "maxLength": 4096
                   },
                   "usage": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "maxLength": 8192
                   },
                   "reviewStatus": {
                     "type": "string",
@@ -189,7 +207,8 @@
                   "reviewStatus"
                 ],
                 "additionalProperties": false
-              }
+              },
+              "maxItems": 100
             },
             "synonymAnswers": {
               "type": "object",
@@ -199,7 +218,8 @@
                   "maxItems": 20,
                   "items": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "maxLength": 256
                   }
                 },
                 "reviewStatus": {
@@ -225,7 +245,8 @@
                   "properties": {
                     "source": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 8192
                     },
                     "sourceSha256": {
                       "type": "string",
@@ -233,7 +254,8 @@
                     },
                     "translation": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 8192
                     },
                     "reviewStatus": {
                       "enum": [
@@ -256,7 +278,8 @@
                   "properties": {
                     "source": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 8192
                     },
                     "sourceSha256": {
                       "type": "string",
@@ -264,7 +287,8 @@
                     },
                     "translation": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 8192
                     },
                     "reviewStatus": {
                       "enum": [
@@ -287,7 +311,8 @@
                   "properties": {
                     "source": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 8192
                     },
                     "sourceSha256": {
                       "type": "string",
@@ -295,7 +320,8 @@
                     },
                     "translation": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 8192
                     },
                     "reviewStatus": {
                       "enum": [
@@ -318,7 +344,8 @@
                   "properties": {
                     "source": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 8192
                     },
                     "sourceSha256": {
                       "type": "string",
@@ -326,7 +353,8 @@
                     },
                     "translation": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "maxLength": 8192
                     },
                     "reviewStatus": {
                       "enum": [
@@ -394,7 +422,8 @@
           ]
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "maxProperties": 12000
     }
   },
   "required": [
