@@ -7,7 +7,8 @@ import { learningDisplay } from "../display";
 import { TranslatedStudyText } from "../TranslatedStudyText";
 import { createPackageManager, packageManager } from "../package-store";
 import { useLearningContentStore } from "../store";
-import { import { PACKAGE_LIMITS, mnemonicFields, parseTranslationPackage, resolveSynonymAnswers, resolveTranslatedMnemonic } from "../resolver";tokenizeWaniKaniMnemonic } from "../../../utils/wanikaniMnemonic";
+import { PACKAGE_LIMITS, mnemonicFields, parseTranslationPackage, resolveSynonymAnswers, resolveTranslatedMnemonic } from "../resolver";
+import { tokenizeWaniKaniMnemonic } from "../../../utils/wanikaniMnemonic";
 
 jest.mock("../../../utils/theme", () => ({ useTheme: () => ({ theme: { primary: "#08f" } }) }));
 const source = "Remember the <kanji>pond</kanji>.";
