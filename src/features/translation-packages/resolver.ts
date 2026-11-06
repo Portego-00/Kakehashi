@@ -136,7 +136,7 @@ export function parsePackageText(value: string): TranslationPackage {
   if (value.length > MAX_PACKAGE_BYTES || bytes > MAX_PACKAGE_BYTES)
     throw new Error("Translation files must be 20 MB or smaller.");
   let decoded: unknown;
-  try { decoded = JSON.parse(value.replace(/^﻿/, "")); }
+  try { decoded = JSON.parse(value.replace(/^\uFEFF/, "")); }
   catch { throw new Error("The file is not valid JSON."); }
   const packet = parseTranslationPackage(decoded);
   if (!packet) throw new Error("Unsupported or incomplete package. Your current content is unchanged.");
