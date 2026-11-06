@@ -263,19 +263,16 @@ class AudioSoundCompat {
       this.player.volume = initialStatus.volume;
       this.volume = initialStatus.volume;
     }
-    if (typeof initialStatus.rate === 'number') {
-      try {
-        this.player.playbackRate = initialStatus.rate;
-      } catch {
-        // Some sources reject playback rate changes before they are fully loaded.
-      }
-    }
     if (typeof initialStatus.shouldCorrectPitch === 'boolean') {
       try {
         this.player.shouldCorrectPitch = initialStatus.shouldCorrectPitch;
       } catch {
         // Ignore pitch-correction assignment failures for early-loading states.
       }
+    }
+    // expo-audio exposes playbackRate as a read-only native property.
+    if (typeof initialStatus.rate === 'number') {
+      this.player.setPlaybackRate(initialStatus.rate);
     }
     if (typeof initialStatus.positionMillis === 'number') {
       void this.seekToAsync(this.player, initialStatus.positionMillis);
