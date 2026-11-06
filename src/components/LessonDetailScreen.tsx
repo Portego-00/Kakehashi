@@ -2390,6 +2390,24 @@ const SubjectContent = ({
     </View>
   );
 
+  const renderKanjiAlternativeMeanings = () => {
+    if (display.resolveMeaning(subject)) return null;
+
+    const alternatives = subject.data.meanings
+      .filter((meaning: { primary: boolean }) => !meaning.primary)
+      .map((meaning: { meaning: string }) => meaning.meaning);
+    if (alternatives.length === 0) return null;
+
+    return (
+      <View style={styles.infoSection}>
+        <View style={styles.alternativeMeaningsNoDiv}>
+          <Text style={styles.altMeaningsLabel}>Alternative Meanings:</Text>
+          <Text style={styles.altMeaningsText}>{alternatives.join(", ")}</Text>
+        </View>
+      </View>
+    );
+  };
+
   // Render all sections in a single scrollable page (when showAllSections is true)
   const renderAllSections = () => {
     const subjectType = subject.object;
@@ -2748,6 +2766,7 @@ const SubjectContent = ({
         return (
           <ScrollView ref={scrollViewRef} style={styles.tabContentScrollView}>
             <View style={styles.tabContent}>
+              {renderKanjiAlternativeMeanings()}
               <SubjectMetadataRows subject={subject} style={styles.infoSection} />
               {display.resolveMeaning(subject) && <View style={styles.infoSection}>
                 <MeaningRows key={JSON.stringify([subject.id, display.resolveMeaning(subject)])}
@@ -3466,6 +3485,7 @@ const SubjectContent = ({
                   english={subject.data.meanings.find((m: any) => m.primary)?.meaning || subject.data.meanings[0]?.meaning || ""}
                   englishAlternatives={subject.data.meanings.filter((m: any) => !m.primary).map((m: any) => m.meaning)} />
               </View>}
+                  {renderKanjiAlternativeMeanings()}
                   <View style={styles.infoSection}>
                     <Text style={styles.sectionTitle}>Mnemonic</Text>
                     {subject.data.meaning_mnemonic ? (
