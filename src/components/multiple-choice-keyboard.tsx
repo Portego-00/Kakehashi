@@ -8,7 +8,7 @@ import {
 import { useOptionalScreenIsFocused } from "../utils/navigation-focus";
 import { useIsNoteSubjectPreviewOpen } from "../utils/note-subject-preview-state";
 
-export type MultipleChoiceKeyboardProps = Pick<ViewProps, "children" | "style" | "testID" | "accessibilityRole"> & {
+export type MultipleChoiceKeyboardProps = Pick<ViewProps, "children" | "style" | "testID" | "accessibilityRole" | "onLayout"> & {
   enabled: boolean;
   questionKey: string;
   onSelectIndex: (index: number) => void;

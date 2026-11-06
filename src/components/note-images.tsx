@@ -1,3 +1,4 @@
+import type { ViewInstance } from "react-native";
 import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -9,6 +10,7 @@ import { normalizeNoteImageUrl } from "../../shared/note-images";
 import { containNoteImageTransform, noteImageTouchGeometry, pinchNoteImage, type NoteImageTransform } from "../../shared/note-image-gestures";
 import { useTheme } from "../utils/theme";
 import { registerOpenNoteSubjectPreview } from "../utils/note-subject-preview-state";
+import { showStudyMaterialPermissionAlert } from "../utils/study-material-permission-alert";
 
 function ImagePreview({ url, onReady }: { url: string; onReady?: (ready: boolean) => void }) {
   const { theme } = useTheme();
@@ -111,7 +113,7 @@ function NoteImageViewer({ url, onClose, onRemove }: { url: string; onClose: () 
   const offset = useRef(new Animated.ValueXY()).current;
   const position = useRef({ scale: 1, x: 0, y: 0 });
   const origin = useRef({ transform: { scale: 1, x: 0, y: 0 }, touches: noteImageTouchGeometry([]) });
-  const viewportRef = useRef<View>(null);
+  const viewportRef = useRef<ViewInstance>(null);
   const viewportPosition = useRef({ x: 0, y: 0 });
   const [zoomLabel, setZoomLabel] = useState(100);
   const [removing, setRemoving] = useState(false);
@@ -176,7 +178,7 @@ function NoteImageViewer({ url, onClose, onRemove }: { url: string; onClose: () 
         <Text style={[styles.viewerText, { fontSize: 14 }]}>Pinch to zoom · {zoomLabel}%</Text>
         {onRemove ? <Pressable accessibilityRole="button" accessibilityLabel="Remove image" disabled={removing} onPress={async () => {
           setRemoving(true);
-          try { await onRemove(); } catch { setRemoving(false); Alert.alert("Image wasn’t removed", "Check your connection and try again."); }
+          try { await onRemove(); } catch (error) { setRemoving(false); if (!showStudyMaterialPermissionAlert(error)) Alert.alert("Image wasn’t removed", "Check your connection and try again."); }
         }} style={styles.action}>{removing ? <ActivityIndicator color="white" /> : <Text style={styles.viewerText}>Remove</Text>}</Pressable> : null}
       </View>
     </View>

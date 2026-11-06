@@ -1,3 +1,4 @@
+import type { ScaledSize } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
@@ -213,7 +214,7 @@ export default function ReviewForecast({
 
   // Listen for orientation changes
   useEffect(() => {
-    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+    const subscription = Dimensions.addEventListener("change", ({ window }: { window: ScaledSize }) => {
       setScreenData(window);
     });
 

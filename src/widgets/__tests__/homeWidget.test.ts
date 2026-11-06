@@ -1,4 +1,7 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { createContext, runInContext } from "node:vm";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createWidget } from "expo-widgets";
@@ -23,8 +26,30 @@ jest.mock("expo-widgets", () => ({
 const widget = jest.mocked(createWidget).mock.results[0].value;
 const layout = jest.mocked(createWidget).mock.calls[0][1];
 const context = createContext({});
-runInContext(readFileSync(require.resolve("expo-widgets/bundle/build/ExpoWidgets.bundle"), "utf8"), context);
-runInContext(`globalThis.__expoWidgetLayout = ${layout}`, context);
+let widgetRuntimeDirectory: string | undefined;
+
+beforeAll(() => {
+  const widgetsPackageDirectory = dirname(require.resolve("expo-widgets/package.json"));
+  let runtimePath = join(widgetsPackageDirectory, "bundle/build/ExpoWidgets.bundle");
+  if (!existsSync(runtimePath)) {
+    // SDK 58 generates this runtime during the native build instead of shipping it.
+    // Compile the installed SDK sources so these layout assertions also work before a build.
+    widgetRuntimeDirectory = mkdtempSync(join(tmpdir(), "kakehashi-widget-tests-"));
+    runtimePath = join(widgetRuntimeDirectory, "ExpoWidgets.bundle");
+    execFileSync(process.execPath, [
+      join(widgetsPackageDirectory, "scripts/build-bundle.mjs"),
+      process.cwd(),
+      "ios",
+      runtimePath,
+    ], { timeout: 120000, stdio: "pipe" });
+  }
+  runInContext(readFileSync(runtimePath, "utf8"), context);
+  runInContext(`globalThis.__expoWidgetLayout = ${layout}`, context);
+}, 120000);
+
+afterAll(() => {
+  if (widgetRuntimeDirectory) rmSync(widgetRuntimeDirectory, { recursive: true, force: true });
+});
 
 const items = [
   { characters: "橋", reading: "はし", meaning: "bridge", percentage: 20 },
@@ -53,10 +78,7 @@ type RenderNode = {
     children?: (RenderNode | null)[];
     modifiers?: {
       $type: string;
-      styleType?: string;
-      hierarchicalStyle?: string;
-      colors?: string[];
-      color?: string;
+      style?: { type: string; hierarchical?: string; colors?: string[]; color?: string };
       value?: number;
     }[];
   };
@@ -75,19 +97,19 @@ function luminance(rgb: number[]) {
 function assertReadable(rendered: string, expectedColors: string[]) {
   const tree = nodes(JSON.parse(rendered));
   const gradient = tree.flatMap((node) => node.props.modifiers ?? [])
-    .find((modifier) => modifier.styleType === "linearGradient");
-  expect(gradient?.colors).toEqual(expectedColors);
+    .find((modifier) => modifier.style?.type === "linearGradient");
+  expect(gradient?.style?.colors).toEqual(expectedColors);
   const overlay = tree.find((node) => node.type === "RoundedRectangleView" &&
     node.props.modifiers?.some((modifier) => modifier.$type === "opacity"));
   const alpha = overlay?.props.modifiers?.find((modifier) => modifier.$type === "opacity")?.value ?? 0;
-  if (overlay) expect(overlay.props.modifiers).toContainEqual(expect.objectContaining({ color: "#000000" }));
+  if (overlay) expect(overlay.props.modifiers).toContainEqual(expect.objectContaining({ style: { type: "color", color: "#000000" } }));
   const textNodes = tree.filter((node) => node.type === "TextView");
   expect(textNodes.length).toBeGreaterThan(0);
   const colors = expectedColors.map((hex) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)));
   for (const text of textNodes) {
     const foreground = text.props.modifiers?.find((modifier) => modifier.$type === "foregroundStyle");
-    expect(["#000000", "#FFFFFF"]).toContain(foreground?.color);
-    const textLuminance = foreground?.color === "#000000" ? 0 : 1;
+    expect(["#000000", "#FFFFFF"]).toContain(foreground?.style?.color);
+    const textLuminance = foreground?.style?.color === "#000000" ? 0 : 1;
     for (let stop = 1; stop < colors.length; stop++) {
       for (let step = 0; step <= 10; step++) {
         const rgb = colors[stop - 1].map((value, channel) => value + (colors[stop][channel] - value) * step / 10);
@@ -113,7 +135,7 @@ describe("serialized critical widget", () => {
     updateHomeWidgetDisplayPreferences({ streakGradientPreset: "ocean" });
     for (const family of ["systemSmall", "systemMedium"]) {
       const rendered = render(family);
-      expect(rendered).toContain('"styleType":"linearGradient"');
+      expect(rendered).toContain('"type":"linearGradient"');
       expect(rendered).toContain('"colors":["#0EA5E9","#2563EB","#4338CA"]');
     }
   });
@@ -138,7 +160,7 @@ describe("serialized critical widget", () => {
       expect(tree.some((node) => node.type === "RoundedRectangleView")).toBe(false);
       for (const node of tree.filter((node) => node.type === "TextView")) {
         expect(node.props.modifiers).toContainEqual(expect.objectContaining({
-          styleType: "hierarchical", hierarchicalStyle: "primary",
+          $type: "foregroundStyle", style: { type: "hierarchical", hierarchical: "primary" },
         }));
       }
     }
@@ -230,7 +252,7 @@ describe("serialized critical widget", () => {
         expect(rendered).not.toContain("RoundedRectangleView");
         for (const node of nodes(JSON.parse(rendered)).filter((node) => node.type === "TextView")) {
           expect(node.props.modifiers).toContainEqual(expect.objectContaining({
-            styleType: "hierarchical", hierarchicalStyle: "primary",
+            $type: "foregroundStyle", style: { type: "hierarchical", hierarchical: "primary" },
           }));
         }
       }

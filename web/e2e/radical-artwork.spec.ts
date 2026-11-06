@@ -19,9 +19,9 @@ const artwork = [
   },
 ];
 
-async function mockAccount(page: Page, radical: typeof artwork[number]) {
+async function mockAccount(page: Page, radical: typeof artwork[number], includeTextControl = false) {
   const user = { id: 1, object: "user", data: { username: "RadicalArtworkTest", level: radical.level, preferences: {}, subscription: { active: true, max_level_granted: 60 } } };
-  const subjects = stages.map((stage, index) => ({
+  const imageSubjects = stages.map((stage, index) => ({
     id: radical.id + index * 10_000, object: "radical", data_updated_at: now,
     data: {
       level: radical.level, slug: `${radical.name.toLowerCase()}-${stage}`, hidden_at: null, characters: null,
@@ -29,9 +29,13 @@ async function mockAccount(page: Page, radical: typeof artwork[number]) {
       character_images: [{ url: radical.url, content_type: "image/svg+xml" }],
     },
   }));
+  const subjects = includeTextControl ? [...imageSubjects, {
+    ...imageSubjects[0], id: 900_000,
+    data: { ...imageSubjects[0].data, slug: "ground", characters: "一", meanings: [{ meaning: "Ground", primary: true, accepted_answer: true }], character_images: [] },
+  }] : imageSubjects;
   const assignments = subjects.map((subject, index) => ({
     id: subject.id, object: "assignment", data_updated_at: now,
-    data: { subject_id: subject.id, subject_type: "radical", srs_stage: stages[index], hidden: false, unlocked_at: now, started_at: index ? now : null, passed_at: index === 2 ? now : null, available_at: null },
+    data: { subject_id: subject.id, subject_type: "radical", srs_stage: stages[index] ?? 2, hidden: false, unlocked_at: now, started_at: index ? now : null, passed_at: index === 2 ? now : null, available_at: null },
   }));
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -46,6 +50,50 @@ async function mockAccount(page: Page, radical: typeof artwork[number]) {
 }
 
 for (const radical of artwork) {
+  test(`${radical.name} shows a hover underline like character radicals`, async ({ page, isMobile }, testInfo) => {
+    test.skip(isMobile, "Hover feedback is for a fine pointer.");
+    await mockAccount(page, radical, true);
+    await page.goto("/dashboard");
+    await expect(page.getByRole("img", { name: `${radical.name} 2 radical`, exact: true }).first()).toBeVisible();
+    for (const theme of ["light", "dark"]) {
+      const toggle = page.getByRole("button", { name: `Switch to ${theme} theme`, exact: true });
+      if (await toggle.count()) await toggle.click();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      for (const id of [900_000, ...stages.map((_, index) => radical.id + index * 10_000)]) {
+        const link = page.locator(`a[href="/subjects/${id}"]`).first();
+        const tile = link.locator('[class*="levelSubjectBlock"]');
+        const image = tile.locator("img");
+        if (await image.count()) await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true);
+        await page.mouse.move(0, 0);
+        const before = await sharp(await tile.screenshot({ animations: "disabled" })).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+        await link.hover();
+        const hovered = await sharp(await tile.screenshot({ animations: "disabled" })).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+        const color = await tile.evaluate((element) => {
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 1;
+          const context = canvas.getContext("2d")!;
+          context.fillStyle = getComputedStyle(element).color;
+          context.fillRect(0, 0, 1, 1);
+          return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+        });
+        expect(hovered.info).toEqual(before.info);
+        let underlinePixels = 0;
+        for (let y = Math.floor(hovered.info.height * .55); y < hovered.info.height; y += 1) {
+          for (let x = 0; x < hovered.info.width; x += 1) {
+            const pixel = (y * hovered.info.width + x) * hovered.info.channels;
+            const isInk = color.every((channel, index) => Math.abs(hovered.data[pixel + index] - channel) <= 2);
+            const wasInk = color.every((channel, index) => Math.abs(before.data[pixel + index] - channel) <= 2);
+            if (isInk && !wasInk) underlinePixels += 1;
+          }
+        }
+        expect(underlinePixels, `${id === 900_000 ? "Character radical" : radical.name} should gain a visible underline on hover in ${theme}`).toBeGreaterThan(8);
+      }
+    }
+    await page.setViewportSize({ width: 480, height: 760 });
+    await page.locator(`a[href="/subjects/${radical.id + 10_000}"]`).first().hover();
+    const widget = page.locator("section").filter({ has: page.getByRole("heading", { name: `Level ${radical.level} Progress`, exact: true }) }).last();
+    await widget.screenshot({ path: testInfo.outputPath(`${radical.name.toLowerCase()}-hover-widget.png`), animations: "disabled" });
+  });
   for (const path of ["/dashboard", "/progress"]) {
     test(`${radical.name} stays visible across theme changes in ${path}`, async ({ page }, testInfo) => {
       await mockAccount(page, radical);

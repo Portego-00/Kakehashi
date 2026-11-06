@@ -1,4 +1,5 @@
 import { useLearningDisplay } from "../features/translation-packages/display";
+import { showStudyMaterialPermissionAlert } from "../utils/study-material-permission-alert";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,6 +30,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  type ScrollViewInstance,
   StyleProp,
   StyleSheet,
   Text,
@@ -36,6 +38,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import PagerView from "react-native-pager-view";
@@ -394,7 +397,7 @@ const SubjectContent = ({
   onYouGlishSelect?: () => void;
 }) => {
   const display = useLearningDisplay();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const customContextSentencesRef =
     useRef<CustomContextSentencesSectionHandle>(null);
   const {
@@ -1386,6 +1389,7 @@ const SubjectContent = ({
       setNoteModalVisible(false);
     } catch (error) {
       console.error("[LessonDetail] Failed to save note:", error);
+      if (showStudyMaterialPermissionAlert(error)) return;
       Alert.alert(
         "Error",
         `Failed to save note: ${
@@ -4746,7 +4750,7 @@ export default function LessonDetailScreen({
     tooltipTranslateY,
     copyText,
   } = useCopyTooltip();
-  const pageCharacterRefs = useRef<Record<number, View | null>>({});
+  const pageCharacterRefs = useRef<Record<number, ViewInstance | null>>({});
   // Ref for PagerView to enable programmatic page changes
   const pagerRef = useRef<PagerView>(null);
   const layout = useWindowDimensions();

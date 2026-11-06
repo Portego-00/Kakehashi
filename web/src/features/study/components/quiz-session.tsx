@@ -477,12 +477,12 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
     };
   }, [listeningQuestion, question, session.answers, session.currentIndex, session.questions, subjects]);
   const questionCanPause = Boolean(question && (
-    question.stopAfterAnswer === true
+    hasGeneratedChoices || question.stopAfterAnswer === true
     || (questionUsesAnswerStopPreferences(question, session.mode) && (pauseOnCorrect || pauseOnClose || pauseOnWrong))
   ));
   const pauseForCurrentAnswer = currentAnswerStatus === "close" ? pauseOnClose : currentAnswerStatus === "correct" ? pauseOnCorrect : pauseOnWrong;
   const answerPaused = Boolean(answer && question && (
-    question.stopAfterAnswer === true
+    (hasGeneratedChoices && currentAnswerStatus === "incorrect") || question.stopAfterAnswer === true
     || (questionUsesAnswerStopPreferences(question, session.mode) && pauseForCurrentAnswer)
   ));
   const answerOutcomePaused = Boolean(answer && pauseForCurrentAnswer);
@@ -527,7 +527,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
   }, [stopVocabularyAudio]);
 
   function commit(candidate: string, selectedChoice?: ReviewAnswerChoice) {
-    if (!question || answer || !candidate.trim()) return;
+    if (!question || answer || (!candidate.trim() && !selectedChoice)) return;
     const choice = selectedChoice ?? (hasGeneratedChoices ? generatedChoices.find((choice) => choice.text === candidate) : undefined);
     if (choice) {
       if (choiceSubmissionRef.current === question.id || advancingQuestionRef.current) return;
@@ -840,7 +840,7 @@ function QuizSessionContent({ scope, initialSession, subjects = [], assignments 
       </div>
 
       <div className={styles.answerArea}>
-        {hasGeneratedChoices ? <><div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong></div><ReviewAnswerChoices choices={generatedChoices} selectedAnswer={answer?.value} disabled={Boolean(answer) || advancingQuestion} isReading={reviewKind === "reading"} keyboardShortcuts={keyboardShortcuts} onSelect={(choice) => commit(choice.text, choice)} continueKey={studyKeys.progress} onContinue={answer && !advancingQuestion ? () => next() : undefined} /></> : question.choices && !voiceEntry ? <><div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong></div><div className={styles.choiceGrid} role="group" aria-label="Answer choices">{question.choices.map((choice, index) => {
+        {hasGeneratedChoices ? <><div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong></div><ReviewAnswerChoices choices={generatedChoices} selectedAnswer={answer?.value} disabled={Boolean(answer) || advancingQuestion} isReading={reviewKind === "reading"} keyboardShortcuts={keyboardShortcuts} onSelect={(choice) => commit(choice.text, choice)} onDontKnow={() => commit("", { text: "", isCorrect: false })} continueKey={studyKeys.progress} onContinue={answer && !advancingQuestion ? () => next() : undefined} /></> : question.choices && !voiceEntry ? <><div className={styles.promptTypeStrip} data-tone={promptType?.tone}><span>{subjectTypeLabel(question)}</span><strong>{promptType?.label}</strong></div><div className={styles.choiceGrid} role="group" aria-label="Answer choices">{question.choices.map((choice, index) => {
           const selected = answer?.value === choice;
           const correctChoice = answer && question.acceptedAnswers.includes(choice);
           const result = selected ? answer?.correct ? "correct" : "incorrect" : correctChoice ? "correct-answer" : undefined;

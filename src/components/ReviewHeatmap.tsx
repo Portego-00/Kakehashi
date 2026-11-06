@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -83,7 +84,7 @@ const ReviewHeatmap: React.FC<ReviewHeatmapProps> = ({
   const widgetReviewHeatmapLevel4Color = useSettingsStore(
     (state) => state.widgetReviewHeatmapLevel4Color,
   );
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const [selectedPageIndex, setSelectedPageIndex] =
     useState(DEFAULT_PAGE_INDEX);
   const [reviewData, setReviewData] = useState<ReviewData[]>([]);

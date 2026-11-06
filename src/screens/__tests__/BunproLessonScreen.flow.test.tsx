@@ -9,11 +9,14 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 
 jest.mock("react-native-safe-area-context", () => jest.requireActual("react-native-safe-area-context/jest/mock").default);
+jest.mock("../../contexts/ReviewKeyboardContext", () => ({
+  useReviewKeyboard: () => ({ height: { value: 0 }, state: { value: 4 } }),
+}));
 
 jest.mock("react-native-reanimated", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   const { View } = jest.requireActual<typeof import("react-native")>("react-native");
-  return { __esModule: true, default: { View }, useReducedMotion: () => false, useSharedValue: (value: number) => React.useRef({ value }).current, useAnimatedStyle: (fn: () => object) => fn(), withTiming: (value: number) => value };
+  return { __esModule: true, default: { View }, useReducedMotion: () => false, useSharedValue: (value: number) => React.useRef({ value, get: () => value }).current, useAnimatedRef: () => React.useRef(null), measure: () => null, useAnimatedStyle: (fn: () => object) => fn(), withTiming: (value: number) => value };
 });
 jest.mock("../../utils/haptics", () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: "success", Error: "error", Warning: "warning" } }));
 jest.mock("../../hooks/use-bunpro-voice-answer", () => ({ useBunproVoiceAnswer: () => ({ listening: false, error: "", start: jest.fn(), stop: jest.fn() }) }));

@@ -1,0 +1,56 @@
+diff --git a/node_modules/react-native-reanimated-carousel/lib/typescript/hooks/useUpdateGestureConfig.d.ts b/node_modules/react-native-reanimated-carousel/lib/typescript/hooks/useUpdateGestureConfig.d.ts
+index cdba9b0..610840f 100644
+--- a/node_modules/react-native-reanimated-carousel/lib/typescript/hooks/useUpdateGestureConfig.d.ts
++++ b/node_modules/react-native-reanimated-carousel/lib/typescript/hooks/useUpdateGestureConfig.d.ts
+@@ -1,4 +1,4 @@
+-import type { PanGesture } from "react-native-gesture-handler";
++import type { LegacyPanGesture as PanGesture } from "react-native-gesture-handler";
+ export interface GestureConfig {
+     enabled?: boolean;
+ }
+diff --git a/node_modules/react-native-reanimated-carousel/lib/typescript/types.d.ts b/node_modules/react-native-reanimated-carousel/lib/typescript/types.d.ts
+index a47fac7..dcc93eb 100644
+--- a/node_modules/react-native-reanimated-carousel/lib/typescript/types.d.ts
++++ b/node_modules/react-native-reanimated-carousel/lib/typescript/types.d.ts
+@@ -1,5 +1,5 @@
+ import type { StyleProp, ViewStyle } from "react-native";
+-import type { PanGesture } from "react-native-gesture-handler";
++import type { LegacyPanGesture as PanGesture } from "react-native-gesture-handler";
+ import type { SharedValue, WithSpringConfig, WithTimingConfig } from "react-native-reanimated";
+ import type Animated from "react-native-reanimated";
+ import type { TParallaxModeProps } from "./layouts/parallax";
+diff --git a/node_modules/react-native-reanimated-carousel/src/hooks/usePanGestureProxy.ts b/node_modules/react-native-reanimated-carousel/src/hooks/usePanGestureProxy.ts
+index 77b40b6..834983b 100644
+--- a/node_modules/react-native-reanimated-carousel/src/hooks/usePanGestureProxy.ts
++++ b/node_modules/react-native-reanimated-carousel/src/hooks/usePanGestureProxy.ts
+@@ -2,7 +2,7 @@ import { useMemo } from "react";
+ import type {
+   GestureStateChangeEvent,
+   GestureUpdateEvent,
+-  PanGesture,
++  LegacyPanGesture as PanGesture,
+   PanGestureHandlerEventPayload,
+ } from "react-native-gesture-handler";
+ import { Gesture } from "react-native-gesture-handler";
+diff --git a/node_modules/react-native-reanimated-carousel/src/hooks/useUpdateGestureConfig.ts b/node_modules/react-native-reanimated-carousel/src/hooks/useUpdateGestureConfig.ts
+index 9536722..e2917a8 100644
+--- a/node_modules/react-native-reanimated-carousel/src/hooks/useUpdateGestureConfig.ts
++++ b/node_modules/react-native-reanimated-carousel/src/hooks/useUpdateGestureConfig.ts
+@@ -1,5 +1,5 @@
+ import { useEffect } from "react";
+-import type { PanGesture } from "react-native-gesture-handler";
++import type { LegacyPanGesture as PanGesture } from "react-native-gesture-handler";
+ 
+ export interface GestureConfig {
+   enabled?: boolean;
+diff --git a/node_modules/react-native-reanimated-carousel/src/types.ts b/node_modules/react-native-reanimated-carousel/src/types.ts
+index c3e938c..9a06682 100644
+--- a/node_modules/react-native-reanimated-carousel/src/types.ts
++++ b/node_modules/react-native-reanimated-carousel/src/types.ts
+@@ -1,5 +1,5 @@
+ import type { StyleProp, ViewStyle } from "react-native";
+-import type { PanGesture } from "react-native-gesture-handler";
++import type { LegacyPanGesture as PanGesture } from "react-native-gesture-handler";
+ import type { SharedValue, WithSpringConfig, WithTimingConfig } from "react-native-reanimated";
+ import type Animated from "react-native-reanimated";
+ 

@@ -195,6 +195,37 @@ describe("extra-study quiz interaction", () => {
     expect(within(group).getByRole("button", { name: /Prevent\. Correct answer/ })).toBeDisabled();
   });
 
+  it.each([false, true])("honors stop on correct %s for multiple choice in extra study", async (pause) => {
+    const session = makeSession(makeQuestion({ kind: "meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" }));
+    session.questions.push(makeQuestion({ id: "question-2" }));
+    renderQuiz({ scope: "test", initialSession: { ...session, mode: "custom-review" }, subjects: [makeSubject()], reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true }, pauseOnCorrect: pause, onExit: vi.fn() });
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. Prevent$/ }));
+    if (pause) {
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)); });
+      expect(loadStudySession("test", "custom-review")?.currentIndex).toBe(0);
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+    await waitFor(() => expect(loadStudySession("test", "custom-review")?.currentIndex).toBe(1), { timeout: 2000 });
+  });
+
+  it.each(["unknown", "corrected"])("records a %s choice as incorrect in extra study", async (action) => {
+    const session = makeSession(makeQuestion({ kind: "meaning", acceptedAnswers: ["Prevent"], displayAnswer: "Prevent" }));
+    session.questions.push(makeQuestion({ id: "question-2" }));
+    renderQuiz({ scope: "test", initialSession: { ...session, mode: "custom-review" }, subjects: [makeSubject()], reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true }, pauseOnCorrect: action === "corrected", pauseOnWrong: false, onExit: vi.fn() });
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    if (action === "unknown") {
+      fireEvent.click(screen.getByRole("button", { name: "I don't know" }));
+      expect(screen.getByRole("status")).toHaveTextContent("Incorrect");
+      fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
+    } else {
+      fireEvent.click(within(group).getByRole("button", { name: /^\d\. Prevent$/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
+    }
+    await waitFor(() => expect(loadStudySession("test", "custom-review")?.answers[0]).toMatchObject({ correct: false, status: "incorrect" }));
+    expect(loadStudySession("test", "custom-review")?.currentIndex).toBe(1);
+  });
+
   it("keeps scoped Anki behavior when the shared multiple choice setting is on", async () => {
     renderQuiz({ scope: "test", initialSession: { ...makeSession(makeQuestion({ kind: "meaning" })), mode: "custom-review" }, subjects: [makeSubject()], reviewPreferences: { ...DEFAULT_WEB_SETTINGS.study, reviewMultipleChoiceEnabled: true, ankiMode: "meaning" }, onExit: vi.fn() });
     expect(await screen.findByRole("button", { name: "Reveal answer" })).toBeVisible();
@@ -1232,7 +1263,7 @@ describe("extra-study quiz interaction", () => {
       return nextFrame;
     });
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frame) => {
-      frames.delete(frame);
+      if (frame != null) frames.delete(frame);
     });
     const firstQuestion = makeQuestion();
     const secondQuestion = makeQuestion({ id: "question-2", prompt: "猫", acceptedAnswers: ["ねこ"], displayAnswer: "ねこ" });

@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import React from "react";
 import { act, fireEvent, render } from "@testing-library/react-native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
@@ -99,18 +100,18 @@ describe("ReviewForecast chart scroll state", () => {
       mockSettings.appTextSizeScale = textScale;
       // Native scroll position belongs to the ScrollView instance. Model it
       // separately because Jest does not perform Android scrolling or layout.
-      const offsets = new WeakMap<ScrollView, number>();
+      const offsets = new WeakMap<ScrollViewInstance, number>();
       jest.spyOn(ScrollView.prototype, "scrollTo").mockImplementation(function (
-        this: ScrollView,
+        this: ScrollViewInstance,
         options,
       ) {
-        offsets.set(this, typeof options === "object" ? options.x ?? 0 : 0);
+        offsets.set(this, options && typeof options === "object" && "x" in options && typeof options.x === "number" ? options.x : 0);
       });
 
       const screen = render(<ReviewForecast forecast={forecast} />);
       await act(async () => {});
       const chart = () =>
-        screen.UNSAFE_getByType(ScrollView).instance as ScrollView;
+        screen.UNSAFE_getByType(ScrollView).instance as ScrollViewInstance;
       const offset = () => offsets.get(chart()) ?? 0;
       const switchScale = (selectedSegmentIndex: number) =>
         fireEvent(screen.UNSAFE_getByType(SegmentedControl), "change", {

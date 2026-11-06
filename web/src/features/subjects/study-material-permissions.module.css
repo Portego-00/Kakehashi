@@ -1,0 +1,5 @@
+.dialog { position: fixed; inset: 0; width: min(32rem, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 24px; overflow: auto; border: 1px solid var(--color-rule-2); border-radius: 8px; background: var(--color-surface); color: var(--color-ink); }
+.dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.dialog h2 { margin: 0 0 12px; font-size: 18px; }
+.dialog p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 24px; }

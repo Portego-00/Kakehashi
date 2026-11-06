@@ -1,8 +1,9 @@
+import type { ScrollViewInstance } from "react-native";
 import { useCallback, useEffect, useRef } from "react";
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView } from "react-native";
 import { markIssueRead } from "../utils/issueReadState";
 
-export function useIssueReadTracking(userId: string | undefined, issueId: string, targetComment: string | undefined, scrollView: React.RefObject<ScrollView | null>) {
+export function useIssueReadTracking(userId: string | undefined, issueId: string, targetComment: string | undefined, scrollView: React.RefObject<ScrollViewInstance | null>) {
   const positions = useRef(new Map<string, { y: number; height: number; createdAt: string; readable: boolean }>());
   const viewport = useRef({ y: 0, height: 0 });
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

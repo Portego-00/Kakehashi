@@ -45,7 +45,7 @@ describe('optional iPad handwriting module', () => {
 
   it('forwards the scoped drawing and distinguishes cancellation from export', async () => {
     const api = jest.requireActual<typeof import('..')>('..');
-    const input = { inkBase64: 'ink', width: 768, height: 1024, theme: 'dark', draftKey: 'account/page/block' };
+    const input: import('..').HandwritingInput = { inkBase64: 'ink', width: 768, height: 1024, theme: 'dark', draftKey: 'account/page/block' };
     const result = { inkBase64: 'updated', previewBase64: 'preview', width: 768, height: 1024 };
     mockModule.edit.mockResolvedValueOnce(result).mockResolvedValueOnce(null);
     expect(api.isHandwritingAvailable()).toBe(true);

@@ -1,5 +1,5 @@
 import React from "react";
-import { act, cleanup, fireEvent, render } from "@testing-library/react-native";
+import { act, cleanupAsync, fireEvent, render } from "@testing-library/react-native";
 
 import { permanentStorage } from "../../../../utils/permanentStorage";
 import { useSettingsStore } from "../../../../utils/store";
@@ -91,8 +91,8 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await cleanupAsync();
   useSettingsStore.setState(useSettingsStore.getInitialState(), true);
 });
 

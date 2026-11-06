@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { BlurView } from "expo-blur";
@@ -99,7 +100,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
   // Animation values
   const filterPanelAnimation = useRef(new Animated.Value(0)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const filterSectionsRef = useRef<ScrollView>(null);
+  const filterSectionsRef = useRef<ScrollViewInstance>(null);
   const vocabularySectionY = useRef(0);
   const frequencySectionY = useRef(0);
   const focusedSection = useRef<"vocabulary" | "frequency" | null>(null);
@@ -180,8 +181,8 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
           duration: 250,
           useNativeDriver: true,
         }),
-      ]).start(() => {
-        setPendingFilters(null);
+      ]).start(({ finished }) => {
+        if (finished) setPendingFilters(null);
       });
     }
   }, [
@@ -1079,7 +1080,7 @@ export const SearchFilterModal: React.FC<SearchFilterModalProps> = ({
 
 const styles = StyleSheet.create({
   keyboardContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1000,
   },
   keyboardContent: {

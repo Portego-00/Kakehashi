@@ -3,8 +3,10 @@ import { newsReadKey, setNewsRead } from "../../../src/hooks/useNewsReadHistory"
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../../src/hooks/useActivityTracking";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { isLiquidGlassAvailable } from "expo-glass-effect";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React, {
   ReactElement,
   useCallback,
@@ -79,7 +81,8 @@ const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 
-const HEADER_HEIGHT = 110;
+const HEADER_BUTTON_SIZE = 44;
+const HEADER_VERTICAL_PADDING = 8;
 const GRAMMAR_TOOLTIP_ID_MIN = -9000000;
 const JPDB_FALLBACK_TOOLTIP_ID_MIN = -8000000;
 const TOKEN_UNDERLINE_SEPARATOR = "\u200A";
@@ -230,8 +233,10 @@ export default function NewsDetailScreen() {
   const [isWebViewLoaded, setIsWebViewLoaded] = useState(false);
   const router = useRouter();
   const { fontScale } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
-  const headerHeight = HEADER_HEIGHT;
+  const headerHeight = insets.top + HEADER_BUTTON_SIZE + HEADER_VERTICAL_PADDING * 2;
+  const headerTopPadding = insets.top + HEADER_VERTICAL_PADDING;
   const accessibleFontScale = Math.max(0.85, Math.min(fontScale, 2.2));
 
   // Audio Player State
@@ -1876,16 +1881,17 @@ export default function NewsDetailScreen() {
             styles.header,
             {
               backgroundColor: theme.headerBackground,
-              paddingTop: 60,
+              paddingTop: headerTopPadding,
               height: headerHeight,
             },
           ]}
         >
           <GlassButton
             iconName="arrow-back"
+            accessibilityLabel="Back"
             onPress={() => router.back()}
             iconColor={theme.headerText}
-            style={styles.backButton}
+            style={styles.headerButtonBase}
             variant={theme.isDark ? "colored" : "light"}
           />
         </View>
@@ -1986,51 +1992,75 @@ export default function NewsDetailScreen() {
           styles.header,
           {
             backgroundColor: theme.headerBackground,
-            paddingTop: 60,
+            paddingTop: headerTopPadding,
             height: headerHeight,
           },
         ]}
       >
         <GlassButton
           iconName="arrow-back"
+          accessibilityLabel="Back"
           onPress={() => router.back()}
           iconColor={headerIconColor}
-          style={[styles.headerButtonBase, styles.backButton]}
+          style={styles.headerButtonBase}
         />
 
         <View style={{ flex: 1 }} />
 
-        <Pressable accessibilityRole="button"
+        <GlassButton
+          iconName={isSaved ? "bookmark" : "bookmark-outline"}
+          iconSize={24}
+          iconColor={headerIconColor}
           accessibilityLabel={isSaved ? "Remove saved article" : "Save article"}
           accessibilityState={{ selected: isSaved }}
-          style={[styles.headerButtonBase, styles.actionButton, { alignItems: "center", justifyContent: "center" }]}
-          onPress={() => void setNewsSaved(item, !isSaved).catch(() => Alert.alert("Could not save article", "Storage may be full or unavailable. Please try again."))}>
-          <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={22} color={isSaved ? theme.primary : headerIconColor} />
-        </Pressable>
+          style={styles.headerButtonBase}
+          onPress={() => void setNewsSaved(item, !isSaved).catch(() => Alert.alert("Could not save article", "Storage may be full or unavailable. Please try again."))}
+        />
         {isRegularItem ? (
           <GlassButton
             iconName="open-outline"
+            accessibilityLabel="Open original article"
             onPress={openOriginalArticle}
             iconColor={headerIconColor}
-            style={[styles.headerButtonBase, styles.actionButton]}
+            style={styles.headerButtonBase}
           />
         ) : null}
 
         {!isRegularSummary && Platform.OS === "ios" && SwiftUI ? (
           <SwiftUI.Host
-            matchContents
-            style={[styles.headerButtonBase, styles.actionButton]}
+            alignment="center"
+            ignoreSafeArea="container"
+            colorScheme={theme.isDark ? "dark" : "light"}
+            style={styles.headerButtonBase}
           >
             <SwiftUI.Menu
-              modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
+              modifiers={[
+                SwiftUIModifiers.buttonStyle("plain"),
+                SwiftUIModifiers.accessibilityLabel("Article settings"),
+              ]}
               label={
-                <SwiftUI.RNHostView matchContents>
-                  <GlassButton
-                    iconName="settings-outline"
-                    iconColor={headerIconColor}
-                    style={[styles.headerButtonBase, styles.actionButton]}
+                isLiquidGlassAvailable() ? (
+                  <SwiftUI.Image
+                    systemName="gearshape"
+                    size={24}
+                    color={headerIconColor}
+                    modifiers={[
+                      SwiftUIModifiers.frame({ width: HEADER_BUTTON_SIZE, height: HEADER_BUTTON_SIZE }),
+                      SwiftUIModifiers.glassEffect({
+                        glass: { variant: "regular", interactive: true },
+                        shape: "circle",
+                      }),
+                    ]}
                   />
-                </SwiftUI.RNHostView>
+                ) : (
+                  <SwiftUI.RNHostView matchContents>
+                    <GlassButton
+                      iconName="settings-outline"
+                      iconColor={headerIconColor}
+                      style={styles.headerButtonBase}
+                    />
+                  </SwiftUI.RNHostView>
+                )
               }
             >
               {!isNativeMode && (
@@ -2079,16 +2109,20 @@ export default function NewsDetailScreen() {
         ) : !isRegularSummary ? (
           <GlassButton
             iconName="settings-outline"
+            accessibilityLabel="Article settings"
             onPress={() => setShowSettingsMenu(true)}
             iconColor={headerIconColor}
-            style={[styles.headerButtonBase, styles.actionButton]}
+            style={styles.headerButtonBase}
           />
         ) : null}
 
         {item.audioUrl && (
           <GlassButton
             onPress={toggleAudio}
-            style={[styles.headerButtonBase, styles.actionButton]}
+            accessibilityLabel={isAudioLoading ? "Loading audio" : isPlaying ? "Pause audio" : "Play audio"}
+            accessibilityState={{ busy: isAudioLoading }}
+            iconColor={headerIconColor}
+            style={styles.headerButtonBase}
           >
             {isAudioLoading ? (
               <ActivityIndicator
@@ -2110,7 +2144,7 @@ export default function NewsDetailScreen() {
       {isRegularSummary ? (
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.regularSummaryContent}
+          contentContainerStyle={[styles.regularSummaryContent, { paddingTop: headerHeight + 16 }]}
         >
           {item.imageUrl ? (
             <Image
@@ -2167,7 +2201,7 @@ export default function NewsDetailScreen() {
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: isPlayerVisible ? 160 : 30 },
+            { paddingTop: headerHeight + 16, paddingBottom: isPlayerVisible ? 160 : 30 },
           ]}
         >
           {contentBlocks.map((block, index) => {
@@ -2505,15 +2539,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
+    paddingBottom: HEADER_VERTICAL_PADDING,
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     zIndex: 10,
-    height: HEADER_HEIGHT,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.1)", // Subtle border
     shadowColor: "#000",
@@ -2522,30 +2555,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  backButton: {
-    marginRight: 16,
-  },
   headerButtonBase: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: HEADER_BUTTON_SIZE,
+    height: HEADER_BUTTON_SIZE,
+    borderRadius: HEADER_BUTTON_SIZE / 2,
+    flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
-  },
-  actionButton: {
-    marginLeft: 12,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
-    paddingTop: HEADER_HEIGHT + 16,
     paddingBottom: 40,
   },
   regularSummaryContent: {
     paddingHorizontal: 16,
-    paddingTop: HEADER_HEIGHT + 16,
     paddingBottom: 48,
     gap: 16,
   },
@@ -2739,7 +2765,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   tooltipBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 0,
   },
   tooltipPopup: {

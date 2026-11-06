@@ -1,3 +1,4 @@
+import type { FlatListInstance } from "react-native";
 import { packageManager } from "../../src/features/translation-packages/package-store";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -52,7 +53,7 @@ export default function TurkishSynonyms() {
   const [from, setFrom] = useState(String(maxLevel));
   const [to, setTo] = useState(String(maxLevel));
   const previewPacket = useRef<unknown>(null);
-  const listRef = useRef<FlatList<TransferRow>>(null);
+  const listRef = useRef<FlatListInstance>(null);
   const enabled = useLearningContentStore((state) => state.enabled);
   const packet = packageManager.state((state) => state.packet);
   const canPrepare =

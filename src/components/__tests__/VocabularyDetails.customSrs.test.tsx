@@ -3,7 +3,7 @@ import {parseTranslationPackage} from "../../features/translation-packages/resol
 import {SentenceExplanation} from "../../features/translation-packages/SentenceExplanation";
 import { act, fireEvent, render, waitFor, within } from "@testing-library/react-native";
 import React from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, TouchableOpacity } from "react-native";
 import PagerView from "react-native-pager-view";
 import { searchImmersionKit } from "../../services/immersionKitService";
 import { CustomContextSentencesSection } from "../CustomContextSentencesSection";
@@ -32,9 +32,12 @@ const mockSettings = {
   immersionKitAnimes: [],
 };
 
+let mockHeaderInsets = { top: 0, left: 0, right: 0, bottom: 0 };
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => mockHeaderInsets }));
+
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("@react-native-community/slider", () => () => null);
-jest.mock("@react-navigation/native", () => ({ useNavigation: () => ({ goBack: jest.fn() }) }));
+jest.mock("expo-router/react-navigation", () => ({ useNavigation: () => ({ goBack: jest.fn() }) }));
 jest.mock("expo-blur", () => ({ BlurView: ({ children }: { children?: React.ReactNode }) => children }));
 jest.mock("react-native-reanimated", () => {
   const React = jest.requireActual<typeof import("react")>("react");
@@ -265,7 +268,7 @@ it.each([false, true])("removes all example translations regardless of tap-to-re
   mockSettings.hideContextSentenceTranslationsCompletely = true;
   mockSettings.showPatternsOfUse = true;
   const pattern = { ja: "やっぱりそうだ。", en: "It is as I thought." };
-  const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime" };
+  const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime" as const };
   jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([{ name: "やっぱり〜", examples: [pattern] }]);
   jest.mocked(searchImmersionKit).mockResolvedValue({ results: [media], nextOffset: 1 });
 
@@ -344,9 +347,9 @@ it("keeps custom progress but hides WaniKani-only editing and fabricated statist
 });
 
 it("fetches anime context using the word rather than its synthetic subject ID", async () => {
-  jest.mocked(searchImmersionKit).mockResolvedValue({ results: [{ id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime" }], nextOffset: 1 });
+  jest.mocked(searchImmersionKit).mockResolvedValue({ results: [{ id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime" as const }], nextOffset: 1 });
   const screen = render(<VocabularyDetails vocabulary={vocabulary} progressionStatus="success" initialTab="context" />);
-  await waitFor(() => expect(searchImmersionKit).toHaveBeenCalledWith("やっぱり", expect.objectContaining({ exactMatch: true, category: "anime", userLevel: 21 })));
+  await waitFor(() => expect(searchImmersionKit).toHaveBeenCalledWith("やっぱり", expect.objectContaining({ exactMatch: true, category: "anime" as const, userLevel: 21 })));
   expect(screen.getByText("Media Context Sentences")).toBeTruthy();
   expect(CustomContextSentencesSection).not.toHaveBeenCalled();
   await waitFor(() => expect(screen.getByText("It was you after all.")).toBeTruthy());
@@ -431,4 +434,32 @@ it.each(["vocabulary", "kana_vocabulary"])("shows optional JLPT and frequency la
   expect(screen.getByText("Frequency")).toBeTruthy();
   fireEvent.press(screen.getByText("Context"));
   await waitFor(() => expect(screen.getByText(/No media examples found/)).toBeTruthy());
+});
+
+
+it.each(["vocabulary", "kana_vocabulary"])("keeps %s header actions inside changing top and horizontal safe areas", async (object) => {
+  const onAddToList = jest.fn();
+  const onOpenConstellation = jest.fn();
+  mockHeaderInsets = { top: 0, left: 0, right: 72, bottom: 0 };
+  const details = () => <VocabularyDetails vocabulary={{ ...vocabulary, object }} progressionStatus="success" onAddToList={onAddToList} onOpenConstellation={onOpenConstellation} />;
+  const screen = render(details());
+  for (const [top, left, right, contentTop] of [[0, 0, 72, 64], [96, 0, 0, 112], [0, 64, 0, 64], [44, 0, 0, 64]]) {
+    mockHeaderInsets = { ...mockHeaderInsets, top, left, right };
+    screen.rerender(details());
+    const save = screen.getByRole("button", { name: "Add to saved lists" });
+    let actions = save.parent;
+    while (actions && StyleSheet.flatten(actions.props.style)?.position !== "absolute") actions = actions.parent;
+    expect(StyleSheet.flatten(actions?.props.style)).toMatchObject({ right: 16 + right, top: contentTop });
+    let header = actions?.parent;
+    while (header && typeof StyleSheet.flatten(header.props.style)?.paddingTop !== "number") header = header.parent;
+    expect(StyleSheet.flatten(header?.props.style)).toMatchObject({ paddingLeft: 16 + left, paddingRight: 16 + right, paddingTop: contentTop });
+    const buttons = screen.UNSAFE_getAllByType(TouchableOpacity);
+    const constellation = buttons.find(button => button.props.onPress === onOpenConstellation);
+    if (object === "kana_vocabulary") expect(constellation).toBeUndefined();
+    else expect(StyleSheet.flatten(constellation!.props.style).right).toBe(20 + right);
+    const back = buttons.find(button => StyleSheet.flatten(button.props.style)?.left === 20 + left);
+    expect(StyleSheet.flatten(back?.props.style)).toMatchObject({ left: 20 + left, top: contentTop });
+  }
+  await act(async () => {});
+  mockHeaderInsets = { top: 0, left: 0, right: 0, bottom: 0 };
 });

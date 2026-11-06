@@ -1,4 +1,4 @@
-import { getReviewForecast } from '../api';
+import { createStudyMaterial, getReviewForecast, updateStudyMaterial } from '../api';
 
 // Mock the fetch function
 global.fetch = jest.fn();
@@ -29,6 +29,16 @@ describe('WaniKani API Functions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock).mockReset();
+  });
+
+  it.each([
+    ["create", 401], ["create", 403], ["update", 401], ["update", 403],
+  ] as const)("preserves the HTTP status of rejected study material %s requests (%s)", async (operation, status) => {
+    (global.fetch as jest.Mock).mockReturnValueOnce(mockResponse(status, "Unauthorized", { error: "Unauthorized. Nice try.", code: status }));
+    const request = operation === "create"
+      ? createStudyMaterial("test-api-token", { subject_id: 1, meaning_note: "My note" })
+      : updateStudyMaterial("test-api-token", 1, { meaning_note: "My note" });
+    await expect(request).rejects.toMatchObject({ statusCode: status, message: `API error: ${status}: Unauthorized. Nice try.` });
   });
 
   describe('getReviewForecast', () => {

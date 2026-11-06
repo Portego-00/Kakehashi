@@ -128,7 +128,7 @@ it("discards stale cache lookups without interrupting the current word", async (
 it.each(["disabled", "unmounted"])("cancels pending audio when %s", async (reason) => {
   const pending = deferred<string | null>();
   jest.mocked(resolveOfflineVocabularyAudioUri).mockReturnValueOnce(pending.promise);
-  const { result, rerender, unmount } = renderHook(({ enabled }) => useSubjectListAudio(enabled), { initialProps: { enabled: true } });
+  const { result, rerender, unmount } = renderHook(({ enabled }: { enabled: boolean }) => useSubjectListAudio(enabled), { initialProps: { enabled: true } });
   let playback!: Promise<void>;
   await act(async () => { playback = result.current.play(subject, "female"); });
   if (reason === "disabled") rerender({ enabled: false });
@@ -138,7 +138,7 @@ it.each(["disabled", "unmounted"])("cancels pending audio when %s", async (reaso
 });
 
 it("releases playback on navigation, unmount, and backgrounding", async () => {
-  const { result, rerender, unmount } = renderHook(({ enabled }) => useSubjectListAudio(enabled), { initialProps: { enabled: true } });
+  const { result, rerender, unmount } = renderHook(({ enabled }: { enabled: boolean }) => useSubjectListAudio(enabled), { initialProps: { enabled: true } });
   await act(async () => { await result.current.play(subject, "female"); });
   rerender({ enabled: false });
   expect(players[0].remove).toHaveBeenCalledTimes(1);

@@ -223,7 +223,7 @@ async function registerInstallation(session: RegistrationSession): Promise<void>
     try {
       // A trusted, connected-device container read can enroll a Release build.
       // This file deliberately contains no account credentials or push tokens.
-      new File(Paths.document, "issue-activity-push-installation.json").write(
+      await new File(Paths.document, "issue-activity-push-installation.json").write(
         JSON.stringify({ installationId }),
       );
       exportedInstallationId = installationId;

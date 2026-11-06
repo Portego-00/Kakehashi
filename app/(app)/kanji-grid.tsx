@@ -1,10 +1,10 @@
+import { scheduleIdleTask } from "../../src/utils/scheduleIdleTask";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  InteractionManager,
   Pressable,
   StyleSheet,
   Text,
@@ -237,7 +237,7 @@ export default function KanjiGridScreen() {
 
   useEffect(() => {
     let isMounted = true;
-    let interactionTask: ReturnType<typeof InteractionManager.runAfterInteractions> | null =
+    let interactionTask: ReturnType<typeof scheduleIdleTask> | null =
       null;
 
     const loadCatalog = async () => {
@@ -248,7 +248,7 @@ export default function KanjiGridScreen() {
     };
 
     if (!kanjiCatalog) {
-      interactionTask = InteractionManager.runAfterInteractions(() => {
+      interactionTask = scheduleIdleTask(() => {
         void loadCatalog();
       });
     }

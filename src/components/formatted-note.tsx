@@ -1,3 +1,4 @@
+import type { TextInputInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import React, {
   useCallback,
@@ -411,7 +412,7 @@ const RichNoteEditor = React.forwardRef<
   const subjectColors = useSubjectColors();
   const includeLinkCharacters = useSettingsStore((state) => state.noteLinkIncludeCharacters);
   const setIncludeLinkCharacters = useSettingsStore((state) => state.setNoteLinkIncludeCharacters);
-  const textInputRef = useRef<TextInput>(null);
+  const textInputRef = useRef<TextInputInstance>(null);
   const currentValueRef = useRef(value);
   const shouldRestoreFocusRef = useRef(false);
   const visualCommandNonceRef = useRef(0);

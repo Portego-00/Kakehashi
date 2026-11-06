@@ -103,6 +103,33 @@ async function answer(page: Page, value: string) {
   await page.getByRole("button", { name: "Check", exact: true }).click();
 }
 
+test("multiple choice controls preserve unknown and corrected mistakes", async ({ page }, testInfo) => {
+  const { submissions } = await openQuiz(page, { study: { pauseOnCorrect: true, pauseOnWrong: false } });
+  await expect(page.getByRole("switch", { name: "Multiple choice" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Review settings", exact: true }).click();
+  const settings = page.getByRole("dialog", { name: "Review settings" });
+  await settings.getByLabel("Multiple Choice", { exact: true }).check();
+  await settings.getByRole("button", { name: "Done", exact: true }).click();
+  let choices = page.getByRole("group", { name: "Answer choices" });
+  await expect(choices.getByRole("button")).toHaveCount(4);
+  await page.screenshot({ path: testInfo.outputPath("multiple-choice.png"), fullPage: true });
+  await page.getByRole("button", { name: "I don't know", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Add as synonym" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Mark Incorrect", exact: true }).click();
+  choices = page.getByRole("group", { name: "Answer choices" });
+  await choices.getByRole("button", { name: /^\d\. かわ$/ }).click();
+  await expect(page.getByRole("button", { name: "Mark Incorrect", exact: true })).toBeVisible();
+  // A correct guess remains available for correction while stop on correct is enabled.
+  await page.waitForTimeout(800);
+  await expect(choices.getByRole("button", { name: /かわ.*Correct answer/ })).toBeVisible();
+  await page.getByRole("button", { name: "Mark Incorrect", exact: true }).click();
+  await page.getByRole("group", { name: "Answer choices" }).getByRole("button", { name: /^\d\. River$/ }).click();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByRole("group", { name: "Answer choices" }).getByRole("button", { name: /^\d\. かわ$/ }).click();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect.poll(() => submissions).toEqual([{ review: expect.objectContaining({ incorrect_meaning_answers: 1, incorrect_reading_answers: 1 }) }]);
+});
+
 test("prompt text color updates immediately, preserves the answer and background, and resets to default", async ({ page }) => {
   await openQuiz(page, { study: { bunproReviewPromptTextColor: "#abcdef" } });
   const prompt = page.locator('[aria-label="Review prompt"] h2');

@@ -329,7 +329,7 @@ describe("LessonDetailScreen Japanese-only examples", () => {
     mockContextSettings.hideContextSentenceTranslationsCompletely = true;
     const context = { ja: "やっぱり歩いて行く。", en: "After all, I'll walk." };
     const pattern = { ja: "やっぱりそうだ。", en: "It is as I thought." };
-    const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime", imageUrl: "https://example.com/anime.jpg" };
+    const media = { id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.", title: "Fixture_anime", category: "anime" as const, imageUrl: "https://example.com/anime.jpg" };
     jest.mocked(getWaniKaniVocabularyPatterns).mockReturnValue([{ name: "やっぱり〜", examples: [pattern] }]);
     jest.mocked(searchImmersionKit).mockResolvedValue({ results: [media], nextOffset: 1 });
     const subject = { id: -2026, object, data: { characters: "やっぱり", level: 1, meanings: [{ meaning: "As Expected", primary: true }], readings: [], context_sentences: [context] } };
@@ -553,10 +553,10 @@ describe("LessonDetailScreen large-text summary", () => {
 
   it("closes an unchanged lesson note without asking to discard", async () => {
     const screen = renderNoteLesson();
-    fireEvent.press(screen.getByText("Cancel"));
-    await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
+    await act(async () => { fireEvent.press(screen.getByText("Cancel")); });
     expect(mockEditorFlush).toHaveBeenCalledTimes(1);
     expect(mockAlert).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Meaning note text")).toBeNull();
   });
 
   it("checks the freshly flushed lesson draft before closing", async () => {
@@ -654,6 +654,7 @@ describe("LessonDetailScreen large-text summary", () => {
       act(() => {
         keyboardShown?.({
           duration: 250,
+          isEventFromThisApp: true,
           easing: "keyboard",
           endCoordinates: { height: 300, width: 390, screenX: 0, screenY: 544 },
           startCoordinates: { height: 0, width: 390, screenX: 0, screenY: 844 },

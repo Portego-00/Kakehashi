@@ -1,3 +1,4 @@
+import type { TextInputInstance, ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -438,8 +439,8 @@ export default function JapaneseAnalysisScreen({
   const tooltipMeasuredHeightRef = useRef(200);
   const tooltipDismissedAtRef = useRef(0);
   const autoLoadedSharedUrlRef = useRef<string | null>(null);
-  const textInputRef = useRef<TextInput>(null);
-  const contentScrollRef = useRef<ScrollView>(null);
+  const textInputRef = useRef<TextInputInstance>(null);
+  const contentScrollRef = useRef<ScrollViewInstance>(null);
   const translationRequestIdRef = useRef(0);
   const sharedUrlParam = useMemo(() => {
     const rawParam = localParams.url;
@@ -2754,7 +2755,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.9)",
   },
   mediaModalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   mediaModalContent: {
     flex: 1,

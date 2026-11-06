@@ -18,7 +18,7 @@ jest.mock("expo-constants", () => ({
 }));
 jest.mock("expo-crypto", () => ({ randomUUID: jest.fn() }));
 jest.mock("expo-file-system", () => ({
-  File: jest.fn(() => ({ write: jest.fn() })),
+  File: jest.fn(() => ({ write: jest.fn(async () => undefined) })),
   Paths: { document: "file:///documents/" },
 }));
 jest.mock("expo/fetch", () => ({ fetch: jest.fn() }));
