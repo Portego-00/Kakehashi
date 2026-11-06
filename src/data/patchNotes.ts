@@ -56,6 +56,77 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.6.0",
+    date: "2026-10-29",
+    changes: [
+      {
+        type: "feature",
+        title: "iPhone Duo Support",
+        description:
+          "Layouts adapt as you open, close, and rotate iPhone Duo. In the partially folded song player, video sits above the hinge with lyrics and playback controls below.",
+      },
+    ],
+  },
+  {
+    version: "1.5.8",
+    date: "2026-10-23",
+    changes: [
+      {
+        type: "improvement",
+        title: "Custom Review Date Filters",
+        description:
+          "Filter subjects by lesson completion or unlock date, then review your selection or save it to Subject Lists.",
+      },
+    ],
+  },
+  {
+    version: "1.5.7",
+    date: "2026-10-22",
+    changes: [
+      {
+        type: "improvement",
+        title: "Crossword Grid Input",
+        description:
+          "Tap a square and type directly in the crossword. Crossing kana count automatically, and unfinished letters stay when switching clues.",
+      },
+    ],
+  },
+  {
+    version: "1.5.6",
+    date: "2026-10-19",
+    changes: [
+      {
+        type: "fix",
+        title: "Review Forecast Scrolling",
+        description:
+          "Switching between hourly and daily charts now resets the plot to the start so bars stay visible.",
+      },
+      {
+        type: "fix",
+        title: "SRS Review Ordering",
+        description:
+          "Reviews sorted by SRS now shuffle items within each stage when Group by item type is off, on mobile and web.",
+      },
+    ],
+  },
+  {
+    version: "1.5.5",
+    date: "2026-10-18",
+    changes: [
+      {
+        type: "feature",
+        title: "Lesson Unlock Counts",
+        description:
+          "See same-level kanji unlocks on radicals and vocabulary unlocks on kanji. Tap a number badge to view the subjects.",
+        link: {
+          route: "/settings",
+          params: { category: "lessons" },
+          label: "Open Lesson Settings",
+        },
+      },
+    ],
+  },
+  {
     version: "1.5.4",
     date: "2026-10-17",
     changes: [

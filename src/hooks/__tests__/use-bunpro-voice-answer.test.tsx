@@ -17,7 +17,7 @@ it("uses the question language and places the transcript into the draft without 
 });
 it("ignores results after a provider switch or a changed question", async () => {
   const onAnswer = jest.fn();
-  const hook = renderHook(({ enabled, key }) => useBunproVoiceAnswer({ enabled, questionKey: key, language: "ja-JP", onAnswer }), { initialProps: { enabled: true, key: "1" } });
+  const hook = renderHook(({ enabled, key }: { enabled: boolean; key: string }) => useBunproVoiceAnswer({ enabled, questionKey: key, language: "ja-JP", onAnswer }), { initialProps: { enabled: true, key: "1" } });
   await act(async () => hook.result.current.start());
   hook.rerender({ enabled: false, key: "1" });
   act(() => mockEvents.result({ isFinal: true, results: [{ transcript: "ねこ" }] }));
@@ -32,7 +32,7 @@ it("ignores results after a provider switch or a changed question", async () => 
 it("does not start a microphone capture if permission returns after the session became inactive", async () => {
   let resolve!: (permission: any) => void;
   jest.mocked(ExpoSpeechRecognitionModule.requestPermissionsAsync).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
-  const hook = renderHook(({ enabled }) => useBunproVoiceAnswer({ enabled, questionKey: "1", language: "ja-JP", onAnswer: jest.fn() }), { initialProps: { enabled: true } });
+  const hook = renderHook(({ enabled }: { enabled: boolean }) => useBunproVoiceAnswer({ enabled, questionKey: "1", language: "ja-JP", onAnswer: jest.fn() }), { initialProps: { enabled: true } });
   let start!: Promise<void>;
   act(() => { start = hook.result.current.start(); });
   hook.rerender({ enabled: false });

@@ -1,3 +1,4 @@
+import type { ScaledSize } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
@@ -213,7 +214,7 @@ export default function ReviewForecast({
 
   // Listen for orientation changes
   useEffect(() => {
-    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+    const subscription = Dimensions.addEventListener("change", ({ window }: { window: ScaledSize }) => {
       setScreenData(window);
     });
 
@@ -1159,9 +1160,10 @@ export default function ReviewForecast({
       layout={Layout.duration(200).easing(Easing.ease)}
       style={styles.chartContainer}
     >
-      {/* Bar chart */}
+      {/* Separate scroll views so each time scale starts at the origin. */}
       {chartMode === "hourly" ? (
         <ScrollView
+          key="hourly"
           horizontal
           showsHorizontalScrollIndicator={usesLargeText}
           style={[styles.chartScrollView, { minHeight: chartViewportHeight }]}
@@ -1267,6 +1269,7 @@ export default function ReviewForecast({
         </ScrollView>
       ) : (
         <ScrollView
+          key="daily"
           horizontal
           scrollEnabled={usesLargeText}
           showsHorizontalScrollIndicator={usesLargeText}

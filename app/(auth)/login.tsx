@@ -1,3 +1,4 @@
+import type { TextInputInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import { LinearGradient } from "expo-linear-gradient";
@@ -61,7 +62,7 @@ export default function Login() {
   const safeAreaInsets = useSafeAreaInsets();
 
   // Refs for keyboard navigation
-  const passwordInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInputInstance>(null);
   const mountedRef = useRef(true);
   const androidBaselineFormHeightRef = useRef(0);
 
@@ -469,6 +470,7 @@ export default function Login() {
                     <Text style={styles.label}>API Token</Text>
                     <TextInput
                       style={styles.input}
+                      accessibilityLabel="WaniKani API token"
                       defaultValue={apiToken}
                       onChangeText={setApiToken}
                       onFocus={syncAndroidKeyboardMetrics}
@@ -485,6 +487,9 @@ export default function Login() {
 
                 <TouchableOpacity
                   style={[styles.button, isLoading && styles.buttonDisabled]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Login"
+                  accessibilityState={{ disabled: isLoading, busy: isLoading }}
                   onPress={handleLogin}
                   disabled={isLoading}
                 >

@@ -1,0 +1,11 @@
+.container { display: grid; gap: 1rem; min-width: 0; }
+.tabs { display: flex; border-bottom: 1px solid var(--color-rule); }
+.tabs button { flex: 1; min-height: 44px; padding: .65rem 1rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-muted); font: inherit; cursor: pointer; }
+.tabs button[aria-selected="true"] { border-bottom-color: var(--subject-color, var(--color-ink)); color: var(--color-ink); }
+.tabs button:focus-visible, .fallback button:focus-visible { outline: 2px solid var(--color-ink); outline-offset: -3px; }
+.player { display: grid; gap: .75rem; min-width: 0; }
+.player iframe { display: block; width: 100%; border: 0; }
+.player p { margin: 0; color: var(--color-muted); }
+.player a { justify-self: start; padding-block: .5rem; color: var(--color-ink); }
+.fallback { display: grid; gap: .5rem; }
+.fallback button { justify-self: start; min-height: 44px; padding: .5rem .8rem; border: 1px solid var(--color-rule); border-radius: 6px; background: var(--color-surface); color: var(--color-ink); font: inherit; cursor: pointer; }

@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   backdropPressable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   container: {
     maxHeight: "86%",

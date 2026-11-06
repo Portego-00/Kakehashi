@@ -555,7 +555,7 @@ export function CoachMarks({
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   overlayBackground: {
     flex: 1,

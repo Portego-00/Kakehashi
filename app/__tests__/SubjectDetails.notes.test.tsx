@@ -1,15 +1,25 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
 import { Alert, Modal } from "react-native";
+import * as Linking from "expo-linking";
 
 import SubjectDetailsScreen from "../(app)/subject/[id]";
+import { createStudyMaterial, updateStudyMaterial } from "../../src/utils/api";
 
 let mockFlushedNoteText: string | undefined;
 let mockInitialNoteText = "";
+let mockHasStudyMaterial = true;
+const mockOpenURL = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
 const mockEditorFlush = jest.fn((value?: string) =>
   Promise.resolve(mockFlushedNoteText ?? value ?? ""),
 );
 const mockAlert = jest.spyOn(Alert, "alert");
+
+jest.mock("expo-linking", () => ({ openURL: jest.fn(async () => true) }));
+// Note-save tests exercise the write flow independently of idle scheduling.
+jest.mock("../../src/utils/scheduleIdleTask", () => ({
+  scheduleIdleTask: (work: () => void) => { work(); return { cancel: jest.fn() }; },
+}));
 
 function respondToDiscardAlert(action: "Keep editing" | "Discard") {
   const buttons = mockAlert.mock.calls.at(-1)?.[2];
@@ -57,9 +67,11 @@ jest.mock("../../src/utils/api", () => ({
   getSubject: jest.fn(async () => mockSubject),
   getAssignmentsForSubjectsCached: jest.fn(async () => ({ data: [] })),
   getStudyMaterials: jest.fn(async () => ({
-    data: [{ id: 1, data: { subject_id: 1, meaning_note: mockInitialNoteText } }],
+    data: mockHasStudyMaterial ? [{ id: 1, data: { subject_id: 1, meaning_note: mockInitialNoteText } }] : [],
   })),
   getReviewStatistics: jest.fn(async () => ({ data: [] })),
+  updateStudyMaterial: jest.fn(async (_token: string, id: number, updates: object) => ({ id, data: { subject_id: 1, ...updates } })),
+  createStudyMaterial: jest.fn(async (_token: string, updates: object) => ({ id: 2, data: updates })),
 }));
 
 jest.mock("../../src/utils/niaiSimilarKanji", () => ({
@@ -74,11 +86,14 @@ jest.mock("../../src/components/RadicalDetails", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import("react-native")>("react-native");
-  return function MockRadicalDetails({ radical }: { radical: { onEditNote: () => void } }) {
+  return function MockRadicalDetails({ radical }: { radical: { onEditNote: () => void; onRemoveNoteImage?: (index: number) => Promise<void> } }) {
     return (
+      <>
       <TouchableOpacity onPress={radical.onEditNote}>
         <Text>Edit meaning note</Text>
       </TouchableOpacity>
+      <TouchableOpacity onPress={() => radical.onRemoveNoteImage?.(0)}><Text>Remove image</Text></TouchableOpacity>
+      </>
     );
   };
 });
@@ -89,7 +104,7 @@ jest.mock("../../src/components/formatted-note", () => {
     jest.requireActual<typeof import("react-native")>("react-native");
   const Editor = React.forwardRef<
     { closeLinkPicker: () => boolean; flush: () => Promise<string> },
-    React.ComponentProps<typeof TextInput>
+    React.ComponentProps<typeof TextInput> & { onImageComposerOpenChange?: (open: boolean) => void }
   >((props, ref) => {
     const [pickerOpen, setPickerOpen] = React.useState(false);
     React.useImperativeHandle(ref, () => ({
@@ -107,6 +122,8 @@ jest.mock("../../src/components/formatted-note", () => {
           <Text>Insert subject link</Text>
         </TouchableOpacity>
         {pickerOpen && <Text>Subject link picker</Text>}
+        <TouchableOpacity onPress={() => props.onImageComposerOpenChange?.(true)}><Text>Add image</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => props.onImageComposerOpenChange?.(false)}><Text>Cancel image</Text></TouchableOpacity>
       </>
     );
   });
@@ -117,11 +134,55 @@ jest.mock("../../src/components/formatted-note", () => {
 beforeEach(() => {
   mockAlert.mockClear();
   mockEditorFlush.mockClear();
+  jest.mocked(updateStudyMaterial).mockClear();
+  jest.mocked(createStudyMaterial).mockClear();
+  mockOpenURL.mockClear();
+  mockHasStudyMaterial = true;
   mockFlushedNoteText = undefined;
   mockInitialNoteText = "";
 });
 
-afterAll(() => mockAlert.mockRestore());
+afterAll(() => { mockAlert.mockRestore(); mockOpenURL.mockRestore(); });
+
+it.each([
+  ["create", 401], ["create", 403], ["update", 401], ["update", 403],
+] as const)("explains missing permissions on %s (%s) and keeps the image note draft", async (operation, status) => {
+  mockHasStudyMaterial = operation === "update";
+  const save = operation === "create" ? jest.mocked(createStudyMaterial) : jest.mocked(updateStudyMaterial);
+  save.mockRejectedValueOnce(Object.assign(new Error("Unauthorized. Nice try."), { statusCode: status }));
+  const screen = await renderSubjectNote();
+  const draft = 'Bridge\n<img src="https://example.com/bridge.png">';
+  fireEvent.changeText(screen.getByLabelText("Meaning note text"), draft);
+  fireEvent.press(screen.getByRole("button", { name: "Save note" }));
+  await waitFor(() => expect(mockAlert).toHaveBeenCalledWith(
+    "Enable saving notes",
+    expect.stringContaining("study_materials:create"),
+    expect.arrayContaining([expect.objectContaining({ text: "Open API token settings" })]),
+  ));
+  expect(mockAlert.mock.calls.at(-1)?.[1]).toContain("study_materials:update");
+  expect(screen.getByLabelText("Meaning note text").props.value).toBe(draft);
+  act(() => mockAlert.mock.calls.at(-1)?.[2]?.find((button) => button.text === "Open API token settings")?.onPress?.());
+  expect(mockOpenURL).toHaveBeenCalledWith("https://www.wanikani.com/settings/personal_access_tokens");
+});
+
+it("disables Save note until the image form is finished", async () => {
+  const screen = await renderSubjectNote();
+  expect(screen.getByRole("button", { name: "Save note" }).props.accessibilityState.disabled).toBe(false);
+  fireEvent.press(screen.getByText("Add image"));
+  expect(screen.getByRole("button", { name: "Save note" }).props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(screen.getByText("Cancel image"));
+  expect(screen.getByRole("button", { name: "Save note" }).props.accessibilityState.disabled).toBe(false);
+});
+
+it("saves image removal from the details viewer while keeping the formatted note", async () => {
+  mockInitialNoteText = '<b>Bridge</b>\n<img src="https://example.com/a.png">\n<img src="https://example.com/b.png">';
+  const screen = render(<SubjectDetailsScreen />);
+  await waitFor(() => expect(screen.getByText("Edit meaning note")).toBeTruthy());
+  fireEvent.press(screen.getByText("Remove image"));
+  await waitFor(() => expect(updateStudyMaterial).toHaveBeenCalledWith("test-token", 1, { meaning_note: '<b>Bridge</b>\n<img src="https://example.com/b.png">' }));
+  fireEvent.press(screen.getByText("Edit meaning note"));
+  expect(screen.getByLabelText("Meaning note text").props.value).toBe('<b>Bridge</b>\n<img src="https://example.com/b.png">');
+});
 
 it.each(["Cancel", "close button", "request close"])(
   "dismisses the subject picker before the subject note editor through %s",
@@ -169,7 +230,7 @@ it.each(["Cancel", "close button", "request close"])(
 
 async function renderSubjectNote() {
   const screen = render(<SubjectDetailsScreen />);
-  await waitFor(() => expect(screen.getByText("Edit meaning note")).toBeTruthy());
+  await waitFor(() => expect(screen.getByText("Edit meaning note")).toBeTruthy(), { timeout: 5000 });
   fireEvent.press(screen.getByText("Edit meaning note"));
   return screen;
 }
@@ -183,16 +244,18 @@ it.each([
   const screen = await renderSubjectNote();
   expect(screen.getByLabelText("Meaning note text").props.value).toBe(original);
   mockFlushedNoteText = flushed;
-  fireEvent.press(screen.getByLabelText("Close note editor"));
-  await waitFor(() => expect(screen.queryByLabelText("Meaning note text")).toBeNull());
+  await act(async () => { fireEvent.press(screen.getByLabelText("Close note editor")); });
   expect(mockEditorFlush).toHaveBeenCalledTimes(1);
   expect(mockAlert).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText("Meaning note text")).toBeNull();
 });
 
 it.each([
   ["", "Last native keystroke"],
   ["bridge", "<b>bridge</b>"],
   ['<a href="wk://subject/440">bridge</a>', '<a href="wk://subject/441">bridge</a>'],
+  ["bridge", 'bridge\n<img src="https://example.com/a.png">'],
+  ['bridge\n<img src="https://example.com/a.png">', "bridge"],
 ])("checks the freshly flushed subject draft %j before closing", async (original, flushed) => {
   mockInitialNoteText = original;
   const screen = await renderSubjectNote();

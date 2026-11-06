@@ -1,0 +1,26 @@
+diff --git a/node_modules/@expo/cli/build/src/export/exportApp.js b/node_modules/@expo/cli/build/src/export/exportApp.js
+index 201becc..e148336 100644
+--- a/node_modules/@expo/cli/build/src/export/exportApp.js
++++ b/node_modules/@expo/cli/build/src/export/exportApp.js
+@@ -267,7 +267,7 @@ async function exportAppAsync(projectRoot, { platforms, outputDir, clear, dev, d
+                     });
+                     domComponentAssetsMetadata[platform] = [
+                         ...domComponentAssetsMetadata[platform] || [],
+-                        ...await (0, _exportDomComponents.addDomBundleToMetadataAsync)(platformDomComponentsBundle),
++                        ...(0, _exportDomComponents.addDomBundleToMetadataAsync)(platformDomComponentsBundle),
+                         ...(0, _exportDomComponents.transformDomEntryForMd5Filename)({
+                             files,
+                             htmlOutputName
+diff --git a/node_modules/@expo/cli/build/src/export/exportDomComponents.js b/node_modules/@expo/cli/build/src/export/exportDomComponents.js
+index b08f8fc..0eabf51 100644
+--- a/node_modules/@expo/cli/build/src/export/exportDomComponents.js
++++ b/node_modules/@expo/cli/build/src/export/exportDomComponents.js
+@@ -97,7 +97,7 @@ async function exportDomComponentAsync({ filePath, projectRoot, dev, devServer,
+     const bundle = await devServer.legacySinglePageExportBundleAsync({
+         platform: 'web',
+         domRoot: encodeURI(relativeImport),
+-        splitChunks: !_env.env.EXPO_NO_BUNDLE_SPLITTING,
++        splitChunks: !useMd5Filename && !_env.env.EXPO_NO_BUNDLE_SPLITTING,
+         mainModuleName: (0, _paths().convertEntryPointToRelative)(projectRoot, virtualEntry),
+         mode: dev ? 'development' : 'production',
+         engine: isHermes ? 'hermes' : undefined,

@@ -285,7 +285,7 @@ function AuthorizedNotebookWorkspace({ showBackButton }: { showBackButton: boole
           dom={domOptions}
         />
         {nativeHandwriting.overlay}
-        {!editorReady ? <View testID="notebook-editor-loading" style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.cardBackground, alignItems: "center", justifyContent: "center" }]}>
+        {!editorReady ? <View testID="notebook-editor-loading" style={[StyleSheet.absoluteFill, { backgroundColor: theme.cardBackground, alignItems: "center", justifyContent: "center" }]}>
           {!editorError ? <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><ActivityIndicator color={theme.textSecondary} /><Text style={{ color: theme.textSecondary }}>Opening page…</Text></View> : null}
         </View> : null}
       </View>

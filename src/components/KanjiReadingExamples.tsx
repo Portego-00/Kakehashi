@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -25,6 +26,7 @@ interface KanjiReadingExamplesProps {
   kanjiCharacters: string;
   kanjiReadings: KanjiReadingInput[];
   vocabulary: KanjiReadingExampleVocabulary[];
+  userLevel?: number;
   onSubjectPress?: (subjectId: number) => void;
   initialExamplesPerReading?: number;
   initialUngroupedExamples?: number;
@@ -49,6 +51,7 @@ export default function KanjiReadingExamples({
   kanjiCharacters,
   kanjiReadings,
   vocabulary,
+  userLevel = 0,
   onSubjectPress,
   initialExamplesPerReading = 3,
   initialUngroupedExamples = 6,
@@ -56,6 +59,8 @@ export default function KanjiReadingExamples({
   const { theme } = useTheme();
   const display = useLearningDisplay();
   const subjectColors = useSubjectColors();
+  const { width: screenWidth } = useWindowDimensions();
+  const [gridWidth, setGridWidth] = useState<number | null>(null);
   const showOnyomiInKatakana = useSettingsStore(
     (state) => state.showOnyomiInKatakana
   );
@@ -100,7 +105,7 @@ export default function KanjiReadingExamples({
         onPress={() => onSubjectPress?.(example.id)}
         disabled={!onSubjectPress}
         accessibilityRole={onSubjectPress ? "button" : undefined}
-        accessibilityLabel={`${example.characters}, ${primaryReading}, ${primaryMeaning}`}
+        accessibilityLabel={`${example.characters}, ${primaryReading}, ${primaryMeaning}${example.level != null ? `, Level ${example.level}` : ""}`}
       >
         <Text
           selectable
@@ -134,6 +139,13 @@ export default function KanjiReadingExamples({
             {primaryMeaning}
           </Text>
         </View>
+        {example.level != null ? (
+          <View style={[styles.levelBadge, { borderColor: theme.border }]}>
+            <Text style={[styles.levelText, { color: theme.textSecondary }]}>
+              Level {example.level}
+            </Text>
+          </View>
+        ) : null}
         {onSubjectPress ? (
           <Ionicons
             name="chevron-forward"
@@ -192,12 +204,77 @@ export default function KanjiReadingExamples({
       0,
       sortedVocabulary.length - initialUngroupedExamples
     );
+    const isTablet = screenWidth > 768;
+    const gridSpacing = isTablet ? 12 : 8;
+    const columns = isTablet ? 4 : screenWidth > 400 ? 3 : 2;
+    const availableWidth = gridWidth ?? screenWidth - 64;
+    const baseCardWidth = (availableWidth - gridSpacing * columns) / columns;
 
     return (
       <View>
-        {visibleExamples.map((example, exampleIndex) =>
-          renderExampleRow(example, exampleIndex === visibleExamples.length - 1)
-        )}
+        <View
+          style={styles.vocabularyGrid}
+          onLayout={(event) => {
+            const width = event.nativeEvent.layout.width;
+            if (width > 0) setGridWidth(width);
+          }}
+        >
+          {visibleExamples.map((example) => {
+            const primaryReading = getPrimaryReading(example);
+            const primaryMeaning = display.meaning(
+              { ...example, object: "vocabulary" },
+              example.meanings[0] ?? "No meaning",
+            );
+            const isAboveUserLevel = example.level != null && example.level > userLevel;
+            const cardWidth = Math.min(
+              Math.max(baseCardWidth, 80 + example.characters.length * 18),
+              baseCardWidth * 1.8,
+              availableWidth - gridSpacing,
+            );
+
+            return (
+              <TouchableOpacity
+                key={example.id}
+                style={[
+                  styles.vocabularyCard,
+                  {
+                    backgroundColor: subjectColors.vocabulary,
+                    width: cardWidth,
+                    minHeight: isTablet ? 84 : 78,
+                    margin: gridSpacing / 2,
+                    opacity: isAboveUserLevel ? 0.8 : 1,
+                  },
+                ]}
+                onPress={() => onSubjectPress?.(example.id)}
+                disabled={!onSubjectPress}
+                accessibilityRole={onSubjectPress ? "button" : undefined}
+                accessibilityLabel={`${example.characters}, ${primaryReading}, ${primaryMeaning}${example.level != null ? `, Level ${example.level}` : ""}`}
+              >
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={[
+                    styles.cardCharacters,
+                    fontStyles.japaneseBold,
+                    example.characters.length > 3 && {
+                      fontSize: Math.max(14, 22 - (example.characters.length - 3) * 2),
+                    },
+                  ]}
+                >
+                  {example.characters}
+                </Text>
+                <Text numberOfLines={2} style={styles.cardMeaning}>
+                  {primaryMeaning}
+                </Text>
+                {isAboveUserLevel ? (
+                  <View style={[styles.cardLevelBadge, { backgroundColor: subjectColors.vocabulary }]}>
+                    <Text style={styles.cardLevelText}>{example.level}</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
         {renderShowMoreButton(hiddenExampleCount)}
       </View>
     );
@@ -299,6 +376,59 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  vocabularyGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    paddingTop: 8,
+  },
+  vocabularyCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+  },
+  cardCharacters: {
+    color: "white",
+    fontSize: 20,
+  },
+  cardMeaning: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 14,
+    marginTop: 4,
+    paddingHorizontal: 6,
+    textAlign: "center",
+  },
+  cardLevelBadge: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    minWidth: 26,
+    minHeight: 26,
+    maxWidth: "100%",
+    borderRadius: 13,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "white",
+    shadowColor: "rgba(0,0,0,0.5)",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    elevation: 5,
+  },
+  cardLevelText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
+    textAlign: "center",
+    lineHeight: 14,
+  },
   readingGroup: {
     paddingVertical: 14,
   },
@@ -350,6 +480,17 @@ const styles = StyleSheet.create({
   meaning: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  levelBadge: {
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexShrink: 0,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  levelText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   showMoreButton: {
     alignItems: "center",

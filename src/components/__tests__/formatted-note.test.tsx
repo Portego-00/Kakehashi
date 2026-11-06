@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import React from "react";
-import { StyleSheet, TextInput, View } from "react-native";
+import { PanResponder, StyleSheet, TextInput, View, type GestureResponderEvent, type PanResponderGestureState } from "react-native";
 
 import {
   FormattedNoteEditor,
@@ -14,6 +14,17 @@ const mockRememberNoteSubjectType = jest.fn();
 const mockResolveNoteSubjectType = jest.fn();
 let mockAdvancedNoteEditorEnabled = true;
 let mockIncludeCharacters = false;
+
+jest.mock("expo-image", () => ({
+  Image: (props: object) => {
+    const React = jest.requireActual<typeof import("react")>("react");
+    const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+    return React.createElement(View, props);
+  },
+}));
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
 
 let mockLinkPickerProps: {
   initialQuery: string;
@@ -164,6 +175,72 @@ describe("FormattedNote", () => {
     expect(screen.queryByLabelText("Note editor mode")).toBeNull();
     expect(mockVisualEditorProps).toBeNull();
     expect(editorRef.current?.closeLinkPicker()).toBe(false);
+  });
+
+  it("adds and removes image URLs while preserving the latest plain text", async () => {
+    mockAdvancedNoteEditorEnabled = false;
+    const editorRef = React.createRef<FormattedNoteEditorHandle>();
+    const onImageComposerOpenChange = jest.fn();
+    function Editor() {
+      const [value, setValue] = React.useState("Original note");
+      return <FormattedNoteEditor ref={editorRef} value={value} onChangeText={setValue} onImageComposerOpenChange={onImageComposerOpenChange} accessibilityLabel="Meaning note text" />;
+    }
+    const screen = render(<Editor />);
+    fireEvent.changeText(screen.getByLabelText("Meaning note text"), "Latest note");
+    fireEvent.press(screen.getByLabelText("Add image"));
+    expect(onImageComposerOpenChange).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByLabelText("Save image")).toBeNull();
+    await expect(editorRef.current?.flush()).rejects.toThrow("Add the image to your note");
+    fireEvent.changeText(screen.getByLabelText("Image URL"), "https://example.com/bridge.png");
+    const image = await screen.findByLabelText("Note image");
+    fireEvent(image, "load");
+    await act(async () => { fireEvent.press(screen.getByLabelText("Add to note")); });
+    await waitFor(() => expect(screen.getByLabelText("Open note image 1")).toBeTruthy());
+    expect(onImageComposerOpenChange).toHaveBeenLastCalledWith(false);
+    expect(await editorRef.current?.flush()).toBe('Latest note\n<img src="https://example.com/bridge.png">');
+    await act(async () => { fireEvent.press(screen.getByLabelText("Remove note image 1")); });
+    await waitFor(() => expect(screen.queryByLabelText("Open note image 1")).toBeNull());
+    expect(await editorRef.current?.flush()).toBe("Latest note");
+    fireEvent.press(screen.getByLabelText("Add image"));
+    expect(screen.getByLabelText("Image URL").props.value).toBe("");
+    expect(screen.queryByLabelText("Note image")).toBeNull();
+  });
+
+  it("opens stored images, zooms, and removes through the viewer", async () => {
+    const responderSpy = jest.spyOn(PanResponder, "create");
+    const onRemoveImage = jest.fn(async () => {});
+    const screen = render(<FormattedNoteText text={'<b>Bridge</b>\n<img src="https://example.com/a.png">'} onRemoveImage={onRemoveImage} />);
+    expect(screen.getByText("Bridge")).toBeTruthy();
+    expect(screen.queryByText(/<img/)).toBeNull();
+    fireEvent.press(screen.getByLabelText("Open note image 1"));
+    expect(screen.queryByRole("button", { name: "Zoom in" })).toBeNull();
+    const gesture = responderSpy.mock.calls.at(-1)![0];
+    const touches = (distance: number): GestureResponderEvent => {
+      const point = (pageX: number, identifier: number): GestureResponderEvent["nativeEvent"] => ({
+        pageX, pageY: 200, locationX: pageX, locationY: 200,
+        identifier, target: 1, timestamp: 0, touches: [], changedTouches: [],
+      });
+      const points = [point(150 - distance / 2, 0), point(150 + distance / 2, 1)];
+      return {
+        nativeEvent: { ...points[0], touches: points, changedTouches: points },
+        bubbles: true, cancelable: true, currentTarget: 1, target: 1,
+        defaultPrevented: false, eventPhase: 3, isTrusted: true, timeStamp: 0,
+        type: "touchMove", dispatchConfig: { registrationName: "onPanResponderMove" },
+        preventDefault: jest.fn(), isDefaultPrevented: () => false,
+        stopPropagation: jest.fn(), isPropagationStopped: () => false, persist: jest.fn(),
+        touchHistory: { indexOfSingleActiveTouch: -1, mostRecentTimeStamp: 0, numberActiveTouches: 2, touchBank: [] },
+      };
+    };
+    const state = {} as PanResponderGestureState;
+    act(() => gesture.onPanResponderGrant?.(touches(100), state));
+    act(() => gesture.onPanResponderMove?.(touches(200), state));
+    expect(screen.getByText("Pinch to zoom · 200%")).toBeTruthy();
+    act(() => gesture.onPanResponderMove?.(touches(100), state));
+    expect(screen.getByText("Pinch to zoom · 100%")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Remove image"));
+    await waitFor(() => expect(onRemoveImage).toHaveBeenCalledWith(0));
+    await waitFor(() => expect(screen.queryByLabelText("Expanded note image")).toBeNull());
+    responderSpy.mockRestore();
   });
 
   it("keeps typed formatting and link markup literal throughout plain editing and reopening", () => {
@@ -400,15 +477,15 @@ describe("FormattedNote", () => {
     )!;
 
     fireEvent(frame, "layout", { nativeEvent: { layout: { height: 318 } } });
-    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(314);
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style)?.height).toBe(314);
     expect(mockVisualEditorProps?.appearance.minHeight).toBe(314);
 
     fireEvent(frame, "layout", { nativeEvent: { layout: { height: 158 } } });
-    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(154);
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style)?.height).toBe(154);
     expect(mockVisualEditorProps?.appearance.minHeight).toBe(154);
 
     fireEvent(frame, "layout", { nativeEvent: { layout: { height: 0 } } });
-    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style).height).toBe(154);
+    expect(StyleSheet.flatten(mockVisualEditorProps?.dom?.style)?.height).toBe(154);
   });
 
   it("unlinks a visual selection from the toolbar and removes a whole link explicitly", async () => {

@@ -1,3 +1,5 @@
+import type { TextInputInstance } from "react-native";
+import { scheduleIdleTask } from "../../../src/utils/scheduleIdleTask";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   startTransition,
@@ -9,7 +11,6 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
-  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -29,6 +30,8 @@ import {
   type FormattedNoteEditorHandle,
 } from "../../../src/components/formatted-note";
 import { parseFormattedNote } from "../../../src/utils/note-formatting";
+import { showStudyMaterialPermissionAlert } from "../../../src/utils/study-material-permission-alert";
+import { joinNoteImages, splitNoteImages } from "../../../shared/note-images";
 import { getNoteVisualEditorRunsSignature } from "../../../src/components/note-visual-editor-model";
 import { useSubjectLists } from "../../../src/hooks/useSubjectLists";
 import {
@@ -55,38 +58,7 @@ import { useIsNoteSubjectPreviewOpen } from "../../../src/utils/note-subject-pre
 import { doesReviewShortcutMatchKey, resolveReviewIncorrectKeyboardShortcuts } from "../../../src/utils/reviewKeyboardShortcuts";
 
 type ProgressionStatus = "loading" | "success" | "offline";
-type DeferredTaskHandle = {
-  cancel: () => void;
-};
 const PROGRESSION_REQUEST_TIMEOUT_MS = 9000;
-
-function scheduleTaskAfterInteractions(
-  task: () => void,
-  fallbackDelayMs = 350
-): DeferredTaskHandle {
-  let completed = false;
-  const fallbackTimeout = setTimeout(() => {
-    if (completed) return;
-    completed = true;
-    task();
-  }, fallbackDelayMs);
-
-  const interactionTask = InteractionManager.runAfterInteractions(() => {
-    if (completed) return;
-    completed = true;
-    clearTimeout(fallbackTimeout);
-    task();
-  });
-
-  return {
-    cancel: () => {
-      if (completed) return;
-      completed = true;
-      clearTimeout(fallbackTimeout);
-      interactionTask.cancel?.();
-    },
-  };
-}
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -142,6 +114,7 @@ export default function SubjectDetailsScreen() {
   const [noteType, setNoteType] = useState<"meaning" | "reading">("meaning");
   const [noteText, setNoteText] = useState("");
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [noteImageComposerOpen, setNoteImageComposerOpen] = useState(false);
   const [progressionStatus, setProgressionStatus] =
     useState<ProgressionStatus>("loading");
   const {
@@ -150,11 +123,11 @@ export default function SubjectDetailsScreen() {
   } = useSubjectLists();
   const requestIdRef = useRef(0);
   const studyMaterialRevisionRef = useRef(0);
-  const deferredTaskRef = useRef<DeferredTaskHandle | null>(null);
+  const deferredTaskRef = useRef<ReturnType<typeof scheduleIdleTask> | null>(null);
   const noteEditorRef = useRef<FormattedNoteEditorHandle>(null);
   const originalNoteSignatureRef = useRef("");
   const checkingNoteChangesRef = useRef(false);
-  const returnShortcutInputRef = useRef<TextInput>(null);
+  const returnShortcutInputRef = useRef<TextInputInstance>(null);
   const returningToReviewRef = useRef(false);
   const screenFocused = useOptionalScreenIsFocused();
   const noteSubjectPreviewOpen = useIsNoteSubjectPreviewOpen();
@@ -602,13 +575,13 @@ export default function SubjectDetailsScreen() {
       };
 
       // Execute fetches
-      deferredTaskRef.current = scheduleTaskAfterInteractions(() => {
+      deferredTaskRef.current = scheduleIdleTask(() => {
         if (!isCurrentRequest()) {
           return;
         }
         void fetchProgressionData();
         void fetchRelatedSubjects();
-      });
+      }, 350);
 
       setInitialLoading(false);
     } catch (error) {
@@ -644,7 +617,7 @@ export default function SubjectDetailsScreen() {
     [router, from]
   );
 
-  const handleSaveNote = async () => {
+  const handleSaveNote = async (imageUpdate?: { type: "meaning" | "reading"; text: string }) => {
     if (!apiToken || !id || !subjectData) return;
 
     const subjectId = parseInt(id as string, 10);
@@ -653,13 +626,13 @@ export default function SubjectDetailsScreen() {
     setIsSavingNote(true);
     try {
       const currentNoteText =
-        (await noteEditorRef.current?.flush()) ?? noteText;
-      if (currentNoteText !== noteText) {
+        imageUpdate?.text ?? (await noteEditorRef.current?.flush()) ?? noteText;
+      if (!imageUpdate && currentNoteText !== noteText) {
         setNoteText(currentNoteText);
       }
       // Prepare updates for the note
       const updates: any = {};
-      if (noteType === "meaning") {
+      if ((imageUpdate?.type ?? noteType) === "meaning") {
         updates.meaning_note = currentNoteText;
       } else {
         updates.reading_note = currentNoteText;
@@ -715,8 +688,10 @@ export default function SubjectDetailsScreen() {
         mergeStudyMaterialUpdate(currentMaterial, savedMaterial, updates, subjectId)
       );
 
-      setShowNoteModal(false);
+      if (!imageUpdate) setShowNoteModal(false);
     } catch (error) {
+      if (imageUpdate) throw error;
+      if (showStudyMaterialPermissionAlert(error)) return;
       Alert.alert(
         "Error",
         `Failed to save note: ${
@@ -728,7 +703,13 @@ export default function SubjectDetailsScreen() {
     }
   };
 
+  const handleRemoveNoteImage = async (type: "meaning" | "reading", index: number) => {
+    const note = splitNoteImages(studyMaterial?.data?.[`${type}_note`] ?? "");
+    await handleSaveNote({ type, text: joinNoteImages(note.text, note.images.filter((_, position) => position !== index)) });
+  };
+
   const handleEditNote = (type: "meaning" | "reading") => {
+    setNoteImageComposerOpen(false);
     setNoteEditorSession((session) => session + 1);
     setNoteType(type);
     const initialNoteText =
@@ -862,7 +843,9 @@ export default function SubjectDetailsScreen() {
       meaningIncorrect,
       percentageCorrect: reviewStatistics?.data?.percentage_correct || 100,
       nextReviewAt,
+      burnedAt: assignmentData?.data?.burned_at,
       onEditNote: () => handleEditNote("meaning"),
+      onRemoveNoteImage: (index: number) => handleRemoveNoteImage("meaning", index),
     };
   };
 
@@ -941,7 +924,9 @@ export default function SubjectDetailsScreen() {
       readingMaxStreak,
       percentageCorrect: reviewStatistics?.data?.percentage_correct || 100,
       nextReviewAt,
+      burnedAt: assignmentData?.data?.burned_at,
       onEditNote: handleEditNote,
+      onRemoveNoteImage: handleRemoveNoteImage,
     };
   };
 
@@ -1010,7 +995,9 @@ export default function SubjectDetailsScreen() {
       readingMaxStreak,
       percentageCorrect: reviewStatistics?.data?.percentage_correct || 100,
       nextReviewAt,
+      burnedAt: assignmentData?.data?.burned_at,
       onEditNote: handleEditNote,
+      onRemoveNoteImage: handleRemoveNoteImage,
     };
   };
 
@@ -1115,6 +1102,8 @@ export default function SubjectDetailsScreen() {
             ]}
             value={noteText}
             onChangeText={setNoteText}
+            onImageComposerOpenChange={setNoteImageComposerOpen}
+            editable={!isSavingNote}
             accessibilityLabel={`${
               noteType === "meaning" ? "Meaning" : "Reading"
             } note text`}
@@ -1138,15 +1127,19 @@ export default function SubjectDetailsScreen() {
                 styles.modalButton,
                 styles.saveButton,
                 { backgroundColor: theme.primary },
+                { opacity: noteImageComposerOpen ? 0.45 : 1 },
               ]}
-              onPress={handleSaveNote}
-              disabled={isSavingNote}
+              onPress={() => { void handleSaveNote(); }}
+              accessibilityRole="button"
+              accessibilityLabel="Save note"
+              disabled={isSavingNote || noteImageComposerOpen}
+              accessibilityState={{ disabled: isSavingNote || noteImageComposerOpen }}
             >
               {isSavingNote ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Text style={[styles.modalButtonText, { color: "white" }]}>
-                  Save
+                  Save note
                 </Text>
               )}
             </TouchableOpacity>

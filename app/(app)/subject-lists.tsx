@@ -1,7 +1,7 @@
 import { useLearningDisplay } from "../../src/features/translation-packages/display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import type { GestureResponderEvent } from "react-native";

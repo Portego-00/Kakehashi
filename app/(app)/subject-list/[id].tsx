@@ -1,3 +1,4 @@
+import type { FlatListInstance } from "react-native";
 import { useLearningDisplay } from "../../../src/features/translation-packages/display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +14,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -20,7 +22,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import { SvgXml } from "react-native-svg";
 import {
   createDefaultSearchFilters,
@@ -30,6 +32,8 @@ import {
 import { CommonFilterModal } from "../../../src/components/CommonFilterModal";
 import { matchesVocabularyTypes } from "../../../src/utils/vocabularyTypeFilter";
 import { useVocabularyFrequencyRanks } from "../../../src/hooks/useVocabularyFrequencyRanks";
+import { useSubjectListAudio } from "../../../src/hooks/use-subject-list-audio";
+import { hasPronunciationAudio, type PronunciationAudioVoicePreference } from "../../../src/utils/pronunciationAudio";
 import { matchesMaximumFrequencyRank } from "../../../src/utils/customReviewFrequencyFilter";
 import { FrequencyLookupProgress } from "../../../src/components/FrequencyLookupProgress";
 import { GlassButton } from "../../../src/components/GlassButton";
@@ -81,8 +85,22 @@ import {
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 const DEFAULT_ACTIVE_SRS_STAGES = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+const SUBJECT_PAGE_SIZE = 250;
 const HIDE_MEANINGS_STORAGE_KEY = "subject_list_hide_meanings";
+const AUDIO_VOICE_STORAGE_KEY = "subject_list_audio_voice";
+const AUDIO_VOICE_SECTIONS = [{
+  id: "voice",
+  title: "Voice for subject list audio",
+  options: [
+    { id: "female", label: "Female" },
+    { id: "male", label: "Male" },
+    { id: "random", label: "Random" },
+    { id: "both", label: "Both" },
+  ],
+}];
 const SELECTED_SUBJECT_SORT_SECTIONS = [
   {
     id: "sortMode",
@@ -91,6 +109,12 @@ const SELECTED_SUBJECT_SORT_SECTIONS = [
   },
 ];
 type SubjectListEditorTab = "browse" | "selected";
+type ListMenuAction = {
+  text: string;
+  onPress?: () => void;
+  style?: "default" | "destructive" | "cancel";
+  systemImage?: string;
+};
 
 function setsEqual(a: Set<number>, b: Set<number>): boolean {
   if (a.size !== b.size) return false;
@@ -110,7 +134,7 @@ export default function SubjectListEditorScreen() {
   const { theme } = useTheme();
   const display = useLearningDisplay();
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<Subject>>(null);
+  const listRef = useRef<FlatListInstance>(null);
   const tabScrollOffsetsRef = useRef<Record<SubjectListEditorTab, number>>({
     browse: 0,
     selected: 0,
@@ -133,9 +157,16 @@ export default function SubjectListEditorScreen() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<SubjectListEditorTab>("browse");
+  const [browseSubjectLimit, setBrowseSubjectLimit] = useState(SUBJECT_PAGE_SIZE);
+  const [selectedSubjectLimit, setSelectedSubjectLimit] = useState(SUBJECT_PAGE_SIZE);
   const [showFilters, setShowFilters] = useState(false);
   const [showSelectedSortModal, setShowSelectedSortModal] = useState(false);
   const [hideMeanings, setHideMeanings] = useState<boolean | null>(null);
+  const [listAudioVoice, setListAudioVoice] = useState<PronunciationAudioVoicePreference | null>(null);
+  const [showAudioVoiceModal, setShowAudioVoiceModal] = useState(false);
+  const [fallbackMenu, setFallbackMenu] = useState<"list" | "selection" | null>(null);
+  const audio = useSubjectListAudio(isScreenFocused && listAudioVoice !== null);
+  const audioVoiceValues = useMemo(() => ({ voice: listAudioVoice }), [listAudioVoice]);
   const [selectedSubjectSortMode, setSelectedSubjectSortMode] =
     useState<SubjectListItemSortMode>(DEFAULT_SUBJECT_LIST_ITEM_SORT_MODE);
   const [filters, setFilters] = useState<SearchFilters>(() => {
@@ -156,6 +187,18 @@ export default function SubjectListEditorScreen() {
   const [isCacheMissing, setIsCacheMissing] = useState(false);
   const [isRebuildingCache, setIsRebuildingCache] = useState(false);
   const [cacheRebuildProgress, setCacheRebuildProgress] = useState(0);
+
+  const updateSearchQuery = (query: string) => {
+    setSearchQuery(query);
+    setBrowseSubjectLimit(SUBJECT_PAGE_SIZE);
+    setSelectedSubjectLimit(SUBJECT_PAGE_SIZE);
+  };
+
+  const updateFilters = useCallback((nextFilters: React.SetStateAction<SearchFilters>) => {
+    setFilters(nextFilters);
+    setBrowseSubjectLimit(SUBJECT_PAGE_SIZE);
+    setSelectedSubjectLimit(SUBJECT_PAGE_SIZE);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -184,6 +227,21 @@ export default function SubjectListEditorScreen() {
 
   useEffect(() => {
     let isMounted = true;
+    AsyncStorage.getItem(AUDIO_VOICE_STORAGE_KEY)
+      .then((stored) => {
+        if (isMounted) setListAudioVoice(
+          stored === "male" || stored === "random" || stored === "both" ? stored : "female",
+        );
+      })
+      .catch((error) => {
+        console.warn("Failed to load subject list audio preference:", error);
+        if (isMounted) setListAudioVoice("female");
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
 
     AsyncStorage.getItem(SUBJECT_LIST_ITEM_SORT_STORAGE_KEY)
       .then((storedMode) => {
@@ -204,6 +262,7 @@ export default function SubjectListEditorScreen() {
   const updateSelectedSubjectSortMode = useCallback(
     (nextMode: SubjectListItemSortMode) => {
       setSelectedSubjectSortMode(nextMode);
+      setSelectedSubjectLimit(SUBJECT_PAGE_SIZE);
       AsyncStorage.setItem(SUBJECT_LIST_ITEM_SORT_STORAGE_KEY, nextMode).catch(
         (error) => {
           console.warn("Failed to save subject list sort preference:", error);
@@ -216,6 +275,8 @@ export default function SubjectListEditorScreen() {
   const loadList = useCallback(async () => {
     if (!id) return;
     setIsLoadingList(true);
+    setBrowseSubjectLimit(SUBJECT_PAGE_SIZE);
+    setSelectedSubjectLimit(SUBJECT_PAGE_SIZE);
     try {
       const lists = await getSubjectLists();
       const found = lists.find((entry) => entry.id === id);
@@ -389,28 +450,31 @@ export default function SubjectListEditorScreen() {
   });
 
   // Keep bulk selection in sync with the current rank before limiting visible rows.
-  const { filteredSubjects, matchingSubjectIds } = useMemo(() => {
-    const matchingSubjects = hasActiveFrequencyFilter
+  const matchingBrowseSubjects = useMemo(() =>
+    hasActiveFrequencyFilter
       ? isScanningFrequencyCache || !canUseFrequencyResults
         ? []
         : subjectsMatchingNonFrequencyFilters.filter((subject) =>
             frequencyRanks.has(subject.id) &&
             matchesMaximumFrequencyRank(frequencyRanks.get(subject.id), filters.maxFrequencyRank),
           )
-      : subjectsMatchingNonFrequencyFilters;
-
-    return {
-      filteredSubjects: matchingSubjects.slice(0, 250),
-      matchingSubjectIds: matchingSubjects.map((subject) => subject.id),
-    };
-  }, [
+      : subjectsMatchingNonFrequencyFilters,
+  [
     canUseFrequencyResults, filters.maxFrequencyRank, frequencyRanks,
     hasActiveFrequencyFilter, isScanningFrequencyCache, subjectsMatchingNonFrequencyFilters,
   ]);
+  const matchingSubjectIds = useMemo(
+    () => matchingBrowseSubjects.map((subject) => subject.id),
+    [matchingBrowseSubjects],
+  );
+  const filteredSubjects = useMemo(
+    () => matchingBrowseSubjects.slice(0, browseSubjectLimit),
+    [matchingBrowseSubjects, browseSubjectLimit],
+  );
 
   const clearFrequencyFilter = () => {
     resetFrequencyLookupState();
-    setFilters((previous) => ({ ...previous, maxFrequencyRank: null }));
+    updateFilters((previous) => ({ ...previous, maxFrequencyRank: null }));
   };
   const hasUnsavedChanges = useMemo(() => {
     const normalizedName = listName.trim();
@@ -534,7 +598,10 @@ export default function SubjectListEditorScreen() {
     subjectSrsStageMap,
   ]);
 
-  const selectedSubjects = useMemo(() => matchingListSubjects.slice(0, 250), [matchingListSubjects]);
+  const selectedSubjects = useMemo(
+    () => matchingListSubjects.slice(0, selectedSubjectLimit),
+    [matchingListSubjects, selectedSubjectLimit],
+  );
   const allMatchingActionSelected = matchingListSubjects.length > 0 &&
     matchingListSubjects.every((subject) => actionSubjectIds.has(subject.id));
   const hasListFilters = searchQuery.trim().length > 0 || filters.vocabularyTypes.length > 0;
@@ -611,6 +678,16 @@ export default function SubjectListEditorScreen() {
 
   const activeTabItemCount =
     activeTab === "browse" ? filteredSubjects.length : selectedSubjects.length;
+  const activeTabMatchCount =
+    activeTab === "browse" ? matchingBrowseSubjects.length : matchingListSubjects.length;
+  const hasMoreSubjects = activeTabItemCount < activeTabMatchCount;
+  const loadMoreSubjects = () => {
+    if (activeTab === "browse") {
+      setBrowseSubjectLimit((previous) => previous + SUBJECT_PAGE_SIZE);
+    } else {
+      setSelectedSubjectLimit((previous) => previous + SUBJECT_PAGE_SIZE);
+    }
+  };
 
   useLayoutEffect(() => {
     if (pendingTabScrollRestoreRef.current !== activeTab) {
@@ -628,7 +705,7 @@ export default function SubjectListEditorScreen() {
     return getSubjectTypeColor(itemType as any);
   };
 
-  const SubjectRadicalCharacter = ({ item }: { item: Subject }) => {
+  const SubjectRadicalCharacter = ({ item, meaningHidden = hideMeanings }: { item: Subject; meaningHidden?: boolean | null }) => {
     const bestImg = pickBestImage(item.data.character_images || undefined);
     const svgUrl = bestImg?.type === "svg" ? bestImg.url : null;
     const svgXml = useRemoteSvg(svgUrl, "#ffffff");
@@ -667,7 +744,7 @@ export default function SubjectListEditorScreen() {
     }
     return (
       <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-        {hideMeanings ? "?" : display.meaning(item, item.data.meanings[0].meaning)}
+        {meaningHidden ? "?" : display.meaning(item, item.data.meanings[0].meaning)}
       </Text>
     );
   };
@@ -769,8 +846,11 @@ export default function SubjectListEditorScreen() {
     );
   };
 
-  const startStandardReview = async () => {
-    if (selectedSubjectIds.size === 0 || !(await prepareListForStudy())) {
+  const startCustomReview = async (
+    reviewMode: "standard" | "flashcard",
+    subjectIds = Array.from(selectedSubjectIds),
+  ) => {
+    if (subjectIds.length === 0 || !(await prepareListForStudy())) {
       return;
     }
 
@@ -780,7 +860,8 @@ export default function SubjectListEditorScreen() {
     router.push({
       pathname: "/custom-review",
       params: {
-        subjectIds: Array.from(selectedSubjectIds.values()).join(","),
+        subjectIds: subjectIds.join(","),
+        reviewMode,
       },
     });
   };
@@ -936,9 +1017,10 @@ export default function SubjectListEditorScreen() {
     }
   };
 
-  const openHeaderMenu = () => {
-    const actions: Parameters<typeof Alert.alert>[2] = [
+  const getHeaderMenuActions = () => {
+    const actions: ListMenuAction[] = [
       { text: hideMeanings ? "Show Meanings" : "Hide Meanings", onPress: toggleMeaningVisibility },
+      { text: "List Audio Voice", onPress: () => setShowAudioVoiceModal(true) },
       { text: "Sort Items", onPress: handleOpenSelectedSort },
       { text: "Rename", onPress: handleStartRename },
     ];
@@ -956,7 +1038,71 @@ export default function SubjectListEditorScreen() {
       { text: "Cancel", style: "cancel" }
     );
 
-    Alert.alert(listName || "List options", undefined, actions);
+    return actions;
+  };
+
+  const selectionActionsDisabled = selectedActionSubjectIds.length === 0 || isSaving;
+  const selectionMenuActions: ListMenuAction[] = [
+    { text: "Remove Selected", systemImage: "minus.circle", style: "destructive", onPress: removeSelectedSubjects },
+    { text: "Transfer Selected", systemImage: "arrow.left.arrow.right", onPress: () => void handleOpenTransfer(selectedActionSubjectIds) },
+    { text: "Review Selected", systemImage: "checkmark.circle", onPress: () => void startCustomReview("standard", selectedActionSubjectIds) },
+    { text: "Flashcard Selected", systemImage: "rectangle.on.rectangle", onPress: () => void startCustomReview("flashcard", selectedActionSubjectIds) },
+  ];
+
+  const renderSelectionMenu = () => {
+    const trigger = (
+      <GlassButton
+        iconName="ellipsis-horizontal"
+        iconColor={selectionActionsDisabled ? theme.textSecondary : theme.textColor}
+        style={styles.headerIconButton}
+        variant={theme.isDark ? "colored" : "light"}
+      />
+    );
+    if (selectionActionsDisabled) {
+      return (
+        <View
+          accessibilityRole="button"
+          accessibilityLabel="Selected item actions"
+          accessibilityState={{ disabled: true }}
+          style={{ opacity: 0.45 }}
+        >
+          {trigger}
+        </View>
+      );
+    }
+    if (Platform.OS === "ios" && SwiftUI) {
+      return (
+        <SwiftUI.Host matchContents style={styles.headerIconButton}>
+          <SwiftUI.Menu modifiers={[SwiftUIModifiers.buttonStyle("plain")]} label={
+            <SwiftUI.RNHostView matchContents>
+              <View accessibilityLabel="Selected item actions" accessibilityRole="button">
+                {trigger}
+              </View>
+            </SwiftUI.RNHostView>
+          }>
+            {selectionMenuActions.map((action) => (
+              <SwiftUI.Button
+                key={action.text}
+                label={action.text}
+                systemImage={action.systemImage}
+                role={action.style === "destructive" ? "destructive" : undefined}
+                onPress={() => { if (!selectionActionsDisabled) action.onPress?.(); }}
+              />
+            ))}
+          </SwiftUI.Menu>
+        </SwiftUI.Host>
+      );
+    }
+    return (
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Selected item actions"
+        accessibilityState={{ disabled: false }}
+        onPress={() => setFallbackMenu("selection")}
+      >
+        {trigger}
+      </TouchableOpacity>
+    );
   };
 
   const handleBack = () => {
@@ -970,13 +1116,37 @@ export default function SubjectListEditorScreen() {
     ]);
   };
 
+  const renderAudioButton = (item: Subject) => {
+    if ((item.object !== "vocabulary" && item.object !== "kana_vocabulary") ||
+        !hasPronunciationAudio(item.data.pronunciation_audios)) return null;
+    const isActive = audio.activeSubjectId === item.id;
+    return (
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={`${isActive ? "Stop" : "Play"} pronunciation for ${item.data.characters?.trim() || `${item.object} ${item.id}`}`}
+        accessibilityState={{ busy: isActive && audio.loading }}
+        style={styles.audioButton}
+        onPress={(event) => {
+          event.stopPropagation();
+          void audio.play(item, listAudioVoice ?? "female");
+        }}
+      >
+        {isActive && audio.loading ? (
+          <ActivityIndicator size="small" color={theme.primary} />
+        ) : (
+          <Ionicons name={isActive ? "stop-circle-outline" : "volume-medium-outline"} size={22} color={theme.primary} />
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   const renderBrowseSubjectItem = ({ item }: { item: Subject }) => {
     const isSelected = selectedSubjectIds.has(item.id);
     const typeColor = getItemTypeColor(item.object);
     const srsStage = subjectSrsStageMap.get(item.id) ?? 0;
     const jlptLevel = getJLPTLevelForSubject(item);
     return (
-      <TouchableOpacity
+      <View
         style={[
           styles.itemContainer,
           { backgroundColor: theme.cardBackground },
@@ -986,74 +1156,79 @@ export default function SubjectListEditorScreen() {
             backgroundColor: `${typeColor}14`,
           },
         ]}
-        onPress={() => toggleSubjectSelection(item)}
-        activeOpacity={0.75}
       >
         <TouchableOpacity
-          style={[
-            styles.itemBox,
-            { backgroundColor: typeColor },
-            (item.object === "vocabulary" ||
-              item.object === "kana_vocabulary") &&
-              item.data.characters &&
-              item.data.characters.length > 1 && {
-                width: 48 + (item.data.characters.length - 2) * 24 + 16,
-              },
-          ]}
-          onPress={(event) => {
-            event.stopPropagation();
-            handleSubjectTilePress(item);
-          }}
-          activeOpacity={0.8}
+          style={styles.subjectSelection}
+          accessible={false}
+          onPress={() => toggleSubjectSelection(item)}
+          activeOpacity={0.75}
         >
-          {item.object === "radical" ? (
-            <SubjectRadicalCharacter item={item} />
-          ) : (
-            <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-              {item.data.characters || (hideMeanings ? "?" : display.meaning(item, item.data.meanings[0].meaning))}
-            </Text>
-          )}
-        </TouchableOpacity>
-        <View style={styles.itemDetails}>
-          <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {hideMeanings ? " " : display.meaning(item, item.data.meanings[0].meaning)}
-          </Text>
-          <View style={styles.itemMetadata}>
-            <Text style={[styles.itemType, { color: theme.textSecondary }]}>
-              {item.object}
-            </Text>
-            {jlptLevel && (
-              <Text style={[styles.itemType, { color: theme.textSecondary }]}>
-                {jlptLevel}
+          <TouchableOpacity
+            style={[
+              styles.itemBox,
+              { backgroundColor: typeColor },
+              (item.object === "vocabulary" ||
+                item.object === "kana_vocabulary") &&
+                item.data.characters &&
+                item.data.characters.length > 1 && {
+                  width: 48 + (item.data.characters.length - 2) * 24 + 16,
+                },
+            ]}
+            onPress={(event) => {
+              event.stopPropagation();
+              handleSubjectTilePress(item);
+            }}
+            activeOpacity={0.8}
+          >
+            {item.object === "radical" ? (
+              <SubjectRadicalCharacter item={item} />
+            ) : (
+              <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.itemCharacter, fontStyles.japaneseText]}>
+                {item.data.characters || (hideMeanings ? "?" : display.meaning(item, item.data.meanings[0].meaning))}
               </Text>
             )}
-            <Text style={[styles.itemLevel, { color: theme.textLight }]}>
-              {formatLevelWithSrsStage(item.data.level, srsStage)}
+          </TouchableOpacity>
+          <View style={styles.itemDetails}>
+            <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
+              {hideMeanings ? " " : display.meaning(item, item.data.meanings[0].meaning)}
             </Text>
+            <View style={styles.itemMetadata}>
+              <Text style={[styles.itemType, { color: theme.textSecondary }]}>
+                {item.object}
+              </Text>
+              {jlptLevel && (
+                <Text style={[styles.itemType, { color: theme.textSecondary }]}>
+                  {jlptLevel}
+                </Text>
+              )}
+              <Text style={[styles.itemLevel, { color: theme.textLight }]}>
+                {formatLevelWithSrsStage(item.data.level, srsStage)}
+              </Text>
+            </View>
           </View>
-        </View>
-        <Ionicons
-          name={isSelected ? "checkbox" : "square-outline"}
-          size={22}
-          color={isSelected ? typeColor : theme.textSecondary}
-        />
-      </TouchableOpacity>
+        </TouchableOpacity>
+        {renderAudioButton(item)}
+        <TouchableOpacity
+          style={styles.checkboxButton}
+          accessibilityRole="checkbox"
+          accessibilityLabel={`Include ${hideMeanings ? item.data.characters?.trim() || `${item.object} ${item.id}` : display.meaning(item, item.data.meanings[0].meaning)} in this list`}
+          accessibilityState={{ checked: isSelected }}
+          onPress={() => toggleSubjectSelection(item)}
+        >
+          <Ionicons name={isSelected ? "checkbox" : "square-outline"} size={22} color={isSelected ? typeColor : theme.textSecondary} />
+        </TouchableOpacity>
+      </View>
     );
   };
 
   const renderSelectedSubjectItem = ({ item }: { item: Subject }) => {
     const isActionSelected = actionSubjectIds.has(item.id);
+    const meaningHidden = hideMeanings && !isActionSelected;
     const typeColor = getItemTypeColor(item.object);
     const srsStage = subjectSrsStageMap.get(item.id) ?? 0;
     const jlptLevel = getJLPTLevelForSubject(item);
     return (
-      <TouchableOpacity
-        accessibilityRole="checkbox"
-        accessibilityLabel={`Select ${hideMeanings ? item.data.characters?.trim() || `${item.object} ${item.id}` : display.meaning(item, item.data.meanings[0].meaning)} for list actions`}
-        accessibilityState={{ checked: isActionSelected, disabled: isSaving }}
-        disabled={isSaving}
-        onPress={() => toggleActionSubject(item.id)}
-        activeOpacity={0.8}
+      <View
         style={[
           styles.selectedItemContainer,
           {
@@ -1063,58 +1238,72 @@ export default function SubjectListEditorScreen() {
         ]}
       >
         <TouchableOpacity
-          style={[
-            styles.itemBox,
-            { backgroundColor: typeColor },
-            (item.object === "vocabulary" ||
-              item.object === "kana_vocabulary") &&
-              item.data.characters &&
-              item.data.characters.length > 1 && {
-                width: 48 + (item.data.characters.length - 2) * 24 + 16,
-              },
-          ]}
-          onPress={(event) => {
-            event.stopPropagation();
-            handleSubjectTilePress(item);
-          }}
+          style={styles.subjectSelection}
+          accessible={false}
+          disabled={isSaving}
+          onPress={() => toggleActionSubject(item.id)}
           activeOpacity={0.8}
         >
-          {item.object === "radical" ? (
-            <SubjectRadicalCharacter item={item} />
-          ) : (
-            <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-              {item.data.characters || (hideMeanings ? "?" : display.meaning(item, item.data.meanings[0].meaning))}
-            </Text>
-          )}
-        </TouchableOpacity>
-        <View style={styles.itemDetails}>
-          <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {hideMeanings ? " " : display.meaning(item, item.data.meanings[0].meaning)}
-          </Text>
-          <View style={styles.itemMetadata}>
-            <Text style={[styles.itemType, { color: theme.textSecondary }]}>
-              {item.object}
-            </Text>
-            {jlptLevel && (
-              <Text style={[styles.itemType, { color: theme.textSecondary }]}>
-                {jlptLevel}
+          <TouchableOpacity
+            style={[
+              styles.itemBox,
+              { backgroundColor: typeColor },
+              (item.object === "vocabulary" ||
+                item.object === "kana_vocabulary") &&
+                item.data.characters &&
+                item.data.characters.length > 1 && {
+                  width: 48 + (item.data.characters.length - 2) * 24 + 16,
+                },
+            ]}
+            onPress={(event) => {
+              event.stopPropagation();
+              handleSubjectTilePress(item);
+            }}
+            activeOpacity={0.8}
+          >
+            {item.object === "radical" ? (
+              <SubjectRadicalCharacter item={item} meaningHidden={meaningHidden} />
+            ) : (
+              <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.itemCharacter, fontStyles.japaneseText]}>
+                {item.data.characters || (meaningHidden ? "?" : display.meaning(item, item.data.meanings[0].meaning))}
               </Text>
             )}
-            <Text style={[styles.itemLevel, { color: theme.textLight }]}>
-              {formatLevelWithSrsStage(item.data.level, srsStage)}
+          </TouchableOpacity>
+          <View style={styles.itemDetails}>
+            <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
+              {meaningHidden ? " " : display.meaning(item, item.data.meanings[0].meaning)}
             </Text>
+            <View style={styles.itemMetadata}>
+              <Text style={[styles.itemType, { color: theme.textSecondary }]}>
+                {item.object}
+              </Text>
+              {jlptLevel && (
+                <Text style={[styles.itemType, { color: theme.textSecondary }]}>
+                  {jlptLevel}
+                </Text>
+              )}
+              <Text style={[styles.itemLevel, { color: theme.textLight }]}>
+                {formatLevelWithSrsStage(item.data.level, srsStage)}
+              </Text>
+            </View>
           </View>
-        </View>
-        <Ionicons
-          name={isActionSelected ? "checkbox" : "square-outline"}
-          size={24}
-          color={isActionSelected ? theme.primary : theme.textSecondary}
-        />
-      </TouchableOpacity>
+        </TouchableOpacity>
+        {renderAudioButton(item)}
+        <TouchableOpacity
+          style={styles.checkboxButton}
+          accessibilityRole="checkbox"
+          accessibilityLabel={`Select ${meaningHidden ? item.data.characters?.trim() || `${item.object} ${item.id}` : display.meaning(item, item.data.meanings[0].meaning)} for list actions`}
+          accessibilityState={{ checked: isActionSelected, disabled: isSaving }}
+          disabled={isSaving}
+          onPress={() => toggleActionSubject(item.id)}
+        >
+          <Ionicons name={isActionSelected ? "checkbox" : "square-outline"} size={24} color={isActionSelected ? theme.primary : theme.textSecondary} />
+        </TouchableOpacity>
+      </View>
     );
   };
 
-  if (isLoadingList || !list || hideMeanings === null) {
+  if (isLoadingList || !list || hideMeanings === null || listAudioVoice === null) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundColor }]}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -1153,7 +1342,8 @@ export default function SubjectListEditorScreen() {
               selectedKanjiCount={selectedKanjiIds.length}
               hasSelectedLists
               triggerStyle={styles.headerIconButton}
-              onStandardReview={startStandardReview}
+              onStandardReview={() => startCustomReview("standard")}
+              onFlashcardReview={() => startCustomReview("flashcard")}
               onKanjiMatch={startKanjiMatch}
               onCustomLessons={startCustomLessons}
               onRandomTest={() => openListStudyConfig("/test-config")}
@@ -1167,6 +1357,7 @@ export default function SubjectListEditorScreen() {
             {Platform.OS === "ios" && SwiftUI ? (
               <SwiftUI.Host matchContents style={styles.headerIconButton}>
                 <SwiftUI.Menu
+                  modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
                   label={
                     <SwiftUI.RNHostView matchContents>
                       <GlassButton
@@ -1182,6 +1373,11 @@ export default function SubjectListEditorScreen() {
                     label={hideMeanings ? "Show Meanings" : "Hide Meanings"}
                     systemImage={hideMeanings ? "eye" : "eye.slash"}
                     onPress={toggleMeaningVisibility}
+                  />
+                  <SwiftUI.Button
+                    label="List Audio Voice"
+                    systemImage="person.wave.2"
+                    onPress={() => setShowAudioVoiceModal(true)}
                   />
                   <SwiftUI.Button
                     label="Sort Items"
@@ -1212,7 +1408,7 @@ export default function SubjectListEditorScreen() {
             ) : (
               <GlassButton
                 iconName="ellipsis-horizontal"
-                onPress={openHeaderMenu}
+                onPress={() => setFallbackMenu("list")}
                 iconColor={theme.textColor}
                 style={styles.headerIconButton}
                 variant={theme.isDark ? "colored" : "light"}
@@ -1282,7 +1478,7 @@ export default function SubjectListEditorScreen() {
             <Ionicons name="search" size={18} color={theme.textSecondary} />
             <TextInput
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={updateSearchQuery}
               placeholder={
                 activeTab === "browse"
                   ? "Search subjects..."
@@ -1292,7 +1488,7 @@ export default function SubjectListEditorScreen() {
               style={[styles.searchInput, { color: theme.textColor }]}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <TouchableOpacity onPress={() => updateSearchQuery("")}>
                 <Ionicons
                   name="close-circle"
                   size={20}
@@ -1301,22 +1497,20 @@ export default function SubjectListEditorScreen() {
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              { backgroundColor: theme.cardBackground, borderColor: theme.border },
-            ]}
+          <GlassButton
+            style={styles.filterButton}
+            iconName="options"
+            iconSize={20}
+            iconColor={filters.vocabularyTypes.length > 0 || (activeTab === "browse" && hasActiveFrequencyFilter) ? theme.primary : theme.textSecondary}
+            variant={theme.isDark ? "colored" : "light"}
             onPress={() => setShowFilters(true)}
-            accessibilityRole="button"
             accessibilityLabel={filters.vocabularyTypes.length > 0
               ? `Filters, ${filters.vocabularyTypes.length} vocabulary types selected`
               : "Filters"}
             accessibilityHint={activeTab === "browse" && hasActiveFrequencyFilter
               ? `Maximum word frequency rank ${filters.maxFrequencyRank!.toLocaleString()}`
               : undefined}
-          >
-            <Ionicons name="options" size={20} color={filters.vocabularyTypes.length > 0 || (activeTab === "browse" && hasActiveFrequencyFilter) ? theme.primary : theme.textSecondary} />
-          </TouchableOpacity>
+          />
         </View>
 
         {activeTab === "browse" ? (
@@ -1382,57 +1576,34 @@ export default function SubjectListEditorScreen() {
         ) : (
           <View style={styles.listActions}>
             <View style={styles.selectionSummary}>
-              <Text style={[styles.selectionCount, { color: theme.textSecondary }]}>
+              <Text style={[styles.selectionCount, { color: theme.textColor }]}>
                 {selectedActionSubjectIds.length} selected
               </Text>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityState={{ disabled: matchingListSubjects.length === 0 || isSaving }}
-                disabled={matchingListSubjects.length === 0 || isSaving}
-                onPress={toggleSelectAllListSubjects}
-                style={styles.selectAllButton}
-              >
-                <Text style={[styles.selectionCount, { color: theme.primary }]}>
-                  {allMatchingActionSelected
+              <View style={styles.selectionControls}>
+                <GlassButton
+                  accessibilityLabel={allMatchingActionSelected
                     ? hasListFilters ? "Deselect Filtered" : "Deselect All"
                     : hasListFilters ? "Select Filtered" : "Select All"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.selectedActionsRow}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Remove selected subjects from this list"
-                accessibilityState={{ disabled: selectedActionSubjectIds.length === 0 || isSaving }}
-                disabled={selectedActionSubjectIds.length === 0 || isSaving}
-                onPress={removeSelectedSubjects}
-                style={[
-                  styles.bulkActionButton,
-                  { backgroundColor: theme.cardBackground, borderColor: theme.border },
-                  (selectedActionSubjectIds.length === 0 || isSaving) && styles.bulkActionButtonDisabled,
-                ]}
-              >
-                <Ionicons name="remove-circle-outline" size={18} color={theme.error} />
-                <Text style={[styles.bulkActionText, { color: theme.error }]}>Remove Selected</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Transfer selected subjects to another list"
-                accessibilityState={{ disabled: selectedActionSubjectIds.length === 0 || isSaving }}
-                disabled={selectedActionSubjectIds.length === 0 || isSaving}
-                onPress={() => void handleOpenTransfer(selectedActionSubjectIds)}
-                style={[
-                  styles.bulkActionButton,
-                  { backgroundColor: theme.cardBackground, borderColor: theme.border },
-                  (selectedActionSubjectIds.length === 0 || isSaving) && styles.bulkActionButtonDisabled,
-                ]}
-              >
-                <Ionicons name="swap-horizontal-outline" size={18} color={theme.primary} />
-                <Text style={[styles.bulkActionText, { color: theme.primary }]}>Transfer Selected</Text>
-              </TouchableOpacity>
+                  accessibilityState={{ disabled: matchingListSubjects.length === 0 || isSaving }}
+                  disabled={matchingListSubjects.length === 0 || isSaving}
+                  iconName={allMatchingActionSelected ? "remove-circle-outline" : "checkmark-done-outline"}
+                  iconColor={matchingListSubjects.length === 0 || isSaving ? theme.textSecondary : theme.primary}
+                  iconSize={22}
+                  variant={theme.isDark ? "colored" : "light"}
+                  onPress={toggleSelectAllListSubjects}
+                  style={[styles.headerIconButton, (matchingListSubjects.length === 0 || isSaving) && styles.bulkActionButtonDisabled]}
+                />
+                {renderSelectionMenu()}
+              </View>
             </View>
           </View>
         )}
+
+        {audio.error ? (
+          <Text accessibilityRole="alert" style={{ color: theme.error, marginHorizontal: 16, marginBottom: 8 }}>
+            {audio.error}
+          </Text>
+        ) : null}
 
         {activeTab === "browse" && hasActiveFrequencyFilter && (!frequencyDataReady || frequencyLookupError) ? (
           <FrequencyLookupProgress
@@ -1501,6 +1672,22 @@ export default function SubjectListEditorScreen() {
             onScroll={handleListScroll}
             scrollEventThrottle={16}
             ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+            ListFooterComponent={hasMoreSubjects ? (
+              <View style={styles.loadMoreContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.loadMoreButton,
+                    { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Load more"
+                  accessibilityHint={`${activeTabItemCount} of ${activeTabMatchCount} subjects shown`}
+                  onPress={loadMoreSubjects}
+                >
+                  <Text style={[styles.loadMoreText, { color: theme.primary }]}>Load more</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
@@ -1628,7 +1815,7 @@ export default function SubjectListEditorScreen() {
           currentFilters={filters}
           onClose={() => setShowFilters(false)}
           onApply={(nextFilters) => {
-            setFilters(nextFilters);
+            updateFilters(nextFilters);
             setShowFilters(false);
           }}
           showJlptFilters
@@ -1636,6 +1823,56 @@ export default function SubjectListEditorScreen() {
           frequencyFiltersEnabled={showVocabularyFrequency}
           onEnableFrequencyFilters={() => setShowVocabularyFrequency(true)}
           subjects={allSubjects ?? []}
+        />
+        <Modal
+          visible={fallbackMenu !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setFallbackMenu(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { backgroundColor: theme.cardBackground, borderColor: theme.border, maxHeight: "85%" }]}>
+              <ScrollView>
+                <Text style={[styles.modalTitle, { color: theme.textColor }]}>
+                  {fallbackMenu === "selection" ? `${selectedActionSubjectIds.length} selected` : listName || "List options"}
+                </Text>
+                {(fallbackMenu === "selection"
+                  ? [...selectionMenuActions, { text: "Cancel", style: "cancel" as const }]
+                  : getHeaderMenuActions()).map((action) => (
+                  <TouchableOpacity
+                    key={action.text}
+                    accessibilityRole="button"
+                    style={styles.menuAction}
+                    onPress={() => {
+                      setFallbackMenu(null);
+                      if (fallbackMenu !== "selection" || !selectionActionsDisabled) action.onPress?.();
+                    }}
+                  >
+                    <Text style={{ color: action.style === "destructive" ? theme.error : theme.textColor, fontSize: 16 }}>
+                      {action.text}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+        <CommonFilterModal
+          visible={showAudioVoiceModal}
+          title="List Audio Voice"
+          currentValues={audioVoiceValues}
+          sections={AUDIO_VOICE_SECTIONS}
+          applyButtonLabel="Save Voice"
+          onClose={() => setShowAudioVoiceModal(false)}
+          onApply={({ voice }) => {
+            if (voice === "female" || voice === "male" || voice === "random" || voice === "both") {
+              audio.stop();
+              setListAudioVoice(voice);
+              AsyncStorage.setItem(AUDIO_VOICE_STORAGE_KEY, voice)
+                .catch((error) => console.warn("Failed to save subject list audio voice:", error));
+            }
+            setShowAudioVoiceModal(false);
+          }}
         />
         <CommonFilterModal
           visible={showFilters && activeTab === "selected"}
@@ -1646,7 +1883,7 @@ export default function SubjectListEditorScreen() {
           subjects={allSubjects ?? []}
           onClose={() => setShowFilters(false)}
           onApply={(values) => {
-            setFilters((previous) => ({
+            updateFilters((previous) => ({
               ...previous,
               vocabularyTypes: values.vocabularyTypes,
             }));
@@ -1753,7 +1990,6 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
   },
   bulkActionsRow: {
     flexDirection: "row",
@@ -1784,6 +2020,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
+  loadMoreContainer: {
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  loadMoreButton: {
+    minHeight: 44,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  loadMoreText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
   itemContainer: {
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.06)",
@@ -1801,6 +2052,7 @@ const styles = StyleSheet.create({
   },
   itemBox: {
     width: 48,
+    maxWidth: "55%",
     height: 48,
     borderRadius: 8,
     justifyContent: "center",
@@ -1827,17 +2079,39 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   selectionCount: {
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+    flexShrink: 1,
   },
-  selectAllButton: {
-    minHeight: 44,
+  selectionControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  audioButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuAction: {
+    minHeight: 48,
     justifyContent: "center",
     paddingHorizontal: 8,
+    paddingVertical: 12,
   },
-  selectedActionsRow: {
+  subjectSelection: {
+    flex: 1,
     flexDirection: "row",
-    gap: 8,
+    alignItems: "center",
+    minWidth: 0,
   },
   itemMeaning: {
     fontSize: 15,

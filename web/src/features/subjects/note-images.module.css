@@ -1,0 +1,24 @@
+.gallery { display: flex; gap: 12px; overflow-x: auto; padding-block: 8px; max-width: 100%; }
+.thumbnail { flex: 0 0 180px; min-width: 0; }
+.openImage { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in; border-radius: 8px; }
+.openImage:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.preview { position: relative; display: grid; place-items: center; height: 150px; overflow: hidden; border: 1px solid var(--color-rule-2); border-radius: 8px; background: var(--color-surface); }
+.preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.preview span { position: absolute; padding: 12px; text-align: center; color: var(--color-muted); font-size: var(--text-sm); }
+.preview[data-status="error"] img { visibility: hidden; }
+.composer { display: grid; gap: 12px; padding-block: 8px; }
+.composer .preview { max-width: 360px; height: 180px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; }
+.viewer { position: fixed; inset: 0; width: min(1100px, 100%); max-width: 100%; height: min(850px, 100dvh); max-height: 100dvh; margin: auto; padding: 0; border: 1px solid var(--color-rule-2); border-radius: 8px; background: var(--color-surface); color: var(--color-ink); }
+.viewer::backdrop { background: rgb(0 0 0 / 80%); }
+.viewerContent { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; flex: 0 0 auto; flex-wrap: wrap; }
+.toolbar h2 { margin: 0; font-size: 16px; }
+.viewport { position: relative; display: grid; place-items: center; min-height: 0; flex: 1; overflow: hidden; touch-action: none; background: #111; }
+.viewport img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; user-select: none; }
+.imageStatus { position: relative; display: grid; justify-items: center; gap: 8px; padding: 16px; color: white; }
+.zoomHint { display: flex; align-items: center; gap: 12px; color: var(--color-muted); font-size: var(--text-sm); }
+.zoomHint output { min-width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
+.saveHint { margin: 0; color: var(--color-muted); font-size: var(--text-sm); }
+.viewerError { padding-inline: 12px; color: var(--color-danger); }
+@media (max-width: 600px) { .viewer { height: 100dvh; border: 0; border-radius: 0; } .toolbar { padding: 8px; } }

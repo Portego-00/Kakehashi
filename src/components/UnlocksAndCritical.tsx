@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   percentageBarClip: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 999,
     overflow: "hidden",
   },

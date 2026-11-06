@@ -183,6 +183,41 @@ describe("study question engine", () => {
     expect(Array.from(new Set(questions.map((question) => question.subjectId)))).toEqual([91, 92, 90]);
   });
 
+  it.each([
+    ["ascendingSrsStage", false, [2, 3, 4, 5, 6, 1, 7, 8, 9, 10, 11, 12]],
+    ["descendingSrsStage", false, [7, 8, 9, 10, 11, 12, 2, 3, 4, 5, 6, 1]],
+    ["ascendingSrsStage", true, [2, 4, 6, 8, 10, 12, 3, 1, 7, 9, 5, 11]],
+    ["descendingSrsStage", true, [8, 10, 12, 2, 4, 6, 7, 9, 3, 1, 11, 5]],
+  ] as const)("shuffles custom review ties in %s unless item type grouping is enabled (%s)", (customReviewOrder, reviewTypeOrderEnabled, expectedIds) => {
+    const types: SubjectType[] = ["kanji", "vocabulary", "kanji", "vocabulary", "radical", "kana_vocabulary"];
+    const reviewSubjects = [1, 5].flatMap((_, stageIndex) => types.map((type, index) => {
+      const id = stageIndex * types.length + index + 1;
+      return subject(id, type, `例${id}`, `Example ${id}`, type === "radical" || type === "kana_vocabulary" ? "" : "れい");
+    }));
+    const reviewAssignments = reviewSubjects.map((item, index) => ({
+      ...assignment(item.id, index < types.length ? 1 : 5),
+      data: { ...assignment(item.id, index < types.length ? 1 : 5).data, subject_type: item.object },
+    }));
+
+    const questions = generateQuestions(
+      "custom-review",
+      { subjects: reviewSubjects, assignments: reviewAssignments },
+      { ...filters, selectedSubjectIds: reviewSubjects.map((item) => item.id) },
+      {
+        random: () => 0,
+        customReviewOrder,
+        reviewTypeOrderEnabled,
+        reviewTypeOrder: ["vocabulary", "kanji", "radical"],
+        prioritizeCriticalItems: false,
+        reviewQuestionOrderEnabled: true,
+        reviewQuestionOrder: "meaning-first",
+        backToBackQuestions: true,
+      },
+    );
+
+    expect(Array.from(new Set(questions.map((question) => question.subjectId)))).toEqual([...expectedIds]);
+  });
+
   it("applies custom type grouping and critical priority before custom review order", () => {
     const olderRadical = { ...subject(70, "radical", "一", "One"), data: { ...subject(70, "radical", "一", "One").data, level: 9 } };
     const criticalKanji = { ...subject(71, "kanji", "二", "Two", "に"), data: { ...subject(71, "kanji", "二", "Two", "に").data, level: 10 } };

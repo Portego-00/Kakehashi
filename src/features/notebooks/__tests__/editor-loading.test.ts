@@ -1,4 +1,4 @@
-/** @jest-environment jsdom */
+/** @jest-environment ./jest.dom-environment.cjs */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getNotebookStartupScript } from "../editor-loading";

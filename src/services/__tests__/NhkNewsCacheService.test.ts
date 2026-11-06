@@ -31,7 +31,8 @@ jest.mock("expo-file-system", () => {
       return files.get(this.uri) ?? "";
     }
 
-    write(value: string) {
+    async write(value: string) {
+      await Promise.resolve();
       files.set(this.uri, value);
     }
   }
@@ -89,11 +90,39 @@ beforeEach(() => {
   mockedModule.__files.clear();
 });
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 describe("NHK news disk cache", () => {
+  it("does not report a completed save before the disk write finishes", async () => {
+    let finishWrite!: () => void;
+    const pendingWrite = new Promise<void>((resolve) => {
+      finishWrite = resolve;
+    });
+    jest.spyOn(File.prototype, "write").mockReturnValueOnce(pendingWrite);
+    let completed = false;
+    const save = saveNewsToCache([easyArticle]).then(() => {
+      completed = true;
+    });
+
+    await Promise.resolve();
+    expect(completed).toBe(false);
+    finishWrite();
+    await save;
+    expect(completed).toBe(true);
+  });
+
+  it("propagates an asynchronous disk write failure", async () => {
+    jest.spyOn(File.prototype, "write").mockRejectedValueOnce(new Error("disk full"));
+
+    await expect(saveNewsToCache([easyArticle])).rejects.toThrow("disk full");
+  });
+
   it("hydrates both source caches and upgrades the legacy Easy cache", async () => {
     const { id: _id, source: _source, ...legacyEasyArticle } = easyArticle;
-    cacheFile("news-cache.json").write(JSON.stringify([legacyEasyArticle]));
-    cacheFile("news-cache-regular.json").write(
+    await cacheFile("news-cache.json").write(JSON.stringify([legacyEasyArticle]));
+    await cacheFile("news-cache-regular.json").write(
       JSON.stringify([fullRegularArticle]),
     );
 
@@ -125,7 +154,7 @@ describe("NHK news disk cache", () => {
   });
 
   it("does not erase one provider's saved feed when only the other refreshes", async () => {
-    cacheFile("news-cache-regular.json").write(
+    await cacheFile("news-cache-regular.json").write(
       JSON.stringify([fullRegularArticle]),
     );
 

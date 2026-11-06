@@ -13,6 +13,7 @@ function render(ui: ReactElement) {
 }
 
 vi.mock("@/features/core-study/review-subject-font", () => ({ reviewSubjectFont: { style: { fontFamily: "Noto Sans JP" } } }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ status: "authenticated", user: { data: { username: "Test" } }, isDemo: false }) }));
 
 const preferenceState = vi.hoisted(() => ({
   autoplayAudio: true,

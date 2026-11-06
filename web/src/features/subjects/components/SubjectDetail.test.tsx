@@ -4,11 +4,13 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildImmersionExamples } from "@/features/study/immersion-kit";
 import { createListRepository } from "@/features/subjects/lists";
+import { useJapaneseVoice } from "@/features/speech/use-japanese-voice";
 import type { StudyMaterial, Subject } from "@/types/wanikani";
 import { EmbeddedSubjectHeader } from "./EmbeddedSubjectHeader";
 import { AnimeSentence, ContextSentences, StudyMaterialEditor, SubjectDetail, SubjectDetailPanels, SubjectStickyHeader } from "./SubjectDetail";
 
 const { wkCollectionMock, wkRequestMock } = vi.hoisted(() => ({ wkCollectionMock: vi.fn(), wkRequestMock: vi.fn() }));
+const contextSession = vi.hoisted(() => ({ user: null as { data: { username: string } } | null, isDemo: false }));
 const voiceMock = vi.hoisted(() => ({
   checked: true,
   supported: true,
@@ -24,6 +26,7 @@ const voiceMock = vi.hoisted(() => ({
 }));
 
 afterEach(() => {
+  contextSession.user = null;
   window.localStorage.clear();
   vi.unstubAllGlobals();
 });
@@ -34,8 +37,10 @@ vi.mock("@/lib/wanikani/client", () => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-  useSession: () => ({ user: null }),
+  useSession: () => contextSession,
 }));
+
+vi.mock("@/lib/theme", () => ({ useTheme: () => ({ resolvedTheme: "light" }) }));
 
 vi.mock("@/features/settings/use-workspace-preferences", () => ({
   useWebSettings: () => ({
@@ -52,7 +57,7 @@ vi.mock("@/features/settings/use-workspace-preferences", () => ({
 }));
 
 vi.mock("@/features/speech/use-japanese-voice", () => ({
-  useJapaneseVoice: () => voiceMock,
+  useJapaneseVoice: vi.fn(() => voiceMock),
 }));
 
 const material: StudyMaterial = {
@@ -71,9 +76,9 @@ const material: StudyMaterial = {
   },
 };
 
-function renderEditor(field: "meaning_synonyms" | "meaning_note" | "reading_note" = "meaning_synonyms") {
+function renderEditor(field: "meaning_synonyms" | "meaning_note" | "reading_note" = "meaning_synonyms", existing = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}><StudyMaterialEditor field={field} subjectId={7} material={material} queryKey={["study-material", 7]} loading={false} /></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><StudyMaterialEditor field={field} subjectId={7} material={existing ? material : undefined} queryKey={["study-material", 7]} loading={false} /></QueryClientProvider>);
 }
 
 const contextSentences = [
@@ -187,6 +192,7 @@ describe("normal vocabulary context speech", () => {
       error: null,
     });
     voiceMock.download.mockReset();
+    vi.mocked(useJapaneseVoice).mockClear();
     voiceMock.play.mockReset();
     voiceMock.stop.mockReset();
   });
@@ -204,6 +210,11 @@ describe("normal vocabulary context speech", () => {
     fireEvent.click(first);
     expect(voiceMock.play).toHaveBeenCalledWith("これは普通の例文です。");
     expect(voiceMock.play).not.toHaveBeenCalledWith(contextSentences[0].en);
+  });
+
+  it("prepares a downloaded voice as soon as context sentences appear", () => {
+    render(<ContextSentences sentences={contextSentences} />);
+    expect(useJapaneseVoice).toHaveBeenCalledWith({ prepare: true });
   });
 
   it("requires an explicit voice download before enabling sentence playback", () => {
@@ -229,6 +240,44 @@ describe("normal vocabulary context speech", () => {
 });
 
 describe("subject detail media buttons", () => {
+  it.each([
+    { surface: "subject and lesson pages", embedded: false, compact: false },
+    { surface: "expanded review and extra study details", embedded: true, compact: false },
+    { surface: "compact review details", embedded: true, compact: true },
+  ])("keeps pitch accents and audio in one readings card in $surface", ({ embedded, compact }) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}><SubjectDetailPanels
+      record={{ ...audioSubject, data: { ...audioSubject.data, reading_mnemonic: "A long reading mnemonic should follow the listening controls." } }}
+      material={material}
+      materialLoading={false}
+      materialsKey={["study-material", audioSubject.id]}
+      relatedSubjects={[]}
+      pitchAccents={[{ r: "ねっしん", p: [0, 1] }]}
+      usagePatterns={[]}
+      immersionExamples={[]}
+      immersionLoading={false}
+      immersionFailed={false}
+      settings={{ showContextSentences: false, showImmersionExamples: false, showPitchAccent: true, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+      returnTo="/subjects"
+      initialTab="reading"
+      embedded={embedded}
+      compact={compact}
+    /></QueryClientProvider>);
+
+    const readingPanel = within(screen.getByRole("tabpanel", { name: "Reading" }));
+    const readings = readingPanel.getByRole("heading", { name: "Readings" }).closest("section")!;
+    const readingsCard = readings.lastElementChild;
+    if (!(readingsCard instanceof HTMLElement)) throw new Error("Readings card is missing");
+    const graphs = readingPanel.getAllByRole("img", { name: /ねっしん, .* pitch accent/u });
+    expect(graphs).toHaveLength(2);
+    for (const graph of graphs) expect(readingsCard).toContainElement(graph);
+    expect(within(readingsCard).getByRole("heading", { name: "Audio", level: 3 })).toBeInTheDocument();
+    expect(within(readingsCard).getByRole("button", { name: "Play Kyoko pronunciation" })).toBeEnabled();
+    expect(within(readingsCard).getByRole("button", { name: "Play Kenichi pronunciation" })).toBeEnabled();
+    expect(readingPanel.queryByRole("heading", { name: "Pronunciation" })).not.toBeInTheDocument();
+    expect(readings.nextElementSibling).toContainElement(readingPanel.getByRole("heading", { name: "Reading mnemonic" }));
+  });
+
   it("uses compact custom controls for pronunciation and anime context", () => {
     const { container } = renderAudioSubject();
 
@@ -465,6 +514,59 @@ describe("subject detail saved-list action", () => {
 describe("subject detail notes", () => {
   beforeEach(() => wkRequestMock.mockReset());
 
+  it.each([[false, 401], [false, 403], [true, 401], [true, 403]])("explains token permissions and retains the draft (existing: %s, status: %s)", async (existing, status) => {
+    wkRequestMock.mockRejectedValueOnce(Object.assign(new Error("Unauthorized. Nice try."), { status }));
+    renderEditor("meaning_note", Boolean(existing));
+    fireEvent.click(screen.getByRole("button", { name: "Edit meaning note" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Meaning note" }), { target: { value: "My unsaved note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+    const dialog = await screen.findByRole("dialog", { name: "Enable saving notes" });
+    expect(dialog).toHaveTextContent("study_materials:create");
+    expect(dialog).toHaveTextContent("study_materials:update");
+    expect(within(dialog).getByRole("link", { name: "Open API token settings" })).toHaveAttribute("href", "https://www.wanikani.com/settings/personal_access_tokens");
+    expect(screen.queryByText("Notes weren’t saved. Check your connection and try again.")).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByRole("textbox", { name: "Meaning note" })).toHaveValue("My unsaved note");
+    wkRequestMock.mockResolvedValueOnce({ ...material, data: { ...material.data, meaning_note: "My unsaved note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Edit meaning note" })).toBeInTheDocument());
+  });
+
+  it("does not show a permissions popup for a server or connection failure", async () => {
+    wkRequestMock.mockRejectedValueOnce(Object.assign(new Error("Server unavailable"), { status: 503 }));
+    renderEditor("meaning_note");
+    fireEvent.click(screen.getByRole("button", { name: "Edit meaning note" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Check your connection");
+    expect(screen.queryByRole("dialog", { name: "Enable saving notes" })).not.toBeInTheDocument();
+  });
+
+  it.each(["meaning_note", "reading_note"] as const)("adds an image to %s without changing its text", async (field) => {
+    const original = material.data[field] ?? "";
+    const value = `${original}\n<img src="https://example.com/bridge.png">`;
+    wkRequestMock.mockResolvedValue({ ...material, data: { ...material.data, [field]: value } });
+    renderEditor(field);
+    fireEvent.click(screen.getByRole("button", { name: "Add image" }));
+    fireEvent.change(screen.getByLabelText("Image URL"), { target: { value: "https://example.com/bridge.png" } });
+    expect(screen.getByRole("button", { name: "Save note" })).toBeDisabled();
+    fireEvent.load(await screen.findByRole("img", { name: "Note image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to note" }));
+    expect(screen.getByRole("textbox", { name: field === "meaning_note" ? "Meaning note" : "Reading note" })).toHaveValue(original);
+    fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+    await waitFor(() => expect(wkRequestMock).toHaveBeenCalledWith("study_materials/42", { method: "PUT", body: { study_material: { [field]: value } } }));
+  });
+
+  it("cancels image additions with the rest of the note draft", async () => {
+    renderEditor("meaning_note");
+    fireEvent.click(screen.getByRole("button", { name: "Add image" }));
+    fireEvent.change(screen.getByLabelText("Image URL"), { target: { value: "https://example.com/a.png" } });
+    fireEvent.load(await screen.findByRole("img", { name: "Note image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to note" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("img", { name: "Note image" })).not.toBeInTheDocument();
+    expect(wkRequestMock).not.toHaveBeenCalled();
+  });
+
   it("places synonyms in the meaning card and notes in their matching tabs", () => {
     renderAudioSubject();
     fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
@@ -656,4 +758,34 @@ describe("embedded subject reference", () => {
       scroller.remove();
     }
   });
+});
+
+it.each(["Portego", "Other"])("gates a YouGlish-only Context tab for %s", (username) => {
+  contextSession.user = { data: { username } };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  render(<QueryClientProvider client={client}><SubjectDetailPanels
+    record={kanaVocabularySubject}
+    materialLoading={false}
+    materialsKey={[]}
+    relatedSubjects={[]}
+    pitchAccents={[]}
+    usagePatterns={[]}
+    immersionExamples={[]}
+    immersionLoading={false}
+    immersionFailed={false}
+    settings={{ showContextSentences: false, showImmersionExamples: false, showYouGlishContext: true, showPitchAccent: false, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+    returnTo="/subjects"
+    allowStudyMaterialEditing={false}
+  /></QueryClientProvider>);
+  if (username === "Other") {
+    expect(screen.queryByRole("tab", { name: "Context" })).toBeNull();
+    return;
+  }
+  const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+  fireEvent.click(screen.getByRole("tab", { name: "Context" }));
+  fireEvent.click(screen.getByRole("tab", { name: "YouGlish" }));
+  expect(screen.getByTitle(`YouGlish Japanese examples for ${kanaVocabularySubject.data.characters}`)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Meaning" }));
+  expect(screen.queryByTitle(`YouGlish Japanese examples for ${kanaVocabularySubject.data.characters}`)).toBeNull();
+  pause.mockRestore();
 });

@@ -1,9 +1,10 @@
+import type { TextInputInstance, ViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useActivityTracking } from "../../../src/hooks/useActivityTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FlashList } from "@shopify/flash-list";
 import { Directory, File, Paths } from "expo-file-system";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -81,7 +82,7 @@ function logMusicError(
 export default function SongsTab() {
   useActivityTracking("songs", { mode: "focus" });
   const { theme } = useTheme();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const songsPlaybackSource = useSettingsStore(
     (state) => state.songsPlaybackSource,
   );
@@ -119,8 +120,8 @@ export default function SongsTab() {
   // Tutorial state
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialSteps, setTutorialSteps] = useState<CoachMarkStep[]>([]);
-  const searchBarRef = useRef<View>(null);
-  const categorySectionRef = useRef<View>(null);
+  const searchBarRef = useRef<ViewInstance>(null);
+  const categorySectionRef = useRef<ViewInstance>(null);
 
   // Music sections
   const [newReleases, setNewReleases] = useState<MusicSection>({
@@ -485,7 +486,7 @@ export default function SongsTab() {
         cacheDir.create({ idempotent: true });
 
         const historyFile = new File(cacheDir, CACHE_FILE_NAME);
-        historyFile.write(JSON.stringify(history, null, 2));
+        await historyFile.write(JSON.stringify(history, null, 2));
 
         console.log(`✅ Saved ${history.length} songs to history`);
 

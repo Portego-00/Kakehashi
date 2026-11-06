@@ -261,7 +261,7 @@ async function ensureLibraryReady(): Promise<void> {
 
   if (!indexFile.exists) {
     indexFile.create({ intermediates: true, overwrite: true });
-    indexFile.write("[]");
+    indexFile.writeSync("[]");
   }
 }
 
@@ -294,7 +294,7 @@ async function readIndex(): Promise<MangaLibraryItem[]> {
 
 async function writeIndex(entries: MangaLibraryItem[]): Promise<void> {
   await ensureLibraryReady();
-  indexFile.write(JSON.stringify(entries, null, 2));
+  await indexFile.write(JSON.stringify(entries, null, 2));
 }
 
 async function writeStoredRecord(record: PersistedMangaRecord): Promise<void> {
@@ -306,7 +306,7 @@ async function writeStoredRecord(record: PersistedMangaRecord): Promise<void> {
     recordFile.create({ intermediates: true, overwrite: true });
   }
 
-  recordFile.write(JSON.stringify(record, null, 2));
+  await recordFile.write(JSON.stringify(record, null, 2));
 }
 
 async function readStoredRecord(mangaId: string): Promise<PersistedMangaRecord | null> {
@@ -380,12 +380,15 @@ async function parseCachedPageRecord(
   }
 }
 
-function writeCachedPageRecord(file: File, record: CachedMangaPageRecord): void {
+async function writeCachedPageRecord(
+  file: File,
+  record: CachedMangaPageRecord,
+): Promise<void> {
   if (!file.exists) {
     file.create({ intermediates: true, overwrite: true });
   }
 
-  file.write(JSON.stringify(record));
+  await file.write(JSON.stringify(record));
 }
 
 async function updateMetadataInIndex(
@@ -491,7 +494,8 @@ export const mangaLibraryService = {
     }
 
     const pagesDirectory = getMangaPagesDirectory(mangaId);
-    pageImageFileNames = imageEntries.map(([path], index) => {
+    pageImageFileNames = [];
+    for (const [index, [path, imageBytes]] of imageEntries.entries()) {
       const extension = getFileExtension(path) || "jpg";
       const pageFileName = buildPageFileName(index + 1, extension);
       const pageFile = new File(pagesDirectory, pageFileName);
@@ -501,12 +505,12 @@ export const mangaLibraryService = {
       }
 
       pageFile.create({ intermediates: true, overwrite: true });
-      pageFile.write(Buffer.from(imageEntries[index][1]).toString("base64"), {
+      await pageFile.write(Buffer.from(imageBytes).toString("base64"), {
         encoding: "base64",
       });
 
-      return pageFileName;
-    });
+      pageImageFileNames.push(pageFileName);
+    }
 
     pageCount = pageImageFileNames.length;
     coverUri = new File(pagesDirectory, pageImageFileNames[0]).uri;
@@ -686,7 +690,7 @@ export const mangaLibraryService = {
         updatedAt: Date.now(),
       };
 
-      writeCachedPageRecord(ocrCacheFile, pageRecord);
+      await writeCachedPageRecord(ocrCacheFile, pageRecord);
       return pageRecord;
     }
 

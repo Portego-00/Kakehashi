@@ -3,13 +3,14 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import type { ReviewAnswerChoice } from "../../../../src/utils/review-multiple-choice";
 import styles from "./review-answer-choices.module.css";
 
-export function ReviewAnswerChoices({ choices, selectedAnswer, disabled, isReading, onSelect, keyboardShortcuts, onContinue, continueKey = "Enter" }: {
+export function ReviewAnswerChoices({ choices, selectedAnswer, disabled, isReading, onSelect, onDontKnow, keyboardShortcuts, onContinue, continueKey = "Enter" }: {
   choices: readonly ReviewAnswerChoice[];
   selectedAnswer?: string;
   disabled: boolean;
   isReading: boolean;
   keyboardShortcuts: boolean;
   onSelect: (choice: ReviewAnswerChoice) => void;
+  onDontKnow: () => void;
   onContinue?: () => void;
   continueKey?: string;
 }) {
@@ -32,7 +33,7 @@ export function ReviewAnswerChoices({ choices, selectedAnswer, disabled, isReadi
     window.addEventListener("keydown", listener, true);
     return () => window.removeEventListener("keydown", listener, true);
   }, []);
-  return <div ref={root} className={styles.choices} role="group" aria-label="Answer choices">
+  return <div ref={root}><div className={styles.choices} role="group" aria-label="Answer choices">
     {choices.map((choice, index) => {
       const selected = selectedAnswer === choice.text;
       const correct = selectedAnswer !== undefined && choice.isCorrect;
@@ -46,5 +47,5 @@ export function ReviewAnswerChoices({ choices, selectedAnswer, disabled, isReadi
         <span className={styles.result} aria-hidden>{correct ? <Check size={19} /> : incorrect ? <X size={19} /> : null}</span>
       </button>;
     })}
-  </div>;
+  </div><button type="button" className={styles.dontKnow} disabled={disabled} onClick={onDontKnow}>{"I don't know"}</button></div>;
 }

@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -437,7 +438,7 @@ export default function SpeechHistoryResultScreen() {
   };
 
   // Add ref for scrolling
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   return (
     <View

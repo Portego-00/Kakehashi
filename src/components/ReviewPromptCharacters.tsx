@@ -14,6 +14,7 @@ import {
 } from "../utils/jitaiFonts";
 import { pickBestImage, useRemoteSvg } from "../utils/radicalSvg";
 import { useSettingsStore } from "../utils/store";
+import { normalizeReviewPromptTextColor } from "../utils/review-prompt-color";
 
 const { width } = Dimensions.get("window");
 const bundledFontIds = new Set(JITAI_BUNDLED_FONTS.map((font) => font.id));
@@ -29,7 +30,8 @@ const ReviewPromptCharacters = React.memo(
     size?: number;
     fontCycleIndex?: number;
   }) {
-    const { jitaiEnabled, jitaiSelectedFontIds, jitaiCycleAllFonts } = useSettingsStore();
+    const { jitaiEnabled, jitaiSelectedFontIds, jitaiCycleAllFonts, reviewPromptTextColor } = useSettingsStore();
+    const promptColor = normalizeReviewPromptTextColor(reviewPromptTextColor) || "#ffffff";
     const downloadedSelectionKey =
       jitaiEnabled && jitaiSelectedFontIds.some((id) => !bundledFontIds.has(id))
         ? JSON.stringify(jitaiSelectedFontIds)
@@ -61,7 +63,7 @@ const ReviewPromptCharacters = React.memo(
         ? pickBestImage(subject.data.character_images)
         : null;
     const svgUrl = bestImg?.type === "svg" ? bestImg.url : null;
-    const svgXml = useRemoteSvg(svgUrl, "#ffffff");
+    const svgXml = useRemoteSvg(svgUrl, promptColor);
 
     useEffect(() => {
       if (downloadedSelectionKey === null || !waitingForDownloadedFonts) return;
@@ -172,7 +174,7 @@ const ReviewPromptCharacters = React.memo(
           style={[
             styles.characterText,
             fontStyles.japaneseText,
-            { fontFamily: fontToUse, fontSize: size },
+            { color: promptColor, fontFamily: fontToUse, fontSize: size },
           ]}
           numberOfLines={1}
           adjustsFontSizeToFit
@@ -193,7 +195,7 @@ const ReviewPromptCharacters = React.memo(
 
     return (
       <Text
-        style={styles.placeholderText}
+        style={[styles.placeholderText, { color: promptColor }]}
         numberOfLines={1}
         adjustsFontSizeToFit
       >

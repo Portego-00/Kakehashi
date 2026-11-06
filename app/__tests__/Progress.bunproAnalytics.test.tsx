@@ -16,6 +16,9 @@ jest.mock("../../src/utils/nativeTabs", () => ({ supportsNativeTabs: () => false
 jest.mock("../../src/hooks/useDashboardData", () => ({ useDashboardData: () => ({ dashboardData: { currentLevel: 7, levelTimeRemaining: { timeText: "Tomorrow" }, subjects: [], assignments: [] }, isLoading: false, refreshData: jest.fn() }) }));
 jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 jest.mock("react-native-reanimated", () => ({
   __esModule: true,
@@ -34,6 +37,7 @@ jest.mock("@react-native-segmented-control/segmented-control", () => {
 jest.mock("../../src/components/GlassButton", () => ({ GlassButton: () => null }));
 jest.mock("../../src/components/IncompleteLevelsProgress", () => () => null);
 jest.mock("../../src/components/LevelProgress", () => () => null);
+jest.mock("../../src/features/level-goals/level-goal-panel", () => ({ LevelGoalPanel: () => null }));
 jest.mock("../../src/components/LevelTimingChart", () => () => null);
 jest.mock("../../src/components/LoadingProgressBar", () => () => null);
 jest.mock("../../src/components/ReviewStatsTable", () => () => null);

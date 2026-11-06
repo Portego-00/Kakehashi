@@ -341,7 +341,7 @@ export function SummarySlide({ data }: SummarySlideProps) {
             "",
           );
           const file = new FSFile(Paths.cache, "level-summary.png");
-          file.write(base64, { encoding: "base64" });
+          await file.write(base64, { encoding: "base64" });
 
           if (Platform.OS === "ios") {
             await Share.share({ url: file.uri });
@@ -676,7 +676,7 @@ const styles = StyleSheet.create({
     paddingBottom: 112,
   },
   confettiContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: "hidden",
   },
 

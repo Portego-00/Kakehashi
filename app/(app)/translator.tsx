@@ -1,3 +1,4 @@
+import type { TextInputInstance, ViewInstance } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -171,15 +172,15 @@ export default function TranslatorScreen() {
   const [error, setError] = useState<string | null>(null);
   const [expandedCard, setExpandedCard] = useState<"source" | "target" | null>(null);
   const [tooltipReady, setTooltipReady] = useState(false);
-  const sourceInputRef = useRef<TextInput>(null);
+  const sourceInputRef = useRef<TextInputInstance>(null);
   const tooltipDismissedAtRef = useRef(0);
 
   // Tutorial state
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialSteps, setTutorialSteps] = useState<CoachMarkStep[]>([]);
   const [isFirstVisit, setIsFirstVisit] = useState<boolean | null>(null);
-  const highlightButtonRef = useRef<View>(null);
-  const sourceCardRef = useRef<View>(null);
+  const highlightButtonRef = useRef<ViewInstance>(null);
+  const sourceCardRef = useRef<ViewInstance>(null);
   const vocabularyMatchesById = useMemo(
     () => new Map(vocabularyMatches.map((match) => [match.id, match])),
     [vocabularyMatches]

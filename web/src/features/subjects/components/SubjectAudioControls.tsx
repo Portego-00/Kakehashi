@@ -14,6 +14,7 @@ interface SubjectAudioState {
 interface SubjectAudioContextValue {
   playback: SubjectAudioState;
   toggle: (key: string, src: string) => void;
+  stop: () => void;
 }
 
 interface SubjectAudioButtonProps {
@@ -93,7 +94,7 @@ export function SubjectAudioProvider({ children, autoplay }: {
     if (autoplayKey && autoplaySrc) toggle(autoplayKey, autoplaySrc);
   }, [autoplayKey, autoplaySrc, toggle]);
 
-  return <SubjectAudioContext value={{ playback, toggle }}>
+  return <SubjectAudioContext value={{ playback, toggle, stop: clearPlayer }}>
     {children}
     <audio
       ref={audioRef}
@@ -147,4 +148,8 @@ export function SubjectAudioButton({ audioKey, src, label, variant, children }: 
     {status === "loading" ? <LoaderCircle className={styles.subjectAudioSpinner} size={iconSize} aria-hidden /> : status === "playing" ? <Square size={iconSize - 2} fill="currentColor" aria-hidden /> : src ? <Play size={iconSize} fill="currentColor" aria-hidden /> : <VolumeX size={iconSize} aria-hidden />}
     {children}
   </button>;
+}
+
+export function useSubjectAudioStop() {
+  return useContext(SubjectAudioContext)?.stop;
 }

@@ -1,11 +1,13 @@
 import { TranslatedStudyText } from "../features/translation-packages/TranslatedStudyText";
+import type { ViewInstance } from "react-native";
 import { useLearningDisplay } from "../features/translation-packages/display";
+import { MediaContextSource } from "./MediaContextSource";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import { BlurView } from "expo-blur";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -21,6 +23,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   enableLayoutAnimations,
   FadeInDown,
@@ -151,7 +154,9 @@ interface VocabularyDetailsProps {
     readingMaxStreak?: number;
     percentageCorrect?: number;
     nextReviewAt?: string;
+    burnedAt?: string | null;
     onEditNote?: (type: "meaning" | "reading") => void;
+    onRemoveNoteImage?: (type: "meaning" | "reading", index: number) => Promise<void>;
   };
   progressionStatus: "loading" | "success" | "offline";
   onSubjectPress?: (subjectId: number) => void;
@@ -303,6 +308,8 @@ export default function VocabularyDetails({
     setActiveTab(tab);
   };
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const headerTop = Math.max(HEADER_TOP_OFFSET, insets.top + 16);
   const [sound, setSound] = useState<AudioSound | null>(null);
   const soundRef = useRef<AudioSound | null>(null);
   const audioPlaybackRequestIdRef = useRef(0);
@@ -347,7 +354,7 @@ export default function VocabularyDetails({
     () => createStyles(subjectColors),
     [subjectColors.kanji, subjectColors.radical, subjectColors.vocabulary]
   );
-  const mainCharacterRef = useRef<View>(null);
+  const mainCharacterRef = useRef<ViewInstance>(null);
   const customContextSentencesRef =
     useRef<CustomContextSentencesSectionHandle>(null);
   const {
@@ -372,6 +379,23 @@ export default function VocabularyDetails({
     visuallySimilarKanjiSource,
   } = useSettingsStore();
   const { userData } = useAuthStore();
+  const contextIsActive = activeTab === "context";
+  const stopContextAudio = () => {
+    ++audioPlaybackRequestIdRef.current;
+    const current = soundRef.current;
+    soundRef.current = null;
+    if (current) {
+      current.setOnPlaybackStatusUpdate(null);
+      void current.unloadAsync().catch(() => {});
+    }
+    void azureSpeechService.stop();
+    setSound(null);
+    setPlayingAudioId(null);
+    setLoadingAudioId(null);
+    setPlayingContextSentence(null);
+    setPlayingMediaSentence(null);
+    setLoadingMediaSentence(null);
+  };
   const { width: screenWidth } = useWindowDimensions();
   const pagerRef = useRef<PagerView>(null);
   const [revealedTranslations, setRevealedTranslations] = useState<Set<string>>(
@@ -2483,6 +2507,7 @@ export default function VocabularyDetails({
             {renderContextSections()}
 
             {/* Media Context Sentences Section */}
+            <MediaContextSource query={vocabulary.characters} active={contextIsActive} onYouGlishSelect={stopContextAudio}>
             {showMediaContextSentences && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
@@ -2731,6 +2756,7 @@ export default function VocabularyDetails({
                 )}
               </View>
             )}
+            </MediaContextSource>
           </View>
         )}
 
@@ -2781,6 +2807,7 @@ export default function VocabularyDetails({
                     {vocabulary.meaningNote ? (
                       <FormattedNoteText
                         text={vocabulary.meaningNote}
+                        onRemoveImage={vocabulary.onRemoveNoteImage ? (index) => vocabulary.onRemoveNoteImage!("meaning", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (
@@ -2822,6 +2849,7 @@ export default function VocabularyDetails({
                     {vocabulary.readingNote ? (
                       <FormattedNoteText
                         text={vocabulary.readingNote}
+                        onRemoveImage={vocabulary.onRemoveNoteImage ? (index) => vocabulary.onRemoveNoteImage!("reading", index) : undefined}
                         style={[styles.noteContent, { color: theme.textColor }]}
                       />
                     ) : (
@@ -3062,14 +3090,20 @@ export default function VocabularyDetails({
                               { color: theme.textSecondary },
                             ]}
                           >
-                            Next review:{" "}
+                            {vocabulary.srsStage === 9
+                              ? "Burned on: "
+                              : "Next review: "}
                             <Text
                               style={{
                                 fontWeight: "600",
                                 color: theme.textColor,
                               }}
                             >
-                              {formatNextReviewTime(vocabulary.nextReviewAt)}
+                              {vocabulary.srsStage === 9
+                                ? vocabulary.burnedAt
+                                  ? new Date(vocabulary.burnedAt).toLocaleDateString()
+                                  : "Date unavailable"
+                                : formatNextReviewTime(vocabulary.nextReviewAt)}
                             </Text>
                           </Text>
                         </View>
@@ -3325,16 +3359,23 @@ export default function VocabularyDetails({
         ]}
       >
         {!embedded && (
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            { paddingTop: headerTop, paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+          ]}
+        >
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Back"
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            style={[styles.backButton, { top: headerTop, left: 20 + insets.left }]}
             hitSlop={BACK_BUTTON_HIT_SLOP}
           >
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
 
-          <View style={styles.headerActions}>
+          <View style={[styles.headerActions, { top: headerTop, right: 16 + insets.right }]}>
             <SubjectHistoryButton subjectType="vocabulary" meaning={vocabulary.meanings.find(item => item.primary)?.meaning} subjectId={vocabulary.id} label={vocabulary.characters || "Radical"} />
             {onAddToList && (
               <TouchableOpacity
@@ -3362,7 +3403,7 @@ export default function VocabularyDetails({
           {onOpenConstellation && vocabulary.object !== "kana_vocabulary" && (
             <TouchableOpacity
               onPress={onOpenConstellation}
-              style={styles.constellationButton}
+              style={[styles.constellationButton, { right: 20 + insets.right }]}
             >
               <Ionicons name="planet-outline" size={24} color="#fff" />
             </TouchableOpacity>
@@ -3943,10 +3984,10 @@ const createStyles = (subjectColors: SubjectColors) =>
     opacity: 0.18,
   },
   translationBlurOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   translationRevealHint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",

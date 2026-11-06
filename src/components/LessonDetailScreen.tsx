@@ -1,5 +1,6 @@
 import { TranslatedStudyText } from "../features/translation-packages/TranslatedStudyText";
 import { useLearningDisplay } from "../features/translation-packages/display";
+import { showStudyMaterialPermissionAlert } from "../utils/study-material-permission-alert";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,6 +31,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  type ScrollViewInstance,
   StyleProp,
   StyleSheet,
   Text,
@@ -37,6 +39,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import PagerView from "react-native-pager-view";
@@ -104,6 +107,7 @@ import {
   withAlpha,
 } from "../utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../utils/store";
+import { MediaContextSource } from "./MediaContextSource";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { MnemonicTag } from "./MnemonicTag";
@@ -196,7 +200,9 @@ interface SimilarKanjiSubject {
 }
 
 function normalizeSimilarVocabularyValue(value: string | null | undefined): string {
-  return (value ?? "").trim().toLocaleLowerCase("en-US");
+  // English meanings and kana need locale-independent casing. Locale conversion
+  // stalls Android Hermes when repeated across the full subject catalog.
+  return (value ?? "").trim().toLowerCase();
 }
 
 function collectMatchingValues(values: string[], targetSet: Set<string>): string[] {
@@ -364,6 +370,8 @@ const SubjectContent = ({
   setSpeakingSentenceId,
   subjectTypeColor,
   showAllSections = false,
+  active = true,
+  onYouGlishSelect,
 }: {
   subject: any;
   tabIndex: number;
@@ -386,9 +394,11 @@ const SubjectContent = ({
   setSpeakingSentenceId: Dispatch<SetStateAction<string | null>>;
   subjectTypeColor: string;
   showAllSections?: boolean;
+  active?: boolean;
+  onYouGlishSelect?: () => void;
 }) => {
   const display = useLearningDisplay();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const customContextSentencesRef =
     useRef<CustomContextSentencesSectionHandle>(null);
   const {
@@ -472,6 +482,13 @@ const SubjectContent = ({
   const [mediaSentences, setMediaSentences] = useState<ImmersionKitSentence[]>(
     []
   );
+  const mediaPlaybackRequestRef = useRef(0);
+  const stopContextAudio = () => {
+    ++mediaPlaybackRequestRef.current;
+    onYouGlishSelect?.();
+    setPlayingMediaSentence(null);
+    setLoadingMediaSentence(null);
+  };
   const [loadingMediaSentences, setLoadingMediaSentences] = useState(false);
   const [playingMediaSentence, setPlayingMediaSentence] = useState<
     number | null
@@ -531,6 +548,7 @@ const SubjectContent = ({
   >("meaning");
   const [editingNoteText, setEditingNoteText] = useState("");
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [noteImageComposerOpen, setNoteImageComposerOpen] = useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const [androidNoteModalLayoutHeight, setAndroidNoteModalLayoutHeight] =
     useState(0);
@@ -1306,6 +1324,7 @@ const SubjectContent = ({
   };
 
   const handleEditNote = (type: "meaning" | "reading") => {
+    setNoteImageComposerOpen(false);
     setNoteEditorSession((session) => session + 1);
     setEditingNoteType(type);
     const initialNoteText = type === "meaning" ? meaningNote : readingNote;
@@ -1371,6 +1390,7 @@ const SubjectContent = ({
       setNoteModalVisible(false);
     } catch (error) {
       console.error("[LessonDetail] Failed to save note:", error);
+      if (showStudyMaterialPermissionAlert(error)) return;
       Alert.alert(
         "Error",
         `Failed to save note: ${
@@ -1884,6 +1904,7 @@ const SubjectContent = ({
     index: number,
     sentenceId: string
   ) => {
+    const requestId = ++mediaPlaybackRequestRef.current;
     try {
       const speedMultiplier = getSentenceSpeed(sentenceId);
 
@@ -1934,14 +1955,20 @@ const SubjectContent = ({
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: sentence.audio },
           {
-            shouldPlay: true,
+            shouldPlay: false,
             rate: speedMultiplier,
             shouldCorrectPitch: true,
           }
         );
 
+        if (requestId !== mediaPlaybackRequestRef.current) {
+          await newSound.unloadAsync();
+          return;
+        }
+
         setSound(newSound);
         setLoadingMediaSentence(null);
+        await newSound.playAsync();
 
         newSound.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded && status.didJustFinish) {
@@ -2467,9 +2494,9 @@ const SubjectContent = ({
 
     // Helper to render media context sentences
     const renderMediaContextSentences = () => {
-      if (!showMediaContextSentences) return null;
       return (
-        <View style={styles.infoSection}>
+        <MediaContextSource query={subject.data.characters ?? ""} active={active && isVocabularyContextTab} onYouGlishSelect={stopContextAudio}>
+        {showMediaContextSentences ? <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>Media Context Sentences</Text>
           {loadingMediaSentences && validMediaSentences.length === 0 && (
             <Text style={styles.noteText}>Loading examples...</Text>
@@ -2615,7 +2642,8 @@ const SubjectContent = ({
               )}
             </View>
           )}
-        </View>
+        </View> : null}
+        </MediaContextSource>
       );
     };
 
@@ -2880,6 +2908,7 @@ const SubjectContent = ({
                   kanjiCharacters={subject.data.characters ?? ""}
                   kanjiReadings={subject.data.readings ?? []}
                   vocabulary={kanjiVocabularyExamples}
+                  userLevel={userData?.level ?? subject.data.level}
                   onSubjectPress={onSubjectPress}
                 />
               </View>
@@ -3583,6 +3612,7 @@ const SubjectContent = ({
                       kanjiCharacters={subject.data.characters ?? ""}
                       kanjiReadings={subject.data.readings ?? []}
                       vocabulary={kanjiVocabularyExamples}
+                      userLevel={userData?.level ?? subject.data.level}
                       onSubjectPress={onSubjectPress}
                     />
                   </View>
@@ -3927,6 +3957,7 @@ const SubjectContent = ({
                   {renderCustomContextSentences()}
 
                   {/* Media Context Sentences */}
+                  <MediaContextSource query={subject.data.characters ?? ""} active={active && isVocabularyContextTab} onYouGlishSelect={stopContextAudio}>
                   {showMediaContextSentences && (
                     <>
                       <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
@@ -4114,6 +4145,7 @@ const SubjectContent = ({
                         )}
                     </>
                   )}
+                  </MediaContextSource>
                 </View>
               )}
             </View>
@@ -4342,6 +4374,7 @@ const SubjectContent = ({
                   {renderCustomContextSentences()}
 
                   {/* Media Context Sentences */}
+                  <MediaContextSource query={subject.data.characters ?? ""} active={active && isVocabularyContextTab} onYouGlishSelect={stopContextAudio}>
                   {showMediaContextSentences && (
                     <>
                       <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
@@ -4529,6 +4562,7 @@ const SubjectContent = ({
                         )}
                     </>
                   )}
+                  </MediaContextSource>
                 </View>
               )}
             </View>
@@ -4621,6 +4655,8 @@ const SubjectContent = ({
               style={styles.noteInput}
               value={editingNoteText}
               onChangeText={setEditingNoteText}
+              onImageComposerOpenChange={setNoteImageComposerOpen}
+              editable={!isSavingNote}
               onFocus={syncAndroidKeyboardMetrics}
               accessibilityLabel={`${
                 editingNoteType === "meaning" ? "Meaning" : "Reading"
@@ -4641,9 +4677,13 @@ const SubjectContent = ({
                   styles.noteModalButton,
                   styles.noteModalSaveButton,
                   { backgroundColor: subjectTypeColor },
+                  { opacity: noteImageComposerOpen ? 0.45 : 1 },
                 ]}
                 onPress={handleSaveNote}
-                disabled={isSavingNote}
+                accessibilityRole="button"
+                accessibilityLabel="Save note"
+                disabled={isSavingNote || noteImageComposerOpen}
+                accessibilityState={{ disabled: isSavingNote || noteImageComposerOpen }}
               >
                 {isSavingNote ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -4651,7 +4691,7 @@ const SubjectContent = ({
                   <Text
                     style={[styles.noteModalButtonText, { color: "#ffffff" }]}
                   >
-                    Save
+                    Save note
                   </Text>
                 )}
               </TouchableOpacity>
@@ -4711,7 +4751,7 @@ export default function LessonDetailScreen({
     tooltipTranslateY,
     copyText,
   } = useCopyTooltip();
-  const pageCharacterRefs = useRef<Record<number, View | null>>({});
+  const pageCharacterRefs = useRef<Record<number, ViewInstance | null>>({});
   // Ref for PagerView to enable programmatic page changes
   const pagerRef = useRef<PagerView>(null);
   const layout = useWindowDimensions();
@@ -4767,6 +4807,20 @@ export default function LessonDetailScreen({
   const [speakingSentenceId, setSpeakingSentenceId] = useState<string | null>(
     null
   );
+  const stopLessonContextAudio = () => {
+    ++audioPlaybackRequestIdRef.current;
+    const current = soundRef.current;
+    soundRef.current = null;
+    if (current) {
+      current.setOnPlaybackStatusUpdate(null);
+      void current.unloadAsync().catch(() => {});
+    }
+    void azureSpeechService.stop();
+    setSound(null);
+    setPlayingAudioId(null);
+    setLoadingAudioId(null);
+    setSpeakingSentenceId(null);
+  };
 
   useEffect(() => {
     soundRef.current = sound;
@@ -5538,6 +5592,8 @@ export default function LessonDetailScreen({
                   // Single page scrollable view - all content in one scroll
                   <SubjectContent
                     subject={pageSubject}
+                    active={isCurrentPage}
+                    onYouGlishSelect={stopLessonContextAudio}
                     tabIndex={0}
                     relatedSubjects={relatedSubjects}
                     onSubjectPress={onSubjectPress}
@@ -5565,6 +5621,8 @@ export default function LessonDetailScreen({
                     renderScene={({ route }) => (
                       <SubjectContent
                         subject={pageSubject}
+                        active={isCurrentPage && index === pageRoutes.findIndex((item) => item.key === route.key)}
+                        onYouGlishSelect={stopLessonContextAudio}
                         tabIndex={pageRoutes.findIndex(
                           (r) => r.key === route.key
                         )}

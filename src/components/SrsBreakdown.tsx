@@ -835,7 +835,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   headerLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -891,7 +891,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   panelLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   chartBody: {
     flex: 1,

@@ -16,7 +16,8 @@ jest.mock("expo-file-system", () => {
       get exists() { return mockFiles.has(this.uri); }
       get name() { return this.uri.split("/").pop(); }
       create() { mockFiles.set(this.uri, ""); }
-      write(value: string) { mockFiles.set(this.uri, value); }
+      writeSync(value: string) { mockFiles.set(this.uri, value); }
+      async write(value: string) { await Promise.resolve(); this.writeSync(value); }
       async text() { return mockFiles.get(this.uri); }
       delete() { mockFiles.delete(this.uri); }
     },

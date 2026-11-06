@@ -36,6 +36,8 @@ import { matchesVocabularyTypes } from "../../src/utils/vocabularyTypeFilter";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 
 // Extended type to include kana_vocabulary
 type ItemType = WaniKaniItemType | "kana_vocabulary";
@@ -492,6 +494,7 @@ export default function CriticalItemsScreen() {
           {Platform.OS === "ios" && SwiftUI ? (
             <SwiftUI.Host matchContents>
               <SwiftUI.Menu
+                modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
                 label={
                   <SwiftUI.RNHostView matchContents>
                     <GlassButton

@@ -1,3 +1,4 @@
+import type { TextInstance } from "react-native";
 import React, {
   createContext,
   useCallback,
@@ -98,7 +99,7 @@ function textContent(children: ReactNode): string {
     .join("");
 }
 export function SettingsLabel({ children, ...props }: TextProps) {
-  const ref = useRef<Text>(null);
+  const ref = useRef<TextInstance>(null);
   const measure = useCallback<SettingsSearchEntry["measure"]>(
     (callback) => ref.current?.measureInWindow((_x, y) => callback(y)),
     [],

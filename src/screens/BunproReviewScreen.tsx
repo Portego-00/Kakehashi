@@ -1,3 +1,4 @@
+import type { ScrollViewInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
@@ -5,18 +6,19 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Keyboard,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import type { KanaInputHandle } from "../components/TextToKanaInput";
 import KanaInput from "../components/TextToKanaInput";
+import ReviewKeyboardAvoidingView from "../components/ReviewKeyboardAvoidingView";
 import type {
   BunproJsonApiResource,
   BunproReviewOnlyFilter,
@@ -1158,6 +1160,8 @@ export default function BunproReviewScreen({
   onComplete,
 }: BunproReviewScreenProps = {}) {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { userData } = useAuthStore();
   const autoSwitchKeyboard = useSettingsStore(
     (state) => state.autoSwitchKeyboard,
@@ -1182,6 +1186,7 @@ export default function BunproReviewScreen({
   const searchEnabled = useSettingsStore((state) => state.reviewSearchButtonEnabled);
   const inputScale = useSettingsStore((state) => state.reviewInputFontScale) ?? 1;
   const characterScale = useSettingsStore((state) => state.reviewCharacterFontScale) ?? 1;
+  const promptTextColor = useSettingsStore((state) => state.bunproReviewPromptTextColor) || theme.textColor;
   const hideFurigana = useSettingsStore(state => state.bunproHideFurigana) ?? false;
   const showDetailsOnWrong = useSettingsStore(state => state.showDetailsOnWrongAnswer);
   const showLevel = useSettingsStore(state => state.showReviewItemLevelAndSrsStage);
@@ -1225,7 +1230,7 @@ export default function BunproReviewScreen({
   const [outbox] = useState(() => createBunproReviewOutbox(savePolicy, setOutboxState));
   const sessionLimitRef = useRef(Infinity);
   const appliedWrapUpRef = useRef<number | null>(null);
-  const promptScrollRef = useRef<ScrollView>(null);
+  const promptScrollRef = useRef<ScrollViewInstance>(null);
   const commitLockRef = useRef(false);
 
   const isPortegoUser = isPortegoUsername(userData?.username);
@@ -2086,7 +2091,7 @@ export default function BunproReviewScreen({
       pointerEvents={mixed && !isActive ? "none" : "auto"}
       accessibilityElementsHidden={Boolean(mixed && !isActive)}
       importantForAccessibility={mixed && !isActive ? "no-hide-descendants" : "auto"}
-      style={[styles.container, { backgroundColor }, mixed && !isActive && { ...StyleSheet.absoluteFillObject, opacity: 0 }]}
+      style={[styles.container, { backgroundColor }, mixed && !isActive && { ...StyleSheet.absoluteFill, opacity: 0 }]}
     >
       {isActive ? <StatusBar style={isDark ? "light" : "dark"} /> : null}
 
@@ -2140,7 +2145,11 @@ export default function BunproReviewScreen({
       {!mixed ? <ReviewPreviousAnswerCard answer={previousAnswer} /> : null}
       <BunproReviewShortcuts enabled={shortcutsEnabled && isActive && !reviewSettingsOpen && selfAssessment} questionKey={occurrenceId} onKey={handleShortcut} />
       <BunproReviewSettingsSheet visible={reviewSettingsOpen} onClose={() => setReviewSettingsOpen(false)} />
-      <KeyboardAvoidingView
+      <ReviewKeyboardAvoidingView
+        testID="bunpro-review-keyboard-pane"
+        bottomInset={insets.bottom}
+        windowHeight={windowHeight}
+        enabled={isActive}
         style={styles.content}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
@@ -2158,7 +2167,7 @@ export default function BunproReviewScreen({
           <View style={styles.rubyLine}>
             {questionParts.map((runs, index) => <React.Fragment key={index}>
               {index > 0 ? <Text style={[styles.answerInline, { fontFamily: jitaiFamily, fontSize: 34 * characterScale, lineHeight: 46 * characterScale, borderBottomColor: statusColor, color: statusColor }]}>{translatedPrompt}</Text> : null}
-              <RubyText runs={runs} hideFurigana={hideFurigana} questionKey={`${occurrenceId}:${index}`} baseTextStyle={[styles.japaneseSentenceBase, { color: theme.textColor, fontSize: 34 * characterScale, lineHeight: 46 * characterScale, fontFamily: jitaiFamily }]} readingTextStyle={[styles.japaneseSentenceReading, { color: mutedColor }]} />
+              <RubyText runs={runs} hideFurigana={hideFurigana} questionKey={`${occurrenceId}:${index}`} baseTextStyle={[styles.japaneseSentenceBase, { color: promptTextColor, fontSize: 34 * characterScale, lineHeight: 46 * characterScale, fontFamily: jitaiFamily }]} readingTextStyle={[styles.japaneseSentenceReading, { color: mutedColor }]} />
             </React.Fragment>)}
           </View>
 
@@ -2396,7 +2405,7 @@ export default function BunproReviewScreen({
             </TouchableOpacity>
           </View>)}
         </View>
-      </KeyboardAvoidingView>
+      </ReviewKeyboardAvoidingView>
     </SafeAreaView>
   );
 }

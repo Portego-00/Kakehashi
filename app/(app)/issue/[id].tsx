@@ -1,3 +1,4 @@
+import type { ScrollViewInstance, TextInputInstance } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatDistanceToNow } from "date-fns";
 import * as ImagePicker from "expo-image-picker";
@@ -67,8 +68,8 @@ export default function IssueDetailScreen() {
   const isAdmin = userData?.username === "Portego";
   const isAuthor = issue?.user_username === userData?.username;
 
-  const scrollViewRef = useRef<ScrollView>(null);
-  const textInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
+  const textInputRef = useRef<TextInputInstance>(null);
   const readTracking = useIssueReadTracking(userData?.id == null ? userData?.username : String(userData.id), id, targetComment, scrollViewRef);
 
   const fetchDetails = useCallback(async () => {
@@ -704,7 +705,7 @@ type CommentComposerProps = {
   insetsBottom: number;
   theme: AppTheme;
   replyingTo: IssueComment | null;
-  textInputRef: React.RefObject<TextInput | null>;
+  textInputRef: React.RefObject<TextInputInstance | null>;
   onCancelReply: () => void;
   onSubmitComment: (
     content: string,

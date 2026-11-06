@@ -281,7 +281,7 @@ export const CommonFilterModal: React.FC<CommonFilterModalProps> = ({
 
 const styles = StyleSheet.create({
   keyboardContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1000,
   },
   keyboardContent: {

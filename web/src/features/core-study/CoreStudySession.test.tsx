@@ -112,6 +112,7 @@ const fixtures = vi.hoisted(() => {
       answerFeedbackSoundEnabled: true,
       showSrsIndicator: true,
       showReviewItemLevelAndSrsStage: false,
+      hideReviewItemLevelAndSrsStageText: false,
       showVocabularyFrequency: false,
       showLessonVocabularyUnlockCounts: false,
       showVocabContextSentencesInReviews: false,
@@ -180,7 +181,9 @@ const fixtures = vi.hoisted(() => {
   return { choiceCatalogError: false, choiceCatalogRequest: null as Promise<typeof subject[]> | null, choiceCatalog: [] as typeof subject[], startedAssignmentsResponse: [] as typeof reviewAssignment[], componentKanji, lessonAssignment, lessonAssignmentsResponse: [lessonAssignment], reviewAssignment, reviewAssignmentsResponse: [reviewAssignment], reviewResponse, secondLessonAssignment, secondSubject, settings, studyMaterial, studyMaterialsRequest: null as Promise<typeof studyMaterial[]> | null, subject, user };
 });
 
-vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user }) }));
+const asr = vi.hoisted(() => ({ active: false }));
+vi.mock("@/features/speech/ReviewAsrAnswer", () => ({ ReviewAsrAnswer: ({ language, blocked, onStart, onTranscript, onAnswer }: { language: string; blocked: boolean; onStart: () => void; onTranscript: (text: string) => void; onAnswer: (text: string) => void }) => asr.active ? <button disabled={blocked} onClick={() => { onStart(); onTranscript(language === "en" ? "forest" : "もり"); onAnswer(language === "en" ? "forest" : "もり"); }}>Record {language}</button> : null }));
+vi.mock("@/lib/session", () => ({ useSession: () => ({ user: fixtures.user, status: "authenticated", isDemo: false }) }));
 vi.mock("@/lib/theme", () => ({ useTheme: () => ({ theme: "system", setTheme: vi.fn() }) }));
 
 vi.mock("@/features/settings/use-workspace-preferences", async (importOriginal) => ({
@@ -298,6 +301,46 @@ describe("core study prompt layout", () => {
     fireEvent.click(within(screen.getByRole("group", { name: "Answer choices" })).getByRole("button", { name: /^\d\. River$/ }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.find(([endpoint]) => endpoint === "reviews")?.[1]).toMatchObject({ body: { review: { assignment_id: 100, incorrect_meaning_answers: 1, incorrect_reading_answers: 0 } } }));
+  });
+
+  it.each([false, true])("honors stop on correct %s for multiple choice", async (pause) => {
+    enableChoices();
+    fixtures.settings.study.pauseOnCorrect = pause;
+    renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    fireEvent.click(within(group).getByRole("button", { name: /^\d\. River$/ }));
+    if (pause) {
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 650)); });
+      expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+    await screen.findByRole("heading", { name: "reading" }, { timeout: 2000 });
+  });
+
+  it.each(["unknown", "corrected"])("saves one mistake for a %s choice using the configured answer pauses", async (action) => {
+    enableChoices();
+    fixtures.settings.study.pauseOnCorrect = action === "corrected";
+    fixtures.settings.study.pauseOnWrong = false;
+    renderSession("reviews");
+    const group = await screen.findByRole("group", { name: "Answer choices" });
+    if (action === "unknown") {
+      const unknown = screen.getByRole("button", { name: "I don't know" });
+      act(() => { fireEvent.click(unknown); fireEvent.click(unknown); });
+      expect(screen.queryByRole("button", { name: "Add as synonym" })).not.toBeInTheDocument();
+    } else {
+      fireEvent.click(within(group).getByRole("button", { name: /^\d\. River$/ }));
+    }
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 650)); });
+    expect(screen.getByRole("heading", { name: "meaning" })).toBeInTheDocument();
+    expect(wkRequest).not.toHaveBeenCalledWith("reviews", expect.anything());
+    fireEvent.click(screen.getByRole("button", { name: "Mark Incorrect" }));
+    await screen.findByRole("heading", { name: "reading" });
+    fireEvent.click(within(screen.getByRole("group", { name: "Answer choices" })).getByRole("button", { name: /^\d\. かわ$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByRole("heading", { name: "meaning" });
+    fireEvent.click(within(screen.getByRole("group", { name: "Answer choices" })).getByRole("button", { name: /^\d\. River$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(vi.mocked(wkRequest).mock.calls.find(([endpoint]) => endpoint === "reviews")?.[1]).toMatchObject({ body: { review: { incorrect_meaning_answers: 1, incorrect_reading_answers: 0 } } }));
   });
 
   it("does not offer user synonyms as incorrect choices", async () => {
@@ -632,6 +675,7 @@ describe("core study prompt layout", () => {
       backToBackImmediateRetryIncorrect: false,
       reviewAnimatePreviousQuestion: true,
       showReviewItemLevelAndSrsStage: false,
+      hideReviewItemLevelAndSrsStageText: false,
       showVocabularyFrequency: false,
       showLessonVocabularyUnlockCounts: false,
       showVocabContextSentencesInReviews: false,
@@ -724,6 +768,18 @@ describe("core study prompt layout", () => {
     renderSession("reviews");
     expect(await screen.findByText("Level 4")).toBeInTheDocument();
     expect(screen.getByText("Apprentice III")).toBeInTheDocument();
+  });
+
+  it("keeps the level and SRS icon while hiding English metadata text", async () => {
+    fixtures.settings.study.showReviewItemLevelAndSrsStage = true;
+    fixtures.settings.study.hideReviewItemLevelAndSrsStageText = true;
+    renderSession("reviews");
+    const metadata = await screen.findByLabelText("Question status");
+    expect(within(metadata).getByText("4", { exact: true })).toBeInTheDocument();
+    expect(within(metadata).getByText("Level")).toHaveClass("sr-only");
+    expect(within(metadata).getByText("Apprentice III")).toHaveClass("sr-only");
+    expect(metadata.querySelector("svg use")).toHaveAttribute("href", "/srs/srs-icons.svg#apprentice-3");
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBeInTheDocument();
   });
 
   it("shows up to three Japanese context hints while keeping translations gated", async () => {
@@ -1148,7 +1204,7 @@ describe("core study prompt layout", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
     expect(screen.getByRole("heading", { name: "Readings" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reading mnemonic" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Pronunciation" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Audio", level: 3 })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Context" }));
     expect(screen.getByRole("heading", { name: "Context sentences" })).toBeInTheDocument();
@@ -1932,6 +1988,23 @@ it("retries a missed WaniKani question after a random 2–10 question gap", asyn
   expect(gap).toBeGreaterThanOrEqual(2);
   expect(gap).toBeLessThanOrEqual(10);
   expect(report.mock.calls.at(-1)?.[0]?.id).toBe(missed);
+});
+
+
+it.each(["multiple-choice", "anki"])("automatically grades a spoken English meaning in %s mode", async mode => {
+  const originalUsername = fixtures.user.data.username;
+  const originalMode = fixtures.settings.study.ankiMode;
+  const originalChoices = fixtures.settings.study.reviewMultipleChoiceEnabled;
+  try {
+    asr.active = true; fixtures.user.data.username = "Portego";
+    fixtures.settings.study.ankiMode = mode === "anki" ? "both" : "off";
+    fixtures.settings.study.reviewMultipleChoiceEnabled = mode === "multiple-choice";
+    renderSession("reviews");
+    fireEvent.click(await screen.findByRole("button", { name: "Record en" }));
+    expect(await screen.findByRole("textbox", { name: "Your answer" })).toHaveValue("forest");
+    expect(vi.mocked(wkRequest).mock.calls.filter(([url]) => url === "reviews")).toHaveLength(0);
+    expect(await screen.findByText("Incorrect")).toBeVisible();
+  } finally { cleanup(); asr.active = false; fixtures.user.data.username = originalUsername; fixtures.settings.study.ankiMode = originalMode; fixtures.settings.study.reviewMultipleChoiceEnabled = originalChoices; }
 });
 
 });

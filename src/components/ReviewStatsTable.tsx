@@ -21,6 +21,8 @@ import { useTheme } from "../utils/theme";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 
 type ReviewStats = {
   id: number;
@@ -478,6 +480,7 @@ export default function ReviewStatsTable({
           {Platform.OS === "ios" && SwiftUI ? (
             <SwiftUI.Host matchContents>
               <SwiftUI.Menu
+                modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
                 label={
                   <SwiftUI.RNHostView matchContents>
                     <View style={styles.levelMenuButton}>

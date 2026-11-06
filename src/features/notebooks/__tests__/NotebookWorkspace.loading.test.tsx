@@ -14,7 +14,7 @@ jest.mock("expo-router", () => ({
   router: { back: jest.fn(), push: jest.fn() },
   useLocalSearchParams: () => ({}),
 }));
-jest.mock("@react-navigation/native", () => ({ useIsFocused: () => true }));
+jest.mock("expo-router/react-navigation", () => ({ useIsFocused: () => true }));
 jest.mock("../../../utils/store", () => ({
   useAuthStore: (selector: (state: object) => unknown) => selector({ apiToken: "token", userData: { id: 42, username: "ordinary-user" } }),
 }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Search, SlidersHorizontal, X } from "lucide-react";
+import { Check, ListPlus, Search, SlidersHorizontal, X } from "lucide-react";
 import { useDeferredValue, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { SrsStageIcon, srsStageLabel } from "@/components/SrsStageIcon";
 import { AnimePicker } from "@/features/anime/AnimePicker";
@@ -9,6 +9,9 @@ import { SubjectCharacter } from "@/features/subjects/components/SubjectCharacte
 import { VocabularyTypeFilter } from "@/features/subjects/components/VocabularyTypeFilter";
 import { searchSubjects } from "@/features/subjects/search";
 import type { Assignment, Subject, SubjectType } from "@/types/wanikani";
+import { AddToSubjectListsDialog, type SubjectListsState } from "@/features/subjects/components/AddToSubjectListsDialog";
+import { matchesStudyDate } from "../../../../../src/utils/studyDateFilter";
+import { StudyDateFilterControl } from "./study-date-filter";
 import { activeStrokeLeniencyPreset, CROSSWORD_SIZE_PRESETS, fixedSubjectTypes, STROKE_LENIENCY_PRESETS } from "../mode-config";
 import type { SrsGroup, StudyFilters, StudyModeId, SubjectList } from "../types";
 import styles from "../study.module.css";
@@ -60,10 +63,11 @@ function toggleValue<T>(values: T[], value: T) {
 
 type CustomPickerMode = Extract<StudyModeId, "custom-review" | "custom-lessons">;
 
-function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, userLevel, starting, onChange, onStart }: { mode: CustomPickerMode; subjects: Subject[]; assignments: Assignment[]; lists: SubjectList[]; filters: StudyFilters; userLevel: number; starting: boolean; onChange: (filters: StudyFilters) => void; onStart: () => void }) {
+function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, userLevel, starting, subjectLists, onChange, onStart }: { mode: CustomPickerMode; subjects: Subject[]; assignments: Assignment[]; lists: SubjectList[]; filters: StudyFilters; userLevel: number; starting: boolean; subjectLists?: SubjectListsState; onChange: (filters: StudyFilters) => void; onStart: () => void }) {
   const [query, setQuery] = useState("");
   const [vocabularyTypes, setVocabularyTypes] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAddToLists, setShowAddToLists] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const searchRef = useRef<HTMLInputElement>(null);
   const filterToggleRef = useRef<HTMLButtonElement>(null);
@@ -96,14 +100,15 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
     }).filter(({ subject, assignment }) => {
       const stageMatches = filters.selectedSrsStages.includes(assignment?.data.srs_stage ?? 0);
       const listMatches = !selectedListSubjectIds || selectedListSubjectIds.has(subject.id);
-      return stageMatches && listMatches;
+      return stageMatches && listMatches && (isLessons || matchesStudyDate(assignment, filters.studyDate));
     });
-  }, [assignments, deferredQuery, effectiveMaxLevel, effectiveMinLevel, filters.selectedSrsStages, filters.subjectTypes, selectedListSubjectIds, subjects, vocabularyTypes]);
+  }, [assignments, deferredQuery, effectiveMaxLevel, effectiveMinLevel, filters.selectedSrsStages, filters.subjectTypes, filters.studyDate, isLessons, selectedListSubjectIds, subjects, vocabularyTypes]);
   const shown = matching.slice(0, 200);
   const allMatchingSelected = matching.length > 0 && matching.every(({ subject }) => selectedSet.has(subject.id));
   const activeFilterCount = Number(filters.subjectTypes.length !== SUBJECT_TYPES.length)
     + Number(filters.selectedSrsStages.length !== SRS_STAGES.length)
     + Number(filters.useCustomLevelRange)
+    + Number(!isLessons && Boolean(filters.studyDate))
     + validSelectedListIds.length
     + vocabularyTypes.length;
   const hasActiveSearchOrFilters = Boolean(deferredQuery.trim() || activeFilterCount > 0);
@@ -121,7 +126,12 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
       return;
     }
     const selectedSubjectIds = new Set(filters.selectedSubjectIds);
-    if (addingList) lists.find((list) => list.id === listId)?.subjectIds.forEach((subjectId) => selectedSubjectIds.add(subjectId));
+    if (addingList) {
+      const assignmentMap = new Map(assignments.map((assignment) => [assignment.data.subject_id, assignment]));
+      lists.find((list) => list.id === listId)?.subjectIds.forEach((subjectId) => {
+        if (matchesStudyDate(assignmentMap.get(subjectId), filters.studyDate)) selectedSubjectIds.add(subjectId);
+      });
+    }
     onChange({ ...filters, selectedListIds, selectedSubjectIds: [...selectedSubjectIds] });
   };
   const toggleMatching = () => {
@@ -142,6 +152,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
       minLevel: 1,
       maxLevel: catalogMaxLevel,
       selectedListIds: [],
+      studyDate: null,
     });
   };
 
@@ -246,6 +257,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
                 ))}
               </div>
             </fieldset>
+            {!isLessons ? <StudyDateFilterControl value={filters.studyDate} onChange={(value) => set("studyDate", value)} /> : null}
             {lists.length ? (
               <fieldset className={styles.reviewFilterGroup} data-wide="true">
                 <legend>Subject lists</legend>
@@ -268,6 +280,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
           {matching.length.toLocaleString()} {hasActiveSearchOrFilters ? "matching" : "available"} {matching.length === 1 ? "subject" : "subjects"}
         </p>
         <div className={styles.reviewBulkActions}>
+          {!isLessons && subjectLists ? <button type="button" className={styles.textButton} disabled={!selectedCount} onClick={() => setShowAddToLists(true)}><ListPlus size={16} aria-hidden />Add to Lists</button> : null}
           <button type="button" className={styles.textButton} aria-label={matchingToggleLabel} disabled={!matching.length} onClick={toggleMatching}>
             <span className={styles.reviewBulkActionLong}>{matchingToggleLabel}</span>
             <span className={styles.reviewBulkActionShort} aria-hidden="true">{compactMatchingToggleLabel}</span>
@@ -325,6 +338,7 @@ function CustomSubjectPicker({ mode, subjects, assignments, lists, filters, user
         </div>
       )}
       {matching.length > 200 ? <p className={styles.reviewPickerHint}>Showing the first 200 matches. Bulk selection still includes all {matching.length.toLocaleString()}.</p> : null}
+      {subjectLists && showAddToLists ? <AddToSubjectListsDialog open subjectIds={[...selectedSet].filter((id) => runnableSubjectIds.has(id))} subjectLabel={`${selectedCount} ${selectedCount === 1 ? "subject" : "subjects"}`} subjectType="" subjectLists={subjectLists} onClose={() => setShowAddToLists(false)} /> : null}
     </section>
   );
 }
@@ -345,7 +359,7 @@ function SettingGroup({ title, detail, children, layout = "row", accessibleTitle
   );
 }
 
-export function StudyConfig({ mode, filters, subjects, assignments = [], lists, userLevel = filters.maxLevel, animeSyncUsernames, starting = false, onChange, onStart }: { mode: StudyModeId; filters: StudyFilters; subjects: Subject[]; assignments?: Assignment[]; lists: SubjectList[]; userLevel?: number; animeSyncUsernames?: { myanimelist?: string; anilist?: string }; starting?: boolean; onChange: (filters: StudyFilters) => void; onStart: () => void }) {
+export function StudyConfig({ mode, filters, subjects, assignments = [], lists, subjectLists, userLevel = filters.maxLevel, animeSyncUsernames, starting = false, onChange, onStart }: { mode: StudyModeId; filters: StudyFilters; subjects: Subject[]; assignments?: Assignment[]; lists: SubjectList[]; subjectLists?: SubjectListsState; userLevel?: number; animeSyncUsernames?: { myanimelist?: string; anilist?: string }; starting?: boolean; onChange: (filters: StudyFilters) => void; onStart: () => void }) {
   const fixedTypes = fixedSubjectTypes(mode);
   const needsSelection = mode === "custom-review" || mode === "custom-lessons";
   const needsQuestionKind = mode === "random-test";
@@ -359,7 +373,7 @@ export function StudyConfig({ mode, filters, subjects, assignments = [], lists, 
   const set = <K extends keyof StudyFilters>(key: K, value: StudyFilters[K]) => onChange({ ...filters, [key]: value });
 
   if (mode === "custom-review" || mode === "custom-lessons") {
-    return <CustomSubjectPicker mode={mode} subjects={subjects} assignments={assignments} lists={lists} filters={filters} userLevel={userLevel} starting={starting} onChange={onChange} onStart={onStart} />;
+    return <CustomSubjectPicker mode={mode} subjects={subjects} assignments={assignments} lists={lists} filters={filters} userLevel={userLevel} starting={starting} subjectLists={subjectLists} onChange={onChange} onStart={onStart} />;
   }
 
   return (

@@ -16,6 +16,8 @@ import { GlassButton } from "./GlassButton";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SwiftUIModifiers = Platform.OS === "ios" ? require("@expo/ui/swift-ui/modifiers") : null;
 
 type StudyMenuAction = {
   id: string;
@@ -35,6 +37,7 @@ type SubjectListStudyMenuProps = {
   hasSelectedLists: boolean;
   triggerStyle?: StyleProp<ViewStyle>;
   onStandardReview: () => void;
+  onFlashcardReview: () => void;
   onKanjiMatch: () => void;
   onCustomLessons: () => void;
   onRandomTest: () => void;
@@ -48,6 +51,7 @@ export default function SubjectListStudyMenu({
   hasSelectedLists,
   triggerStyle,
   onStandardReview,
+  onFlashcardReview,
   onKanjiMatch,
   onCustomLessons,
   onRandomTest,
@@ -66,6 +70,15 @@ export default function SubjectListStudyMenu({
         systemImage: "checkmark.circle",
         count: selectedItemCount,
         onPress: onStandardReview,
+      },
+      {
+        id: "flashcard-review",
+        label: "Flashcard Review",
+        description: "Reveal answers and mark them correct or incorrect",
+        icon: "albums-outline",
+        systemImage: "rectangle.on.rectangle",
+        count: selectedItemCount,
+        onPress: onFlashcardReview,
       },
       {
         id: "kanji-match",
@@ -120,6 +133,7 @@ export default function SubjectListStudyMenu({
       onRandomTest,
       onSimilarKanji,
       onStandardReview,
+      onFlashcardReview,
       selectedItemCount,
       selectedKanjiCount,
     ],
@@ -153,6 +167,8 @@ export default function SubjectListStudyMenu({
         style={[styles.trigger, triggerStyle]}
       >
         <SwiftUI.Menu
+          // The custom label supplies its own appearance and size.
+          modifiers={[SwiftUIModifiers.buttonStyle("plain")]}
           label={
             <SwiftUI.RNHostView matchContents>
               <View
@@ -256,7 +272,7 @@ export default function SubjectListStudyMenu({
             >
               {visibleActions.map((action, index) => (
                 <React.Fragment key={action.id}>
-                  {index === 3 ? (
+                  {action.requiresList && !visibleActions[index - 1]?.requiresList ? (
                     <View
                       style={[
                         styles.divider,

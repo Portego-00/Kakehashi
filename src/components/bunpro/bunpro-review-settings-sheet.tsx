@@ -5,6 +5,7 @@ import { useTheme } from "../../utils/theme";
 import { DEFAULT_STUDY_SHORTCUTS, STUDY_SHORTCUT_LABELS, type StudyShortcutAction } from "../../utils/bunpro-study-shortcuts";
 import type { ReviewOrderSetting } from "../../utils/reviewOrdering";
 import { useBunproApiKeyAdded } from "../../hooks/use-bunpro-api-key-added";
+import { ReviewPromptColorSetting } from "../../features/settings/components/review-prompt-color-setting";
 
 const orders: [ReviewOrderSetting, string][] = [["random", "Random"], ["ascendingSrsStage", "Lower SRS first"], ["descendingSrsStage", "Higher SRS first"], ["currentLevelFirst", "Current level first"], ["lowestLevelFirst", "Lowest level first"], ["newestAvailableFirst", "Newest available first"], ["oldestAvailableFirst", "Oldest available first"], ["longestRelativeWait", "Most overdue first"]];
 
@@ -36,6 +37,7 @@ export function BunproReviewSettingsSheet({ visible, onClose }: { visible: boole
         <ScrollView contentContainerStyle={{ paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
           <Text style={{ color: theme.textSecondary }}>Changes save automatically. Your current question and answer stay in place; ordering changes apply to remaining questions.</Text>
           {heading("Appearance")}
+          <ReviewPromptColorSetting provider="bunpro" />
           <Choice label="Theme" value={themeMode ?? "system"} options={[["system", "System"], ["light", "Light"], ["dark", "Dark"], ["midnight", "Midnight"], ["sepia", "Sepia"]]} onChange={setThemeMode} />
           <Choice label="Question text size" value={settings.reviewCharacterFontScale ?? 1} options={[0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.4].map(value => [value, `${Math.round(value * 100)}%`])} onChange={settings.setReviewCharacterFontScale} />
           <Choice label="Answer text size" value={settings.reviewInputFontScale ?? 1} options={[0.7, 0.8, 0.9, 1, 1.1, 1.2].map(value => [value, `${Math.round(value * 100)}%`])} onChange={settings.setReviewInputFontScale} />

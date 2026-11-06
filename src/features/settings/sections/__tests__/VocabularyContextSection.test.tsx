@@ -5,6 +5,8 @@ import { permanentStorage } from "../../../../utils/permanentStorage";
 import { useSettingsStore } from "../../../../utils/store";
 import { VocabularyContextSection } from "../VocabularyContextSection";
 
+let mockIsPortegoUser = false;
+
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: () => null,
   MaterialCommunityIcons: () => null,
@@ -52,6 +54,7 @@ jest.mock("../../SettingsControllerContext", () => ({
     const { useSettingsStore } = jest.requireActual<typeof import("../../../../utils/store")>("../../../../utils/store");
     return {
       ...useSettingsStore(),
+      isPortegoUser: mockIsPortegoUser,
       theme: {
         cardBackground: "#ffffff",
         textColor: "#222222",
@@ -65,12 +68,29 @@ jest.mock("../../SettingsControllerContext", () => ({
 }));
 
 afterEach(() => {
+  mockIsPortegoUser = false;
   useSettingsStore.setState({
     showJLPTLevel: false,
     showVocabularyFrequency: false,
     hideContextSentenceTranslations: false,
     hideContextSentenceTranslationsCompletely: false,
+    showYouGlishContext: false,
   });
+});
+
+it("keeps YouGlish off by default and only offers the persisted setting to Portego", () => {
+  expect(useSettingsStore.getInitialState().showYouGlishContext).toBe(false);
+  const screen = render(<VocabularyContextSection />);
+  expect(screen.queryByLabelText("YouGlish Context")).toBeNull();
+  mockIsPortegoUser = true;
+  screen.rerender(<VocabularyContextSection />);
+  fireEvent(screen.getByLabelText("YouGlish Context"), "valueChange", true);
+  expect(useSettingsStore.getState().showYouGlishContext).toBe(true);
+  const saved = JSON.parse(permanentStorage.getString("wanikani-settings") ?? "{}");
+  expect(saved.state.showYouGlishContext).toBe(true);
+  mockIsPortegoUser = false;
+  screen.rerender(<VocabularyContextSection />);
+  expect(screen.queryByLabelText("YouGlish Context")).toBeNull();
 });
 
 it.each([false, true])("can remove translations independently of tap-to-reveal being %s", (hideUntilTapped) => {

@@ -1,4 +1,5 @@
 import { TranslatedStudyText } from "../features/translation-packages/TranslatedStudyText";
+import type { ScrollViewInstance } from "react-native";
 import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -129,7 +130,7 @@ export default function SubjectTabs({
       : internalActiveTabIndex;
 
   // Ref for the scroll view
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   // Audio for vocabulary pronunciation
   const [sound, setSound] = useState<AudioSound | null>(null);
