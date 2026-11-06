@@ -2073,8 +2073,10 @@ const SubjectContent = ({
                 {getSimilarKanjiSubjectCharacters(kanjiSubject)}
               </Text>
               <Text style={styles.relatedItemMeaning}>
-                {getSimilarKanjiSubjectPrimaryMeaning(kanjiSubject) ||
-                  "Loading..."}
+                {display.meaning(
+                  kanjiSubject,
+                  getSimilarKanjiSubjectPrimaryMeaning(kanjiSubject) || "Loading...",
+                )}
               </Text>
             </TouchableOpacity>
           ))}
@@ -2112,8 +2114,10 @@ const SubjectContent = ({
                   {getSimilarKanjiSubjectCharacters(kanjiSubject)}
                 </Text>
                 <Text style={styles.relatedItemMeaning}>
-                  {getSimilarKanjiSubjectPrimaryMeaning(kanjiSubject) ||
-                    "Loading..."}
+                  {display.meaning(
+                    kanjiSubject,
+                    getSimilarKanjiSubjectPrimaryMeaning(kanjiSubject) || "Loading...",
+                  )}
                 </Text>
               </TouchableOpacity>
             ))}

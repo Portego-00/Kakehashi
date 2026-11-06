@@ -1,3 +1,5 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
+import { practiceSentence } from "../../src/features/translation-packages/practice-display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
@@ -120,6 +122,7 @@ const KANA_KANJI_SESSION_KEY = EXTRA_STUDY_SESSION_STORAGE_KEYS.KANA_KANJI;
 export default function KanaKanjiSessionScreen() {
   useActivityTracking("kana_kanji");
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
   const { autoSwitchKeyboard } = useSettingsStore();
@@ -827,7 +830,7 @@ export default function KanaKanjiSessionScreen() {
       overridePausedCorrectAnswerText={current.subject.data.characters || undefined}
       contextSentencesHint={(current.subject.data as any).context_sentences
         ?.filter((sentence: any) => sentence.en)
-        .map((sentence: any) => ({ en: sentence.en }))}
+        .map((sentence: any) => ({ en: practiceSentence(display, current.subject, sentence.ja, sentence.en) }))}
       acceptCharactersAsCorrectForReading={true}
       requireSubjectCharactersForReading={true}
     />

@@ -1,3 +1,6 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
+import { practiceSentence, practicePrompt, practiceHintLabels, practiceReadingHints } from "../../src/features/translation-packages/practice-display";
+import { usePracticeSubjects } from "../../src/features/translation-packages/use-practice-subjects";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { router, useLocalSearchParams } from "expo-router";
@@ -230,6 +233,7 @@ async function buildKanjiVocabularyHintMap(
 export default function MeaningReadingSessionScreen() {
   useActivityTracking("meaning_reading");
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const { apiToken } = useAuthStore();
   const { isLoading: isAuthLoading } = useSession();
   const params = useLocalSearchParams();
@@ -237,6 +241,10 @@ export default function MeaningReadingSessionScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [questions, setQuestions] = useState<MRQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const hintSubjectIds: number[] = display.active && questions[currentIndex]?.subject.object === "kanji"
+    ? (questions[currentIndex].subject.data.amalgamation_subject_ids ?? []).slice(0, KANJI_VOCAB_HINT_CANDIDATE_LIMIT)
+    : [];
+  const hintSubjects = usePracticeSubjects(hintSubjectIds);
   const [reviewItems, setReviewItems] = useState<MRReviewItem[]>([]);
   const [progress, setProgress] = useState<MeaningReadingProgressState>(
     EMPTY_PROGRESS_STATE,
@@ -815,16 +823,17 @@ export default function MeaningReadingSessionScreen() {
     ?.map((m: any) => m.meaning)
     ?.join(", ") || "" : "";
   const vocabularyMeaningHintsForKanji = current.subject.object === "kanji"
-    ? (kanjiVocabularyHintMap[current.subject.id] || [])
+    ? practiceHintLabels(display, kanjiVocabularyHintMap[current.subject.id] || [], hintSubjectIds.map(id => hintSubjects.get(id)))
     : [];
   const defaultContextHints = (current.subject.data as any).context_sentences
     ?.filter((s: any) => s.en)
-    .map((s: any) => ({ en: s.en }));
+    .map((s: any) => ({ en: practiceSentence(display, current.subject, s.ja, s.en) }));
   const joinedKanjiHintText = vocabularyMeaningHintsForKanji.join(", ");
-  const hintsForCurrentQuestion = current.subject.object === "kanji"
+  const sourceHints = current.subject.object === "kanji"
     ? (joinedKanjiHintText ? [{ en: joinedKanjiHintText }] : [])
-    : defaultContextHints;
-  const contextHintMaxItems = current.subject.object === "kanji" ? 1 : 3;
+    : (defaultContextHints ?? []).slice(0, 3);
+  const hintsForCurrentQuestion = practiceReadingHints(display, current.subject, sourceHints);
+  const contextHintMaxItems = hintsForCurrentQuestion.length;
 
   // Prepare readings, ensuring kana_vocabulary has a reading fallback
   const originalCharacters = current.subject.data.characters;
@@ -866,8 +875,8 @@ export default function MeaningReadingSessionScreen() {
       correctAnswersCount={sessionProgress.correctAnswersCount}
       forceDisableAnkiGrouping={true}
       // Override prompt to show English meaning instead of characters
-      overridePromptText={primaryMeaning}
-      overridePromptSubtext={alternativeMeanings || undefined}
+      overridePromptText={practicePrompt(display, current.subject, primaryMeaning)}
+      overridePromptSubtext={display.resolveMeaning(current.subject) ? undefined : alternativeMeanings || undefined}
       // Pass context sentences (English only) as hints to disambiguate similar meanings
       contextSentencesHint={hintsForCurrentQuestion}
       contextHintMaxItems={contextHintMaxItems}

@@ -10,6 +10,11 @@ import { Platform } from "react-native";
 import { router } from "expo-router";
 
 import CustomReviewSelectionScreen from "../(app)/custom-review-selection";
+import CustomLessonSelectionScreen from "../(app)/custom-lesson-selection";
+import translationData from "../../tests/fixtures/translation-packages/tr-learning-pilot.json";
+import { parseTranslationPackage } from "../../src/features/translation-packages/resolver";
+import { packageManager } from "../../src/features/translation-packages/package-store";
+import { useLearningContentStore } from "../../src/features/translation-packages/store";
 import { EXTRA_STUDY_CONFIG_STORAGE_KEYS } from "../../src/utils/extraStudyConfigPersistence";
 import { getAllSubjects } from "../../src/utils/cache";
 import { clearExtraStudySessionState } from "../../src/utils/extraStudySessionPersistence";
@@ -521,5 +526,41 @@ describe("Custom Review filter selection persistence", () => {
         maxFrequencyRank: null,
       },
     });
+  });
+});
+
+describe("Extra Study selection translations", () => {
+  it.each([
+    ["lessons", "translated"], ["reviews", "translated"],
+    ["lessons", "disabled"], ["reviews", "disabled"],
+    ["lessons", "stale"], ["reviews", "stale"],
+  ] as const)("shows package meanings with safe fallback (%s, %s)", async (kind, mode) => {
+    jest.clearAllMocks();
+    mockedAsyncStorage.getItem.mockResolvedValue(null);
+    mockedAsyncStorage.setItem.mockResolvedValue(undefined);
+    mockNextAppliedFilters = null;
+    const packet = parseTranslationPackage(translationData)!;
+    const entry = packet.subjects["440"];
+    const subject = { id: 440, object: "kanji", data: {
+      characters: entry.source.word, level: 1,
+      meanings: entry.source.meaningsEn.map((meaning, i) => ({ meaning: mode === "stale" ? "Changed source meaning" : meaning, primary: i === 0 })),
+      readings: entry.source.readingsJa.map(reading => ({ reading, primary: true })),
+    }};
+    (getAllSubjects as jest.Mock).mockResolvedValue([subject]);
+    await packageManager.hydrate();
+    packageManager.state.setState({ packet, hydrated: true });
+    useLearningContentStore.setState({ enabled: mode !== "disabled" });
+    const screen = render(kind === "lessons" ? <CustomLessonSelectionScreen /> : <CustomReviewSelectionScreen />);
+    try {
+      const expected = mode === "translated" ? "Bir" : mode === "stale" ? "Changed source meaning" : "One";
+      expect(await screen.findByText(expected)).toBeTruthy();
+      if (kind === "reviews") expect(screen.getByLabelText(new RegExp(`^一, ${expected},`))).toBeTruthy();
+      if (mode === "translated") expect(screen.queryByText("One")).toBeNull();
+      else expect(screen.queryByText("Bir")).toBeNull();
+    } finally {
+      screen.unmount();
+      packageManager.state.setState({ packet: null });
+      useLearningContentStore.setState({ enabled: false });
+    }
   });
 });

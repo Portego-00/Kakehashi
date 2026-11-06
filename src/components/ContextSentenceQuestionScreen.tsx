@@ -1,3 +1,5 @@
+import { useLearningDisplay } from "../features/translation-packages/display";
+import { practiceSentence } from "../features/translation-packages/practice-display";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import { BlurView } from "expo-blur";
@@ -211,6 +213,7 @@ export default function ContextSentenceQuestionScreen({
     if (nextWidth > 0) setChoicesGridWidth(nextWidth);
   };
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const subjectColors = useSubjectColors();
   const insets = useSafeAreaInsets();
 
@@ -1420,7 +1423,7 @@ export default function ContextSentenceQuestionScreen({
     if (!hideTranslationUntilTap || isTranslationRevealed) {
       return (
         <Text style={[styles.translationText, { color: theme.textColor }]}>
-          {question.translation}
+          {practiceSentence(display, question.vocab, question.sentence, question.translation)}
         </Text>
       );
     }
@@ -1438,7 +1441,7 @@ export default function ContextSentenceQuestionScreen({
             { color: theme.textColor },
           ]}
         >
-          {question.translation}
+          {practiceSentence(display, question.vocab, question.sentence, question.translation)}
         </Text>
         <BlurView
           tint={theme.isDark ? "dark" : "light"}

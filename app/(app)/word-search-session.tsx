@@ -1,3 +1,5 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
+import { usePracticeSubjects } from "../../src/features/translation-packages/use-practice-subjects";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Stack, router, useLocalSearchParams } from "expo-router";
@@ -222,6 +224,8 @@ function WordSearchResults({
   onPlayAgain: () => void;
 }) {
   const { theme } = useTheme();
+  const display = useLearningDisplay();
+  const practiceSubjects = usePracticeSubjects(display.active ? puzzle.entries.map(entry => entry.subjectId) : []);
 
   return (
     <ScrollView
@@ -307,7 +311,7 @@ function WordSearchResults({
               </Text>
             </View>
             <Text selectable style={[styles.reviewMeaning, { color: theme.textSecondary }]}>
-              {entry.meaning}
+              {display.meaning(practiceSubjects.get(entry.subjectId), entry.meaning)}
             </Text>
           </View>
         ))}
@@ -336,12 +340,14 @@ function WordSearchResults({
 
 function WordSearchSessionContent() {
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const { apiToken, userData } = useAuthStore();
   const userLevel = userData?.level ?? 60;
   const { isLoading: isAuthLoading } = useSession();
   const params = useLocalSearchParams();
   const [config, setConfig] = useState<WordSearchConfig | null>(null);
   const [puzzle, setPuzzle] = useState<WordSearchPuzzle | null>(null);
+  const practiceSubjects = usePracticeSubjects(display.active ? puzzle?.entries.map(entry => entry.subjectId) ?? [] : []);
   const [foundEntryIds, setFoundEntryIds] = useState<string[]>([]);
   const [foundPaths, setFoundPaths] = useState<Record<string, WordSearchCell[]>>({});
   const [hintedEntryIds, setHintedEntryIds] = useState<string[]>([]);
@@ -582,7 +588,7 @@ function WordSearchSessionContent() {
       const nextFoundIds = [...foundEntryIds, match.id];
       setFoundEntryIds(nextFoundIds);
       setFoundPaths((current) => ({ ...current, [match.id]: path }));
-      setStatusMessage(`${match.clue} found — ${match.meaning}.`);
+      setStatusMessage(`${match.clue} found — ${display.meaning(practiceSubjects.get(match.subjectId), match.meaning)}.`);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       const nextEntry = puzzle.entries.find(
@@ -596,7 +602,7 @@ function WordSearchSessionContent() {
         void clearExtraStudySessionState(SESSION_KEY);
       }
     },
-    [foundEntryIds, foundIdSet, isComplete, puzzle, startedAt],
+    [foundEntryIds, foundIdSet, isComplete, puzzle, startedAt, display, practiceSubjects],
   );
 
   const useHint = () => {
@@ -756,7 +762,7 @@ function WordSearchSessionContent() {
                 {activeEntry.clue}
               </Text>
               <Text selectable style={[styles.clueMeaning, { color: theme.textSecondary }]}>
-                {activeEntry.meaning}
+                {display.meaning(practiceSubjects.get(activeEntry.subjectId), activeEntry.meaning)}
               </Text>
             </View>
             <TouchableOpacity
@@ -821,7 +827,7 @@ function WordSearchSessionContent() {
               <TouchableOpacity
                 key={entry.id}
                 accessibilityRole="button"
-                accessibilityLabel={`${entry.clue}, ${entry.meaning}${found ? ", found" : ""}`}
+                accessibilityLabel={`${entry.clue}, ${display.meaning(practiceSubjects.get(entry.subjectId), entry.meaning)}${found ? ", found" : ""}`}
                 accessibilityState={{ selected: active, disabled: found }}
                 disabled={found}
                 onPress={() => setActiveEntryId(entry.id)}
@@ -866,7 +872,7 @@ function WordSearchSessionContent() {
                   numberOfLines={1}
                   style={[styles.clueChipMeaning, { color: theme.textSecondary }]}
                 >
-                  {entry.meaning}
+                  {display.meaning(practiceSubjects.get(entry.subjectId), entry.meaning)}
                 </Text>
               </TouchableOpacity>
             );

@@ -1,3 +1,4 @@
+import { useLearningDisplay } from "../../src/features/translation-packages/display";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -55,6 +56,7 @@ import { matchesVocabularyTypes } from "../../src/utils/vocabularyTypeFilter";
 export default function CustomLessonSelectionScreen() {
   const { apiToken } = useAuthStore();
   const { theme } = useTheme();
+  const display = useLearningDisplay();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<number>>(
     new Set(),
@@ -475,7 +477,7 @@ export default function CustomLessonSelectionScreen() {
           style={[styles.itemCharacter, fontStyles.japaneseText]}
           numberOfLines={1}
         >
-          {item.data.meanings[0].meaning}
+          {display.meaning(item, item.data.meanings[0]?.meaning ?? "")}
         </Text>
       );
     }
@@ -508,13 +510,13 @@ export default function CustomLessonSelectionScreen() {
             <SubjectRadicalCharacter item={item} />
           ) : (
             <Text style={[styles.itemCharacter, fontStyles.japaneseText]}>
-              {item.data.characters || item.data.meanings[0].meaning}
+              {item.data.characters || display.meaning(item, item.data.meanings[0]?.meaning ?? "")}
             </Text>
           )}
         </TouchableOpacity>
         <View style={styles.itemDetails}>
           <Text style={[styles.itemMeaning, { color: theme.textColor }]}>
-            {item.data.meanings[0].meaning}
+            {display.meaning(item, item.data.meanings[0]?.meaning ?? "")}
           </Text>
           <View style={styles.itemMetadata}>
             <Text style={[styles.itemType, { color: theme.textSecondary }]}>
