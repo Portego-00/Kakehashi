@@ -4,7 +4,7 @@ import { z } from "zod";
 export const PACKAGE_LIMITS = {
   subjects: 12000, meanings: 64, readings: 64, alternatives: 32,
   synonyms: 20, examplesPerSubject: 100, examples: 40000,
-  metadata: 256, schemaUrl: 1024, meaning: 256, sentence: 4096, usage: 8192,
+  metadata: 256, schemaUrl: 1024, meaning: 256, sentence: 4096, usage: 8192, mnemonic: 8192,
 } as const;
 const text = (max: number) => z.string().max(max).refine(value => value.trim().length > 0);
 const array = <T extends z.ZodType>(item: T, max: number) => z.preprocess(
@@ -13,6 +13,16 @@ const array = <T extends z.ZodType>(item: T, max: number) => z.preprocess(
 );
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const status = z.enum(["demo", "draft", "editorial-reviewed"]);
+export const mnemonicFields = ["meaningMnemonic", "readingMnemonic", "meaningHint", "readingHint"] as const;
+export type MnemonicField = (typeof mnemonicFields)[number];
+const mnemonicTextSchema = z.object({
+  source: text(PACKAGE_LIMITS.mnemonic), sourceSha256: hash,
+  translation: text(PACKAGE_LIMITS.mnemonic), reviewStatus: status,
+}).strict();
+const mnemonicsSchema = z.object({
+  meaningMnemonic: mnemonicTextSchema.optional(), readingMnemonic: mnemonicTextSchema.optional(),
+  meaningHint: mnemonicTextSchema.optional(), readingHint: mnemonicTextSchema.optional(),
+}).strict().refine(value => Object.keys(value).length > 0);
 const entrySchema = z.object({
   source: z.object({
     type: z.enum(["radical", "kanji", "vocabulary", "kana_vocabulary"]), word: text(PACKAGE_LIMITS.meaning).nullable(),
@@ -21,6 +31,7 @@ const entrySchema = z.object({
     level: z.number().int().min(1).max(60), updatedAt: z.string().max(PACKAGE_LIMITS.metadata).nullable(), meaningBasisSha256: hash,
   }).strict(),
   synonymAnswers: z.object({ values: array(text(PACKAGE_LIMITS.meaning), PACKAGE_LIMITS.synonyms), reviewStatus: status }).strict().optional(),
+  mnemonics: mnemonicsSchema.optional(),
   meaning: z.object({ primary: text(PACKAGE_LIMITS.meaning), alternatives: array(text(PACKAGE_LIMITS.meaning), PACKAGE_LIMITS.alternatives), reviewStatus: status }).strict(),
   examples: array(z.object({
     source: z.object({ ja: text(PACKAGE_LIMITS.sentence), en: text(PACKAGE_LIMITS.sentence) }).strict(), sourceSha256: hash,
@@ -28,7 +39,7 @@ const entrySchema = z.object({
   }).strict(), PACKAGE_LIMITS.examplesPerSubject),
 }).strict();
 const packageSchema = z.object({
-  $schema: text(PACKAGE_LIMITS.schemaUrl), schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]), packageId: text(PACKAGE_LIMITS.metadata),
+  $schema: text(PACKAGE_LIMITS.schemaUrl), schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]), packageId: text(PACKAGE_LIMITS.metadata),
   language: z.string().max(64).regex(/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/), name: text(PACKAGE_LIMITS.metadata), version: text(PACKAGE_LIMITS.metadata),
   generatedAt: z.iso.datetime({ offset: true }),
   purpose: z.enum(["integration-demo", "learning-content"]), scope: z.enum(["display-only", "display-and-synonyms"]),
@@ -61,6 +72,9 @@ export function parseTranslationPackage(value: unknown): TranslationPackage | nu
     if (!parsed.success) return null;
     const entry = parsed.data;
     if (result.data.schemaVersion < 3 && (result.data.scope !== "display-only" || entry.synonymAnswers)) return null;
+    if (entry.mnemonics && result.data.schemaVersion < 4) return null;
+    if ((entry.source.type === "radical" || entry.source.type === "kana_vocabulary") &&
+      (entry.mnemonics?.readingMnemonic || entry.mnemonics?.readingHint)) return null;
     if (entry.source.type !== "radical" && entry.source.word === null) return null;
     if (result.data.schemaVersion === 1 && entry.source.type === "radical") return null;
     if (entry.source.type === "radical" && (entry.examples.length || entry.source.readingsJa.length)) return null;
@@ -92,7 +106,7 @@ export function resolveTranslatedMeaning(packet: TranslationPackage | null, subj
   return entry?.meaning.reviewStatus === "editorial-reviewed" ? entry.meaning : null;
 }
 export function resolveSynonymAnswers(packet: TranslationPackage | null, subject: DisplaySubject) {
-  if (packet?.language !== "tr" || packet?.schemaVersion !== 3 || packet.scope !== "display-and-synonyms") return null;
+  if (!packet || packet.language !== "tr" || packet.schemaVersion < 3 || packet.scope !== "display-and-synonyms") return null;
   const entry = matchingEntry(packet, subject);
   return entry?.synonymAnswers?.reviewStatus === "editorial-reviewed" ? entry.synonymAnswers.values : null;
 }
@@ -100,6 +114,14 @@ export function resolveTranslatedSentence(packet: TranslationPackage | null, sub
   const entry = matchingEntry(packet, subject);
   return entry?.examples.find(e => e.reviewStatus === "editorial-reviewed" &&
     e.source.ja === source.ja && e.source.en === source.en) ?? null;
+}
+
+// Each field matches its exact current original, independently of other fields.
+// Never infer a mnemonic from a meaning, an ID alone or a source checksum.
+export function resolveTranslatedMnemonic(packet: TranslationPackage | null, subject: DisplaySubject, field: MnemonicField, source: string) {
+  if (!packet || packet.schemaVersion < 4 || !source.trim()) return null;
+  const translated = matchingEntry(packet, subject)?.mnemonics?.[field];
+  return translated?.reviewStatus === "editorial-reviewed" && translated.source === source ? translated : null;
 }
 
 export const MAX_PACKAGE_BYTES = 20 * 1024 * 1024;

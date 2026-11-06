@@ -1,3 +1,4 @@
+import { TranslatedStudyText } from "../features/translation-packages/TranslatedStudyText";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { showStudyMaterialPermissionAlert } from "../utils/study-material-permission-alert";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
@@ -2204,7 +2205,7 @@ const SubjectContent = ({
     return (
       <View style={styles.infoSection}>
         <Text style={styles.sectionTitle}>{title}</Text>
-        {formatMnemonic(hint)}
+        <TranslatedStudyText subject={subject} field={title === "Meaning Hint" ? "meaningHint" : "readingHint"} original={hint} render={formatMnemonic} />
       </View>
     );
   };
@@ -2659,7 +2660,7 @@ const SubjectContent = ({
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Mnemonic</Text>
                 {subject.data.meaning_mnemonic ? (
-                  formatMnemonic(subject.data.meaning_mnemonic)
+                  <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic} render={formatMnemonic} />
                 ) : (
                   <Text style={styles.mnemonicText}>No mnemonic available</Text>
                 )}
@@ -2802,7 +2803,7 @@ const SubjectContent = ({
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Meaning Mnemonic</Text>
                 {subject.data.meaning_mnemonic ? (
-                  formatMnemonic(subject.data.meaning_mnemonic)
+                  <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic} render={formatMnemonic} />
                 ) : (
                   <Text style={styles.mnemonicText}>No mnemonic available</Text>
                 )}
@@ -2879,7 +2880,7 @@ const SubjectContent = ({
                         Reading Mnemonic
                       </Text>
                       {subject.data.reading_mnemonic ? (
-                        formatMnemonic(subject.data.reading_mnemonic)
+                        <TranslatedStudyText subject={subject} field="readingMnemonic" original={subject.data.reading_mnemonic} render={formatMnemonic} />
                       ) : (
                         <Text style={styles.mnemonicText}>
                           No reading mnemonic available
@@ -3019,7 +3020,7 @@ const SubjectContent = ({
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Meaning Mnemonic</Text>
                 {subject.data.meaning_mnemonic ? (
-                  formatMnemonic(subject.data.meaning_mnemonic)
+                  <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic} render={formatMnemonic} />
                 ) : (
                   <Text style={styles.mnemonicText}>No mnemonic available</Text>
                 )}
@@ -3116,7 +3117,7 @@ const SubjectContent = ({
                     Reading Mnemonic
                   </Text>
                   {subject.data.reading_mnemonic ? (
-                    formatMnemonic(subject.data.reading_mnemonic)
+                    <TranslatedStudyText subject={subject} field="readingMnemonic" original={subject.data.reading_mnemonic} render={formatMnemonic} />
                   ) : (
                     <Text style={styles.mnemonicText}>
                       No reading mnemonic available
@@ -3239,7 +3240,7 @@ const SubjectContent = ({
               <View style={styles.infoSection}>
                 <Text style={styles.sectionTitle}>Mnemonic</Text>
                 {subject.data.meaning_mnemonic ? (
-                  formatMnemonic(subject.data.meaning_mnemonic)
+                  <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic} render={formatMnemonic} />
                 ) : (
                   <Text style={styles.mnemonicText}>No mnemonic available</Text>
                 )}
@@ -3282,7 +3283,7 @@ const SubjectContent = ({
                   <View style={styles.infoSection}>
                     <Text style={styles.sectionTitle}>Mnemonic</Text>
                     {subject.data.meaning_mnemonic ? (
-                      formatMnemonic(subject.data.meaning_mnemonic)
+                      <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic} render={formatMnemonic} />
                     ) : (
                       <Text style={styles.mnemonicText}>
                         No mnemonic available
@@ -3468,7 +3469,7 @@ const SubjectContent = ({
                   <View style={styles.infoSection}>
                     <Text style={styles.sectionTitle}>Mnemonic</Text>
                     {subject.data.meaning_mnemonic ? (
-                      formatMnemonic(subject.data.meaning_mnemonic)
+                      <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic} render={formatMnemonic} />
                     ) : (
                       <Text style={styles.mnemonicText}>
                         No mnemonic available
@@ -3581,7 +3582,7 @@ const SubjectContent = ({
                             Reading Mnemonic
                           </Text>
                           {subject.data.reading_mnemonic ? (
-                            formatMnemonic(subject.data.reading_mnemonic)
+                            <TranslatedStudyText subject={subject} field="readingMnemonic" original={subject.data.reading_mnemonic} render={formatMnemonic} />
                           ) : (
                             <Text style={styles.mnemonicText}>
                               No reading mnemonic available
@@ -3718,7 +3719,7 @@ const SubjectContent = ({
                   <View style={styles.infoSection}>
                     <Text style={styles.sectionTitle}>Mnemonic</Text>
                     {subject.data.meaning_mnemonic ? (
-                      formatMnemonic(subject.data.meaning_mnemonic)
+                      <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic} render={formatMnemonic} />
                     ) : (
                       <Text style={styles.mnemonicText}>
                         No mnemonic available
@@ -3862,7 +3863,7 @@ const SubjectContent = ({
                         Reading Mnemonic
                       </Text>
                       {subject.data.reading_mnemonic ? (
-                        formatMnemonic(subject.data.reading_mnemonic)
+                        <TranslatedStudyText subject={subject} field="readingMnemonic" original={subject.data.reading_mnemonic} render={formatMnemonic} />
                       ) : (
                         <Text style={styles.mnemonicText}>
                           No reading mnemonic available
@@ -4263,7 +4264,7 @@ const SubjectContent = ({
                   <View style={styles.infoSection}>
                     <Text style={styles.sectionTitle}>Mnemonic</Text>
                     {subject.data.meaning_mnemonic ? (
-                      formatMnemonic(subject.data.meaning_mnemonic)
+                      <TranslatedStudyText subject={subject} field="meaningMnemonic" original={subject.data.meaning_mnemonic} render={formatMnemonic} />
                     ) : (
                       <Text style={styles.mnemonicText}>
                         No mnemonic available
