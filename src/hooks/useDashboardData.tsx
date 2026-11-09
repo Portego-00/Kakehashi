@@ -2547,11 +2547,15 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       : dashboardData.criticalItems,
     [dashboardData.assignments, dashboardData.criticalItems, dashboardData.reviewStatistics, dashboardData.subjects]
   );
+  const visibleDashboardData = useMemo(
+    () => criticalItems === dashboardData.criticalItems ? dashboardData : { ...dashboardData, criticalItems },
+    [criticalItems, dashboardData]
+  );
 
   return (
     <DashboardContext.Provider
       value={{
-        dashboardData: { ...dashboardData, criticalItems },
+        dashboardData: visibleDashboardData,
         isLoading,
         loadingProgress,
         refreshData,
