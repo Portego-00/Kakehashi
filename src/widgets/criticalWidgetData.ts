@@ -1,4 +1,5 @@
 import type { WaniKaniItemType } from "../types/wanikani";
+import { burnedSubjectIds } from "../../shared/wanikani-srs";
 
 export type CriticalWidgetItem = {
   characters: string | null;
@@ -28,13 +29,15 @@ type Subject = {
 export function buildCriticalWidgetSnapshot(
   statistics: ReviewStatistic[],
   subjects: Subject[],
+  assignments: Parameters<typeof burnedSubjectIds>[0],
 ) {
   const subjectsById = new Map(subjects.map((subject) => [subject.id, subject]));
+  const burnedIds = burnedSubjectIds(assignments);
   const items: CriticalWidgetItem[] = [];
   for (const { data } of statistics) {
     const subject = subjectsById.get(data.subject_id);
     if (
-      !subject || data.hidden || subject.data.hidden_at ||
+      !subject || data.hidden || subject.data.hidden_at || burnedIds.has(data.subject_id) ||
       !Number.isFinite(data.percentage_correct) ||
       data.percentage_correct < 0 || data.percentage_correct >= 90
     ) {

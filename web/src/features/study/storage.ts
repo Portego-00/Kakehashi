@@ -1,4 +1,5 @@
 import type { StudyFilters, StudyModeId, StudySession, SubjectList } from "./types";
+import { migrateImmersionKitMediaUrl } from "../../../../shared/immersion-kit-media";
 
 const PREFIX = "kakehashi:study:v1";
 export const STUDY_SUBJECT_LISTS_EVENT = "kakehashi-study-subject-lists-change";
@@ -79,6 +80,16 @@ export function saveStudyConfig(scope: StudyStorageScope, mode: StudyModeId, fil
 export function loadStudySession(scope: StudyStorageScope, mode: StudyModeId): StudySession | null {
   const value = readJson<Partial<StudySession>>(sessionKey(scope, mode));
   if (!value || value.version !== 1 || value.mode !== mode || !Array.isArray(value.questions) || !Array.isArray(value.answers)) return null;
+  if (mode === "listening") {
+    value.questions = value.questions.map((question) => {
+      if (!question) return question;
+      const audioUrl = migrateImmersionKitMediaUrl(question.audioUrl);
+      const imageUrl = migrateImmersionKitMediaUrl(question.imageUrl);
+      return audioUrl === question.audioUrl && imageUrl === question.imageUrl
+        ? question
+        : { ...question, audioUrl, imageUrl };
+    });
+  }
   return value as StudySession;
 }
 

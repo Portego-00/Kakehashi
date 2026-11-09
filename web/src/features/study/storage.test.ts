@@ -1,5 +1,6 @@
 import { clearStudySession, loadStudyConfig, loadStudySession, loadSubjectLists, saveStudyConfig, saveStudySession, saveSubjectLists, subscribeStudySubjectLists } from "./storage";
 import { createStudySession, DEFAULT_STUDY_FILTERS } from "./engine";
+import type { StudyQuestion } from "./types";
 
 describe("study persistence", () => {
   const scope = 42;
@@ -23,6 +24,28 @@ describe("study persistence", () => {
 
     expect(saveStudySession(scope, { ...session, currentIndex: 1, complete: true })).toBe(true);
     expect(loadStudySession(scope, "random-test")).toBeNull();
+  });
+
+  it("restores media in a listening session saved before ImmersionKit moved its files", () => {
+    const legacy = "https://us-southeast-1.linodeobjects.com/immersionkit/media/";
+    const current = "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/";
+    const scene = "anime/Fate%20Zero/media/scene%201";
+    const question: StudyQuestion = { id: "q", subjectId: 7, subjectType: "vocabulary", kind: "listening-characters", prompt: "七", promptLabel: "Listen", acceptedAnswers: ["七"], displayAnswer: "七", audioUrl: legacy + scene + ".mp3", imageUrl: legacy + scene + ".jpg" };
+    const otherAudio = "https://example.com/clip.mp3";
+    const session = createStudySession("listening", [
+      question,
+      { ...question, id: "q2", audioUrl: otherAudio },
+    ], new Date("2026-08-06T10:00:00Z"));
+    const answers = [{ questionId: "q", value: "七", correct: true, answeredAt: session.createdAt }];
+    saveStudySession(scope, { ...session, currentIndex: 1, answers });
+
+    expect(loadStudySession(scope, "listening")).toMatchObject({
+      id: session.id, currentIndex: 1, answers,
+      questions: [
+        { audioUrl: current + scene + ".mp3", imageUrl: current + scene + ".jpg" },
+        { audioUrl: otherAudio, imageUrl: current + scene + ".jpg" },
+      ],
+    });
   });
 
   it("persists reusable subject lists and ignores malformed data", () => {

@@ -38,7 +38,11 @@ describe("immersion source selection", () => {
 
     const payload = await response.json();
     expect(payload.examples).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sentence: "本当の家族だ", title: "Fate Zero" }),
+      expect.objectContaining({
+        sentence: "本当の家族だ", title: "Fate Zero",
+        imageUrl: "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Fate%20Zero/media/one.jpg",
+        audio: "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Fate%20Zero/media/one.mp3",
+      }),
       expect.objectContaining({ sentence: "家族と帰る", title: "Fate Zero" }),
     ]));
     expect(payload.examples).toHaveLength(2);

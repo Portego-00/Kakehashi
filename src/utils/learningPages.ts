@@ -329,7 +329,7 @@ export function applyLearningPageToDashboardData<T extends LearningPageDashboard
     nextReviewDate: reviewCount === 0 ? nextReviewDate : null,
     forecast: buildReviewForecastFromAssignments(assignments, dashboardData.subjects),
     recentMistakes: dashboardData.recentMistakes.filter(matchesId),
-    criticalItems: buildCriticalItems(dashboardData.reviewStatistics.filter((statistic) => matchesId({ id: statistic?.data?.subject_id })), subjectsRecord),
+    criticalItems: buildCriticalItems(dashboardData.reviewStatistics.filter((statistic) => matchesId({ id: statistic?.data?.subject_id })), subjectsRecord, assignments),
     recentUnlocks: buildRecentUnlocks(assignments, subjectsRecord),
     burnedItems: buildBurnedItems(assignments, subjectsRecord),
     reviewStatistics: dashboardData.reviewStatistics.filter((statistic) =>

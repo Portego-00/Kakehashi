@@ -45,9 +45,23 @@ describe("mobile-parity dashboard derivations", () => {
     const subjects = [subject(1)];
     const rows = [assignment({ subject_id: 1, unlocked_at: "2026-08-20T10:00:00Z", burned_at: "2026-08-24T10:00:00Z" })];
     expect(recentMistakeRows([statistic({})], subjects, now)[0]).toMatchObject({ id: 1, value: 85 });
-    expect(criticalSubjectRows([statistic({ percentage_correct: 42 })], subjects)[0]).toMatchObject({ id: 1, value: 42 });
+    expect(criticalSubjectRows([statistic({ percentage_correct: 42 })], subjects, rows)[0]).toMatchObject({ id: 1, value: 42 });
     expect(recentUnlockRows(rows, subjects)[0].id).toBe(1);
     expect(burnedSubjectRows(rows, subjects, now)[0].id).toBe(1);
+  });
+
+  it("ranks active and resurrected critical items even when burned items have lower accuracy", () => {
+    const burnedAt = "2026-08-24T10:00:00Z";
+    const rows = criticalSubjectRows([
+      statistic({ subject_id: 1, percentage_correct: 12 }),
+      statistic({ subject_id: 2, percentage_correct: 35 }),
+      statistic({ subject_id: 3, percentage_correct: 25 }),
+    ], [subject(1), subject(2), subject(3)], [
+      assignment({ subject_id: 1, srs_stage: 9, burned_at: burnedAt }),
+      assignment({ subject_id: 2, srs_stage: 8 }),
+      assignment({ subject_id: 3, srs_stage: 1, burned_at: burnedAt }),
+    ]);
+    expect(rows.map(({ id }) => id)).toEqual([3, 2]);
   });
 
   it("keeps the complete seven-day mistake batch for the horizontal widget rail", () => {

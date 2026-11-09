@@ -182,14 +182,14 @@ describe("applyLearningPageToDashboardData", () => {
     }));
     const allAssignments = allSubjects.map((subject, index) => ({
       id: index + 200,
-      data: { subject_id: subject.id, srs_stage: 9, unlocked_at: new Date(now.getTime() - index * 1000).toISOString(), burned_at: new Date(now.getTime() - index * 1000).toISOString() },
+      data: { subject_id: subject.id, srs_stage: index === 10 ? 9 : 1, unlocked_at: new Date(now.getTime() - index * 1000).toISOString(), burned_at: new Date(now.getTime() - index * 1000).toISOString() },
     }));
     const statistics = allSubjects.map((subject, index) => ({ data: { subject_id: subject.id, percentage_correct: index } }));
     const topTen = allSubjects.slice(0, 10).map(({ id }) => ({ id }));
     const source = { ...dashboardData, subjects: allSubjects, assignments: allAssignments, reviewStatistics: statistics, criticalItems: topTen, recentUnlocks: topTen, burnedItems: topTen };
     const result = applyLearningPageToDashboardData(source, page({ subjectTypes: ["kanji"] }), now);
     const expectedIds = allSubjects.slice(10, 20).map(({ id }) => id);
-    expect(result.criticalItems.map(({ id }) => id)).toEqual(expectedIds);
+    expect(result.criticalItems.map(({ id }) => id)).toEqual(allSubjects.slice(11, 21).map(({ id }) => id));
     expect(result.recentUnlocks.map(({ id }) => id)).toEqual(expectedIds);
     expect(result.burnedItems.map(({ id }) => id)).toEqual(expectedIds);
     expect(source.criticalItems).toBe(topTen);

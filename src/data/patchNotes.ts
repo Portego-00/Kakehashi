@@ -56,6 +56,22 @@ export const getCurrentPatchNotesVersion = (): string => {
 // Patch notes data - add new entries at the TOP of this array
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.6.1",
+    date: "2026-11-10",
+    changes: [
+      {
+        type: "fix",
+        title: "Anime Context Media",
+        description: "Anime context screenshots and audio work again on mobile and web.",
+      },
+      {
+        type: "fix",
+        title: "Burned Critical Items",
+        description: "Burned items no longer appear in Critical Items lists or widgets.",
+      },
+    ],
+  },
+  {
     version: "1.6.0",
     date: "2026-10-29",
     changes: [

@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -951,7 +952,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         const burnedItems = buildBurnedItems(assignments.data, subjectsById);
         const criticalItems = buildCriticalItems(
           reviewStats.data,
-          subjectsById
+          subjectsById,
+          assignments.data
         );
 
         const isOnVacation = Boolean(userData.data.current_vacation_started_at);
@@ -2534,10 +2536,26 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [dashboardData.currentLevel, isFreshData, lastWrappedLevel, setLastWrappedLevel]);
 
+  // Assignment-only refreshes also run after a review, before a full dashboard reload.
+  const criticalItems = useMemo(
+    () => dashboardData.subjects.length > 0
+      ? buildCriticalItems(
+          dashboardData.reviewStatistics,
+          Object.fromEntries(dashboardData.subjects.map((subject) => [subject.id, subject])),
+          dashboardData.assignments
+        )
+      : dashboardData.criticalItems,
+    [dashboardData.assignments, dashboardData.criticalItems, dashboardData.reviewStatistics, dashboardData.subjects]
+  );
+  const visibleDashboardData = useMemo(
+    () => criticalItems === dashboardData.criticalItems ? dashboardData : { ...dashboardData, criticalItems },
+    [criticalItems, dashboardData]
+  );
+
   return (
     <DashboardContext.Provider
       value={{
-        dashboardData,
+        dashboardData: visibleDashboardData,
         isLoading,
         loadingProgress,
         refreshData,

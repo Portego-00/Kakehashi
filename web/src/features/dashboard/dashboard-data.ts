@@ -1,6 +1,7 @@
 import type { ActivityDay } from "@/lib/wanikani/assignment-activity";
 export { assignmentActivityDays, type ActivityDay } from "@/lib/wanikani/assignment-activity";
 import type { Assignment, LevelProgression, ReviewStatistic, Subject, WKSummary } from "@/types/wanikani";
+import { burnedSubjectIds } from "../../../../shared/wanikani-srs";
 
 export function isReviewAvailable(assignment: Assignment, now = new Date(), currentVacationStartedAt?: string | null) {
   if (currentVacationStartedAt) return false;
@@ -194,10 +195,13 @@ export function burnedSubjectRows(assignments: Assignment[], subjects: Subject[]
   }).sort((a, b) => Date.parse(b.date || "") - Date.parse(a.date || "")).slice(0, 8);
 }
 
-export function criticalSubjectRows(statistics: ReviewStatistic[], subjects: Subject[]) {
+export function criticalSubjectRows(statistics: ReviewStatistic[], subjects: Subject[], assignments: Assignment[]) {
   const subjectsById = subjectRowsById(subjects);
+  const burnedIds = burnedSubjectIds(assignments);
   return statistics.flatMap((statistic) => {
-    const subject = subjectsById.get(statistic.data.subject_id);
+    const subjectId = statistic.data.subject_id;
+    if (burnedIds.has(subjectId)) return [];
+    const subject = subjectsById.get(subjectId);
     return subject && !statistic.data.hidden ? [{ ...subjectRow(subject), value: statistic.data.percentage_correct }] : [];
   }).sort((a, b) => (a.value ?? 100) - (b.value ?? 100)).slice(0, 8);
 }

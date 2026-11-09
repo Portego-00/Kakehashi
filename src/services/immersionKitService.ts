@@ -8,6 +8,7 @@ import {
   normalizeTitle as normalizeAnimeTitle,
 } from "./myAnimeListService";
 import { getSubjectTypeColor } from "../utils/subjectColors";
+import { immersionKitMediaUrl } from "../../shared/immersion-kit-media";
 
 export interface ImmersionKitSentence {
   id: string;
@@ -36,19 +37,27 @@ export interface ImmersionKitResponse {
 }
 
 const API_BASE_URL = "https://apiv2.immersionkit.com";
-const MEDIA_BASE_URL =
-  "https://us-southeast-1.linodeobjects.com/immersionkit/media";
 
 // Cache for index metadata (maps title slugs to folder names)
-let indexMetaCache: Map<string, { title: string; category: string }> | null =
-  null;
+type IndexMeta = Map<string, { title: string; category: string }>;
+let indexMetaCache: IndexMeta | null = null;
+
+function withMediaUrls(sentence: ImmersionKitSentence, indexMeta: IndexMeta): ImmersionKitSentence {
+  const category = sentence.id.match(/^(anime|drama|games|literature|news)_/)?.[1] as ImmersionKitSentence["category"];
+  const folder = indexMeta.get(sentence.title)?.title || sentence.title;
+
+  return {
+    ...sentence,
+    category,
+    audio: category && folder ? immersionKitMediaUrl(category, folder, sentence.sound) : undefined,
+    imageUrl: category && folder ? immersionKitMediaUrl(category, folder, sentence.image) : undefined,
+  };
+}
 
 /**
  * Fetch and cache the index metadata from ImmersionKit
  */
-async function getIndexMeta(): Promise<
-  Map<string, { title: string; category: string }>
-> {
+async function getIndexMeta(): Promise<IndexMeta> {
   if (indexMetaCache) {
     return indexMetaCache;
   }
@@ -214,48 +223,7 @@ export async function searchImmersionKit(
         break;
       }
 
-      // Process sentences: add category based on ID prefix and build proper media URLs
-      const sentences = result.examples.map((sentence) => {
-        // Extract category from ID prefix (e.g., "anime_death_note_..." -> "anime")
-        const categoryMatch = sentence.id.match(
-          /^(anime|drama|games|literature|news)_/
-        );
-        const sentenceCategory = categoryMatch
-          ? (categoryMatch[1] as ImmersionKitSentence["category"])
-          : undefined;
-
-        // Build proper Linode Object Storage URLs using index_meta
-        // Format: https://us-southeast-1.linodeobjects.com/immersionkit/media/{category}/{FolderName}/media/{filename}
-        let audio: string | undefined;
-        let imageUrl: string | undefined;
-
-        if (sentenceCategory && sentence.title) {
-          // Look up the actual folder name from index_meta
-          const meta = indexMeta.get(sentence.title);
-          const folderName = meta?.title || sentence.title;
-
-          // URL encode the folder name (spaces become %20, etc.)
-          const encodedFolderName = encodeURIComponent(folderName);
-          const mediaBase = `${MEDIA_BASE_URL}/${sentenceCategory}/${encodedFolderName}/media`;
-
-          if (sentence.sound) {
-            const encodedSound = encodeURIComponent(sentence.sound);
-            audio = `${mediaBase}/${encodedSound}`;
-          }
-
-          if (sentence.image) {
-            const encodedImage = encodeURIComponent(sentence.image);
-            imageUrl = `${mediaBase}/${encodedImage}`;
-          }
-        }
-
-        return {
-          ...sentence,
-          category: sentenceCategory,
-          audio,
-          imageUrl,
-        };
-      });
+      const sentences = result.examples.map((sentence) => withMediaUrls(sentence, indexMeta));
 
       // Apply category filter
       const categoryFiltered = category
@@ -344,41 +312,7 @@ export async function searchImmersionKit(
       if (response.ok) {
         const result: ImmersionKitResponse = await response.json();
         if (result.examples && Array.isArray(result.examples)) {
-          allFilteredResults = result.examples.map((sentence) => {
-            const categoryMatch = sentence.id.match(
-              /^(anime|drama|games|literature|news)_/
-            );
-            const sentenceCategory = categoryMatch
-              ? (categoryMatch[1] as ImmersionKitSentence["category"])
-              : undefined;
-
-            let audio: string | undefined;
-            let imageUrl: string | undefined;
-
-            if (sentenceCategory && sentence.title) {
-              const meta = indexMeta.get(sentence.title);
-              const folderName = meta?.title || sentence.title;
-              const encodedFolderName = encodeURIComponent(folderName);
-              const mediaBase = `${MEDIA_BASE_URL}/${sentenceCategory}/${encodedFolderName}/media`;
-
-              if (sentence.sound) {
-                const encodedSound = encodeURIComponent(sentence.sound);
-                audio = `${mediaBase}/${encodedSound}`;
-              }
-
-              if (sentence.image) {
-                const encodedImage = encodeURIComponent(sentence.image);
-                imageUrl = `${mediaBase}/${encodedImage}`;
-              }
-            }
-
-            return {
-              ...sentence,
-              category: sentenceCategory,
-              audio,
-              imageUrl,
-            };
-          });
+          allFilteredResults = result.examples.map((sentence) => withMediaUrls(sentence, indexMeta));
 
           if (category) {
             allFilteredResults = allFilteredResults.filter(

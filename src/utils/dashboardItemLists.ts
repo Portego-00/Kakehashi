@@ -1,4 +1,5 @@
 import type { BurnedItem, CriticalItem, UnlockItem, WaniKaniItemType } from "../types/wanikani";
+import { burnedSubjectIds } from "../../shared/wanikani-srs";
 
 // Process recent unlocks
 export const buildRecentUnlocks = (
@@ -70,11 +71,15 @@ export const buildBurnedItems = (
 // Process critical items
 export const buildCriticalItems = (
   reviewStats: any[],
-  subjectsById: Record<number, any>
+  subjectsById: Record<number, any>,
+  assignments: Parameters<typeof burnedSubjectIds>[0]
 ): CriticalItem[] => {
+  const burnedIds = burnedSubjectIds(assignments);
   const items = reviewStats
     .map((stat): CriticalItem | null => {
-      const subject = subjectsById[stat.data.subject_id];
+      const subjectId = stat.data.subject_id;
+      if (burnedIds.has(subjectId)) return null;
+      const subject = subjectsById[subjectId];
       if (!subject) return null;
 
       return {
