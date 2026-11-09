@@ -52,8 +52,8 @@ describe("ImmersionKit browser transport", () => {
         sentence: "本当の家族だ",
         translation: "A real family.",
         title: "Fate Zero",
-        audio: "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Fate%20Zero/media/one%20clip.mp3",
-        imageUrl: "https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Fate%20Zero/media/one%20frame.jpg",
+        audio: "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Fate%20Zero/media/one%20clip.mp3",
+        imageUrl: "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Fate%20Zero/media/one%20frame.jpg",
       },
     ]);
     const calls = fetchMock.mock.calls.map(([input, init]) => ({ url: String(input), init }));

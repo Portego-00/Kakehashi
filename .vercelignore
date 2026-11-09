@@ -60,6 +60,8 @@ web/src/features/notebooks/mobile-handwriting-interactions.test.tsx
 !shared/note-images.ts
 !shared/study-material-permissions.ts
 !shared/note-image-gestures.ts
+!shared/immersion-kit-media.ts
+!shared/wanikani-srs.ts
 
 web/tsconfig.tsbuildinfo
 

@@ -23,6 +23,7 @@ import { CriticalItem, WaniKaniItemType } from "../../src/types/wanikani";
 import {
   ApiError,
   fetchAllPages,
+  getAssignmentsOptimized,
   getReviewStatistics,
   getSubjects,
 } from "../../src/utils/api";
@@ -33,6 +34,7 @@ import { getSubjectTypeColor } from "../../src/utils/subjectColors";
 import { useAuthStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 import { matchesVocabularyTypes } from "../../src/utils/vocabularyTypeFilter";
+import { burnedSubjectIds } from "../../shared/wanikani-srs";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const SwiftUI = Platform.OS === "ios" ? require("@expo/ui/swift-ui") : null;
@@ -122,11 +124,17 @@ export default function CriticalItemsScreen() {
           return;
         }
 
-        // Get all subject IDs from the review statistics
-        fetchStep = "extract_subject_ids";
-        subjectIds = reviewStats.data.map(
-          (stat: any) => stat.data.subject_id
+        // Review statistics retain history after an item leaves the review queue.
+        fetchStep = "load_assignments";
+        const assignments = await getAssignmentsOptimized(apiToken);
+        const burnedIds = burnedSubjectIds(assignments.data);
+        const eligibleStats = reviewStats.data.filter(
+          (stat) => !burnedIds.has(stat.data.subject_id)
         );
+
+        // Get subject details only for items that can appear in the list.
+        fetchStep = "extract_subject_ids";
+        subjectIds = eligibleStats.map((stat) => stat.data.subject_id);
         const uniqueSubjectIds = Array.from(new Set(subjectIds));
         uniqueSubjectIdsCount = uniqueSubjectIds.length;
 
@@ -173,7 +181,7 @@ export default function CriticalItemsScreen() {
 
         // Map and process the critical items
         fetchStep = "map_critical_items";
-        const processedItems = reviewStats.data
+        const processedItems = eligibleStats
           .map((stat: any) => {
             const subject = subjectsById[stat.data.subject_id];
             if (!subject) return null;

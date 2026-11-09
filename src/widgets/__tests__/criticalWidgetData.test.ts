@@ -25,6 +25,7 @@ describe("critical widget data", () => {
     const snapshot = buildCriticalWidgetSnapshot(
       percentages.map((percentage, index) => statistic(index, percentage)),
       percentages.map((_, index) => subject(index)),
+      [],
     );
     expect(snapshot.criticalCount).toBe(expected.length);
     expect(snapshot.criticalItems.map((item) => item.percentage)).toEqual(expected);
@@ -38,6 +39,7 @@ describe("critical widget data", () => {
         statistic(2, 20), statistic(3, 82), statistic(4, 88),
       ],
       [subject(1), subject(3), subject(4)],
+      [],
     );
     expect(snapshot.criticalCount).toBe(1);
     expect(snapshot.topCriticalItem?.percentage).toBe(82);
@@ -47,6 +49,7 @@ describe("critical widget data", () => {
     const snapshot = buildCriticalWidgetSnapshot(
       [statistic(1, 74), statistic(2, 75), statistic(3, 20), statistic(4, 100)],
       [1, 2, 3, 4].map(subject),
+      [],
     );
     expect(snapshot.criticalCount).toBe(2);
     expect(snapshot.criticalItems.map((item) => item.percentage)).toEqual([20, 74]);
@@ -55,7 +58,7 @@ describe("critical widget data", () => {
 
   it("counts the full list while limiting the native payload to three items", () => {
     const ids = Array.from({ length: 15 }, (_, index) => index + 1);
-    const snapshot = buildCriticalWidgetSnapshot(ids.map((id) => statistic(id, id)), ids.map(subject));
+    const snapshot = buildCriticalWidgetSnapshot(ids.map((id) => statistic(id, id)), ids.map(subject), []);
     expect(snapshot.criticalCount).toBe(15);
     expect(snapshot.criticalItems.map((item) => item.percentage)).toEqual([1, 2, 3]);
   });
@@ -68,6 +71,7 @@ describe("critical widget data", () => {
         statistic(2, 10), statistic(3, Number.NaN), statistic(4, -1), statistic(5, 10),
       ],
       [subject(1), { ...hiddenSubject, data: { ...hiddenSubject.data, hidden_at: "2026-01-01" } }, subject(3), subject(4)],
+      [],
     );
     expect(snapshot).toEqual({ criticalCount: 0, criticalItems: [], topCriticalItem: null });
   });
@@ -76,10 +80,25 @@ describe("critical widget data", () => {
     const snapshot = buildCriticalWidgetSnapshot([statistic(1, 0), statistic(2, 10)], [
       { id: 1, object: "radical", data: { characters: null, meanings: [{ meaning: "gun", primary: true }] } },
       { id: 2, object: "kana_vocabulary", data: { characters: "こんにちは", meanings: [{ meaning: "hello", primary: true }] } },
-    ]);
+    ], []);
     expect(snapshot.criticalItems).toMatchObject([
       { characters: null, meaning: "gun", reading: "" },
       { characters: "こんにちは", meaning: "hello", reading: "" },
     ]);
+  });
+
+  it("excludes burned items before choosing a threshold and keeps resurrected items", () => {
+    const burnedAt = "2026-10-01T00:00:00Z";
+    const assignments = [
+      { data: { subject_id: 1, srs_stage: 9, burned_at: burnedAt } },
+      { data: { subject_id: 2, srs_stage: 1, burned_at: burnedAt } },
+    ];
+    const snapshot = buildCriticalWidgetSnapshot(
+      [statistic(1, 20), statistic(2, 78), statistic(3, 86)],
+      [1, 2, 3].map(subject),
+      assignments,
+    );
+    expect(snapshot.criticalCount).toBe(1);
+    expect(snapshot.topCriticalItem?.percentage).toBe(78);
   });
 });

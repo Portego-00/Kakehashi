@@ -1,6 +1,6 @@
-export const IMMERSION_KIT_API_BASE = "https://apiv2.immersionkit.com";
+import { immersionKitMediaUrl } from "../../../../shared/immersion-kit-media";
 
-const IMMERSION_KIT_MEDIA_BASE = "https://us-southeast-1.linodeobjects.com/immersionkit/media";
+export const IMMERSION_KIT_API_BASE = "https://apiv2.immersionkit.com";
 
 export interface ImmersionExample {
   sentence: string;
@@ -46,14 +46,13 @@ export function buildImmersionExamples(rawExamples: unknown, indexMeta: Immersio
     const category = meta?.category ?? id?.match(/^(anime|drama|games|literature|news)_/)?.[1] ?? "anime";
     if (category !== "anime") continue;
     const title = meta?.title || sourceTitle;
-    const mediaBase = `${IMMERSION_KIT_MEDIA_BASE}/${category}/${encodeURIComponent(title)}/media`;
     examples.push({
       sentence,
       ...(typeof candidate.sentence_with_furigana === "string" ? { sentenceWithFurigana: candidate.sentence_with_furigana } : {}),
       translation,
       title,
-      audio: sound ? `${mediaBase}/${encodeURIComponent(sound)}` : undefined,
-      imageUrl: image ? `${mediaBase}/${encodeURIComponent(image)}` : undefined,
+      audio: immersionKitMediaUrl(category, title, sound),
+      imageUrl: immersionKitMediaUrl(category, title, image),
     });
   }
 

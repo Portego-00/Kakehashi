@@ -303,8 +303,8 @@ export default function StudyTab() {
     [dashboardData.forecast, dashboardData.reviewCount],
   );
   const criticalWidgetSnapshot = useMemo(
-    () => buildCriticalWidgetSnapshot(dashboardData.reviewStatistics, dashboardData.subjects),
-    [dashboardData.reviewStatistics, dashboardData.subjects],
+    () => buildCriticalWidgetSnapshot(dashboardData.reviewStatistics, dashboardData.subjects, dashboardData.assignments),
+    [dashboardData.reviewStatistics, dashboardData.subjects, dashboardData.assignments],
   );
   const activeHomeWidgetOrder = useMemo(
     () => normalizeHomeWidgetOrder(homeWidgetOrder),
