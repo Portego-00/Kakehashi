@@ -67,3 +67,22 @@ web/tsconfig.tsbuildinfo
 
 !src/utils/review-multiple-choice.ts
 web/src/features/study/components/mobile-multiple-choice-keyboard.test.tsx
+
+# Shared web dependencies used by the current application.
+!src/utils/reviewOrdering.ts
+!src/utils/review-presets.ts
+!src/utils/studyDateFilter.ts
+!src/utils/lessonUnlocks.ts
+!src/utils/crosswordInput.ts
+!src/features
+!src/features/level-goals
+!src/features/level-goals/*.ts
+!src/features/youglish
+!src/features/youglish/player.ts
+!src/ui
+!src/ui/settings
+!src/ui/settings/*.ts
+
+# Tests run locally; compatibility tests also require native dependencies.
+web/**/*.test.*
+web/e2e/**
