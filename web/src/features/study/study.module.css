@@ -254,6 +254,18 @@
 .sentenceAnswerHighlight { border-radius: var(--radius-sm); background: color-mix(in oklch, var(--color-subject-text) 18%, transparent); color: inherit; padding-inline: .12em; font-weight: 750; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .sceneFrame { position: relative; width: min(100%, 30rem); }
 .contextImage { display: block; width: 100%; max-height: clamp(9rem, 24dvh, 16rem); object-fit: cover; border: 1px solid var(--color-subject-rule); border-radius: var(--radius-md); }
+/* Answer feedback grows below the scene, whose size depends only on the viewport. */
+.quizShell[data-listening="true"][data-scene="true"] {
+  grid-template-rows: auto minmax(min-content, 1fr) auto;
+}
+.quizShell[data-listening="true"][data-scene="true"] > .questionCard {
+  grid-template-columns: minmax(0, 1fr);
+}
+.quizShell[data-listening="true"] .sceneFrame {
+  width: min(100%, clamp(16rem, 57dvh, 30rem));
+  aspect-ratio: 16 / 9;
+}
+.quizShell[data-listening="true"] .contextImage { height: 100%; max-height: none; }
 .previousSubjectLink { --color-subject-text: #fff; position: absolute; z-index: var(--z-raised); inset-block-start: calc(var(--quiz-topbar-height) + var(--space-sm)); inset-inline-start: var(--page-gutter); min-height: 3.25rem; display: inline-flex; align-items: center; gap: var(--space-xs); border: 0; border-radius: var(--radius-md); background: var(--previous-subject-color, var(--subject-color)); color: var(--color-subject-text); padding: var(--space-2xs) var(--space-xs) var(--space-2xs) var(--space-sm); box-shadow: 0 2px 4px rgb(0 0 0 / .2); font: 500 var(--text-md) var(--font-japanese); }
 .previousSubjectLink[data-animate="true"] { animation: previous-answer-to-corner 480ms var(--ease-out); }
 @keyframes previous-answer-to-corner {
@@ -731,12 +743,9 @@
   .settingGroup[data-layout="row"] { grid-template-columns: minmax(12rem, 0.34fr) minmax(0, 1fr); gap: clamp(var(--space-lg), 4vw, var(--space-2xl)); }
 }
 @media (min-width: 64rem) {
-  .quizShell[data-listening="true"] { height: max(30rem, calc(100dvh - var(--banner-height))); grid-template-rows: auto minmax(0, 1fr) auto; }
+  .quizShell[data-listening="true"]:not([data-scene="true"]) { height: max(30rem, calc(100dvh - var(--banner-height))); grid-template-rows: auto minmax(0, 1fr) auto; }
   .quizShell[data-listening="true"][data-details-open="true"] { height: auto; grid-template-rows: auto auto auto; }
   .quizShell[data-listening="true"] .questionCard { min-height: 0; gap: var(--space-xs); padding-block: var(--space-sm); }
-  .quizShell[data-listening="true"][data-scene="true"] .questionCard { grid-template-rows: minmax(0, 1fr); grid-auto-rows: max-content; align-content: stretch; }
-  .quizShell[data-listening="true"][data-scene="true"] .sceneFrame { width: auto; height: 100%; max-width: min(100%, 30rem); max-height: 16.875rem; align-self: center; aspect-ratio: 16 / 9; }
-  .quizShell[data-listening="true"][data-scene="true"] .contextImage { width: 100%; height: 100%; max-height: none; aspect-ratio: 16 / 9; }
   .quizShell[data-listening="true"] .reviewPromptExtras { position: absolute; z-index: var(--z-raised); inset-block-start: var(--space-sm); inset-inline-end: var(--page-gutter); max-width: 15rem; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-2xs) var(--space-sm); }
   .quizShell[data-listening="true"] .reviewPromptMetadata { justify-content: flex-end; gap: var(--space-2xs) var(--space-sm); }
   .crosswordWorkbench { grid-template-areas: "clues board"; grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
@@ -970,6 +979,12 @@
     grid-template-rows: var(--quiz-topbar-height) 10rem auto;
     align-content: start;
     transition: none;
+  }
+  .quizShell[data-review-layout="compact"][data-listening="true"][data-scene="true"] {
+    grid-template-rows: auto auto auto;
+  }
+  .quizShell[data-review-layout="compact"][data-listening="true"] .sceneFrame {
+    width: min(100%, 20rem);
   }
   .quizShell[data-review-layout="compact"] > .questionCard {
     min-height: 0;
