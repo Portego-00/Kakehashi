@@ -2122,7 +2122,7 @@ for (const compactReviews of [false, true]) {
       const scene = page.getByRole("img", { name: `Scene from ${sourceTitle}` });
       await expect(scene).toBeVisible();
       await expect(scene).toHaveAttribute("src", /\?retry=\d+$/);
-      await scene.evaluate((image: HTMLImageElement) => image.decode());
+      await expect.poll(() => scene.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
       const before = (await scene.boundingBox())!;
       expect(before.height, "the scene should start large enough to see").toBeGreaterThanOrEqual(140);
       const selected = choices.getByRole("button", { name: new RegExp(choice) });
