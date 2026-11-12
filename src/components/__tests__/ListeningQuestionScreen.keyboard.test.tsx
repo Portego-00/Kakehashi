@@ -2,6 +2,7 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 import { Animated, Dimensions, Image, StyleSheet, TouchableOpacity } from "react-native";
 import type { ListeningQuestion } from "../../types/listening";
+import { Audio, type AudioSound, type AVPlaybackStatus } from "../../utils/expoAvCompat";
 import ListeningQuestionScreen from "../ListeningQuestionScreen";
 import KanaInput from "../TextToKanaInput";
 
@@ -13,7 +14,7 @@ jest.mock("../../utils/store", () => ({ useSettingsStore: () => ({ showContextSe
 jest.mock("../../utils/subjectColors", () => ({ useSubjectColors: () => ({ vocabulary: "#9933cc" }) }));
 jest.mock("../../utils/haptics", () => ({ impactAsync: jest.fn(), notificationAsync: jest.fn(), ImpactFeedbackStyle: { Light: "light" }, NotificationFeedbackType: { Success: "success", Error: "error" } }));
 jest.mock("../../utils/expoAvCompat", () => ({ Audio: { Sound: { createAsync: jest.fn() } } }));
-jest.mock("../../modules/AudioSessionManager", () => ({ __esModule: true, default: null }));
+jest.mock("../../modules/AudioSessionManager", () => ({ __esModule: true, default: { overrideSpeaker: jest.fn(async () => "Speaker output active") } }));
 jest.mock("../../hooks/useBluetoothAudioKeepAlive", () => ({ __esModule: true, default: jest.fn() }));
 jest.mock("../TextToKanaInput", () => "KanaInput");
 
@@ -186,4 +187,36 @@ it.each([true, false])("keeps a recovered scene visible after an answer graded %
     screen.unmount();
     act(() => Dimensions.set({ window: originalWindow }));
   }
+});
+
+it.each(["playback error", "load timeout"])("lets the learner retry after a clip %s", async (failure) => {
+  const audio = "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Death%20Note/media/clip.mp3";
+  const sound = {
+    setOnPlaybackStatusUpdate: jest.fn(),
+    stopAsync: jest.fn(async () => undefined),
+    unloadAsync: jest.fn(async () => undefined),
+  };
+  const createAudio = jest.mocked(Audio.Sound.createAsync);
+  createAudio.mockResolvedValue({ sound: sound as unknown as AudioSound, status: { isLoaded: false } });
+  const screen = render(<ListeningQuestionScreen
+    question={{ ...question, example: { ...question.example, audio } }} questionPhase="kanji" solutionMode="multiple_choice"
+    onKanjiAnswer={jest.fn()} onMeaningAnswer={jest.fn()} onExit={jest.fn()}
+    currentItem={1} totalItems={4} correctAnswersCount={0} accuracyPercent={0} lastCompletedItem={null}
+    autoPlayAudio={false}
+  />);
+  const playButton = () => screen.getByRole("button", { name: "Play anime clip" });
+  await act(async () => fireEvent.press(playButton()));
+  expect(createAudio).toHaveBeenLastCalledWith({ uri: audio }, expect.any(Object));
+  expect(playButton().props.accessibilityState.disabled).toBe(true);
+
+  await act(async () => {
+    if (failure === "load timeout") jest.advanceTimersByTime(8_000);
+    else (sound.setOnPlaybackStatusUpdate.mock.calls[0][0] as (status: AVPlaybackStatus) => void)({ isLoaded: false, error: failure });
+  });
+  expect(screen.getByText("Could not play the clip. Tap Play to retry.")).toBeTruthy();
+  expect(sound.unloadAsync).toHaveBeenCalled();
+
+  await act(async () => fireEvent.press(playButton()));
+  expect(createAudio).toHaveBeenLastCalledWith({ uri: expect.stringMatching(/clip\.mp3\?retry=\d+$/) }, expect.any(Object));
+  expect(screen.queryByText("Could not play the clip. Tap Play to retry.")).toBeNull();
 });

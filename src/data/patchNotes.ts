@@ -62,7 +62,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "fix",
         title: "Anime Context Media",
-        description: "Anime context uses the new media host, retries failed screenshots, and keeps scenes visible after Listening Practice answers on mobile and web.",
+        description: "Anime screenshots retry when loading fails. Listening Practice keeps scenes visible after answers and lets you retry failed clips on mobile.",
       },
       {
         type: "fix",

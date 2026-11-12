@@ -1,6 +1,6 @@
 import React, { useState, type ReactNode } from "react";
 import { Image, type ImageProps } from "react-native";
-import { retryImmersionKitImageUrl } from "../../shared/immersion-kit-media";
+import { retryImmersionKitMediaUrl } from "../../shared/immersion-kit-media";
 
 type SceneImageProps = Pick<ImageProps, "style" | "resizeMode" | "accessibilityLabel"> & {
   uri: string;
@@ -21,7 +21,7 @@ function SceneImage({ uri, fallback, ...props }: SceneImageProps) {
       key={source}
       source={{ uri: source }}
       onError={() => {
-        const retry = source === uri ? retryImmersionKitImageUrl(uri) : null;
+        const retry = source === uri ? retryImmersionKitMediaUrl(uri) : null;
         const next = retry === source ? null : retry;
         setSource((current) => current === source ? next : current);
       }}

@@ -16,7 +16,7 @@ export function immersionKitMediaUrl(category: string, folder: string, filename?
   return `${MEDIA_BASE}${category}/${encodeURIComponent(folder)}/media/${encodeURIComponent(filename)}`;
 }
 
-export function retryImmersionKitImageUrl(url: string) {
+export function retryImmersionKitMediaUrl(url: string) {
   const currentUrl = migrateImmersionKitMediaUrl(url) ?? url;
   if (!currentUrl.startsWith(MEDIA_BASE)) return currentUrl;
   const separator = currentUrl.includes("?") ? "&" : "?";

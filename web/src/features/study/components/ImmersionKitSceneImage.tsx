@@ -2,7 +2,7 @@
 
 import Image, { type ImageProps } from "next/image";
 import { useState } from "react";
-import { retryImmersionKitImageUrl } from "../../../../../shared/immersion-kit-media";
+import { retryImmersionKitMediaUrl } from "../../../../../shared/immersion-kit-media";
 
 type SceneImageProps = Pick<ImageProps, "alt" | "className" | "height" | "sizes" | "width"> & { src: string };
 
@@ -26,7 +26,7 @@ function SceneImage({ src, alt, ...props }: SceneImageProps) {
     loader={passthroughImageLoader}
     unoptimized
     onError={() => {
-      const retry = source === src ? retryImmersionKitImageUrl(src) : null;
+      const retry = source === src ? retryImmersionKitMediaUrl(src) : null;
       const next = retry === source ? null : retry;
       setSource((current) => current === source ? next : current);
     }}
