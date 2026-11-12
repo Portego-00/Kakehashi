@@ -7,7 +7,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Animated,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   type KeyboardEvent,
@@ -33,6 +32,7 @@ import { useSubjectColors } from "../utils/subjectColors";
 import { useSettingsStore } from "../utils/store";
 import KanaInput from "./TextToKanaInput";
 import MultipleChoiceKeyboard from "./multiple-choice-keyboard";
+import { ImmersionKitSceneImage } from "./ImmersionKitSceneImage";
 
 const ANDROID_AUTOFOCUS_DELAY_MS = 200;
 const CONTEXT_AUDIO_SPEED_MIN = 0.5;
@@ -128,8 +128,6 @@ export default function ListeningQuestionScreen({
   >(null);
   const [showVocabInSentence, setShowVocabInSentence] = useState(false);
   const [wasKanjiCorrect, setWasKanjiCorrect] = useState(false);
-  const imageOpacity = useRef(new Animated.Value(1)).current;
-  const sentenceRevealProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     return () => {
@@ -231,8 +229,6 @@ export default function ListeningQuestionScreen({
     setShowVocabInSentence(false);
     setWasKanjiCorrect(false);
     feedbackOpacity.setValue(0);
-    imageOpacity.setValue(1);
-    sentenceRevealProgress.setValue(0);
 
     // Clear the KanaInputs when question changes
     if (vocabInputRef.current?.clearInput) {
@@ -246,7 +242,7 @@ export default function ListeningQuestionScreen({
     return () => {
       void unloadCurrentSound();
     };
-  }, [question.id, feedbackOpacity, imageOpacity, sentenceRevealProgress, unloadCurrentSound]);
+  }, [question.id, feedbackOpacity, unloadCurrentSound]);
 
   // Auto-play audio on mount (only for kanji phase, if enabled)
   useEffect(() => {
@@ -428,24 +424,7 @@ export default function ListeningQuestionScreen({
     showFeedbackAnimation(isCorrect);
     setWasKanjiCorrect(isCorrect);
 
-    // After kanji answer, show vocabulary in sentence and fade out image, move sentence up
-    setTimeout(() => {
-      setShowVocabInSentence(true);
-
-      // Fade out image and move sentence to where image was
-      Animated.parallel([
-        Animated.timing(imageOpacity, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sentenceRevealProgress, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 100);
+    setShowVocabInSentence(true);
 
     setTimeout(() => {
       onKanjiAnswer(isCorrect, submittedAnswer);
@@ -728,21 +707,20 @@ export default function ListeningQuestionScreen({
         automaticallyAdjustKeyboardInsets={isKanjiWritingPhase}
         showsVerticalScrollIndicator={false}
       >
-        {/* Image Display with Audio Button - Animated */}
-        {question.example.imageUrl && (
-          <Animated.View
-            style={[
-              styles.imageContainer,
-              {
-                opacity: imageOpacity,
-              },
-            ]}
-          >
-            <Image
-              source={{ uri: question.example.imageUrl }}
-              style={styles.contextImage}
-              resizeMode="cover"
-            />
+        {(question.example.imageUrl || question.example.audio) && (
+          <View testID="listening-media" style={[
+            styles.imageContainer,
+            !question.example.imageUrl && styles.audioOnlyContainer,
+          ]}>
+            {question.example.imageUrl ? (
+              <ImmersionKitSceneImage
+                uri={question.example.imageUrl}
+                accessibilityLabel={`Scene from ${question.example.title}`}
+                style={styles.contextImage}
+                resizeMode="cover"
+                fallback={<Text style={styles.sceneUnavailable}>Scene image unavailable</Text>}
+              />
+            ) : null}
 
             {/* Previous Item Indicator */}
             {lastCompletedItem && (
@@ -847,23 +825,12 @@ export default function ListeningQuestionScreen({
                 )}
               </TouchableOpacity>
             </View>
-          </Animated.View>
+          </View>
         )}
 
-        {/* Sentence with Blank - Animated */}
-        <Animated.View
-          style={[
-            styles.sentenceCard,
-            {
-              transform: [{ translateY: sentenceRevealProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, -(height * 0.25 + 16)],
-              }) }],
-            },
-          ]}
-        >
+        <View style={styles.sentenceCard}>
           {renderSentence()}
-        </Animated.View>
+        </View>
 
       </ScrollView>
 
@@ -1063,6 +1030,14 @@ const createStyles = (width: number, height: number) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.6)",
+  },
+  audioOnlyContainer: {
+    height: 42,
+    borderWidth: 0,
+  },
+  sceneUnavailable: {
+    margin: "auto",
+    color: "white",
   },
   contextImage: {
     width: "100%",

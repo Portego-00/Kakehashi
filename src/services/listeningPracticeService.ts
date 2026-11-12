@@ -50,7 +50,7 @@ export async function generateListeningQuestions(
 
   // 3. Generate questions with ImmersionKit examples
   const questions: ListeningQuestion[] = [];
-  const usedVocabIds = new Set<number>();
+  const attemptedVocabIds = new Set<number>();
   const maxAttempts = config.numberOfQuestions * 5; // Try 5x the needed amount
   let attempts = 0;
 
@@ -61,13 +61,13 @@ export async function generateListeningQuestions(
     attempts++;
 
     // Get random unused vocab
-    const vocab = getRandomVocab(vocabs, usedVocabIds);
+    const vocab = getRandomVocab(vocabs, attemptedVocabIds);
     if (!vocab) {
       console.log("[ListeningPractice] No more vocabulary available");
       break;
     }
 
-    // Try to fetch example
+    attemptedVocabIds.add(vocab.id);
     const example = await fetchExampleForVocab(vocab, config, userLevel);
     if (!example) {
       console.log(
@@ -93,7 +93,6 @@ export async function generateListeningQuestions(
     };
 
     questions.push(question);
-    usedVocabIds.add(vocab.id);
 
     console.log(
       `[ListeningPractice] Generated question ${questions.length}/${config.numberOfQuestions}`
@@ -138,7 +137,7 @@ export async function* generateListeningQuestionsProgressively(
   }
 
   // 3. Generate questions one by one
-  const usedVocabIds = new Set<number>();
+  const attemptedVocabIds = new Set<number>();
   const maxAttempts = config.numberOfQuestions * 5;
   let attempts = 0;
   let questionCount = 0;
@@ -150,13 +149,13 @@ export async function* generateListeningQuestionsProgressively(
     attempts++;
 
     // Get random unused vocab
-    const vocab = getRandomVocab(vocabs, usedVocabIds);
+    const vocab = getRandomVocab(vocabs, attemptedVocabIds);
     if (!vocab) {
       console.log("[ListeningPractice] No more vocabulary available");
       break;
     }
 
-    // Try to fetch example
+    attemptedVocabIds.add(vocab.id);
     const example = await fetchExampleForVocab(vocab, config, userLevel);
     if (!example) {
       console.log(
@@ -181,7 +180,6 @@ export async function* generateListeningQuestionsProgressively(
       kanjiChoices,
     };
 
-    usedVocabIds.add(vocab.id);
     questionCount++;
 
     console.log(
@@ -345,38 +343,28 @@ async function fetchExampleForVocab(
     return null;
   }
 
-  try {
-    // Search by characters (not reading) to get better matches
-    const { results: examples } = await searchImmersionKit(characters, {
-      exactMatch: true,
-      category: "anime",
-      selectedAnimes: config.sessionAnimes,
-      limit: 10,
-      userLevel: userLevel,
-    });
+  // Search by characters (not reading) to get better matches
+  const { results: examples } = await searchImmersionKit(characters, {
+    exactMatch: true,
+    category: "anime",
+    selectedAnimes: config.sessionAnimes,
+    limit: 10,
+    userLevel: userLevel,
+  });
 
-    // Filter for complete examples with audio and image
-    const validExamples = examples.filter(
-      (ex) =>
-        ex.audio &&
-        ex.imageUrl &&
-        ex.sentence &&
-        ex.sentence.includes(characters)
-    );
+  const validExamples = examples.filter(
+    (ex) =>
+      ex.audio &&
+      ex.sentence?.includes(characters)
+  );
 
-    if (validExamples.length === 0) {
-      return null;
-    }
-
-    // Return random example
-    return validExamples[Math.floor(Math.random() * validExamples.length)];
-  } catch (error) {
-    console.error(
-      `[ListeningPractice] Failed to fetch example for ${characters}:`,
-      error
-    );
+  if (validExamples.length === 0) {
     return null;
   }
+
+  const withImages = validExamples.filter((example) => example.imageUrl);
+  const candidates = withImages.length ? withImages : validExamples;
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 /**

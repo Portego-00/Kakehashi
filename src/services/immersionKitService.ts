@@ -8,7 +8,7 @@ import {
   normalizeTitle as normalizeAnimeTitle,
 } from "./myAnimeListService";
 import { getSubjectTypeColor } from "../utils/subjectColors";
-import { immersionKitMediaUrl } from "../../shared/immersion-kit-media";
+import { immersionKitDecks, immersionKitMediaUrl, immersionKitSingleDeckQuery } from "../../shared/immersion-kit-media";
 
 export interface ImmersionKitSentence {
   id: string;
@@ -40,11 +40,12 @@ const API_BASE_URL = "https://apiv2.immersionkit.com";
 
 // Cache for index metadata (maps title slugs to folder names)
 type IndexMeta = Map<string, { title: string; category: string }>;
-let indexMetaCache: IndexMeta | null = null;
+const bundledIndex = new Map(Object.entries(immersionKitDecks));
+let indexMetaPromise: Promise<IndexMeta> | null = null;
 
 function withMediaUrls(sentence: ImmersionKitSentence, indexMeta: IndexMeta): ImmersionKitSentence {
   const category = sentence.id.match(/^(anime|drama|games|literature|news)_/)?.[1] as ImmersionKitSentence["category"];
-  const folder = indexMeta.get(sentence.title)?.title || sentence.title;
+  const folder = indexMeta.get(sentence.title)?.title;
 
   return {
     ...sentence,
@@ -57,38 +58,38 @@ function withMediaUrls(sentence: ImmersionKitSentence, indexMeta: IndexMeta): Im
 /**
  * Fetch and cache the index metadata from ImmersionKit
  */
-async function getIndexMeta(): Promise<IndexMeta> {
-  if (indexMetaCache) {
-    return indexMetaCache;
-  }
+function getIndexMeta(): Promise<IndexMeta> {
+  if (indexMetaPromise) return indexMetaPromise;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+  indexMetaPromise = fetch(`${API_BASE_URL}/index_meta`, { signal: controller.signal })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`ImmersionKit index returned ${response.status}.`);
+      const { data } = await response.json() as { data?: Record<string, { title: string; category: string }> };
+      if (!data || !Object.keys(data).length) throw new Error("ImmersionKit index was empty.");
+      return new Map([...bundledIndex, ...Object.entries(data)]);
+    })
+    .catch((error) => {
+      indexMetaPromise = null;
+      console.warn("[ImmersionKit] Using bundled deck mappings:", error);
+      return bundledIndex;
+    })
+    .finally(() => clearTimeout(timeout));
+  return indexMetaPromise;
+}
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/index_meta`);
-    if (!response.ok) {
-      console.warn("[ImmersionKit] Failed to fetch index_meta");
-      return new Map();
+async function fetchSearch(url: string): Promise<Response> {
+  const request = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    try {
+      return await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const result = await response.json();
-    const index = result.data || {};
-
-    // Build a map from title slug to folder info
-    const map = new Map<string, { title: string; category: string }>();
-    for (const key of Object.keys(index)) {
-      const { title, category } = index[key];
-      // The API response uses snake_case as keys, but title is the actual folder name
-      map.set(key, { title, category });
-    }
-
-    indexMetaCache = map;
-    console.log(
-      `[ImmersionKit] Loaded ${map.size} deck mappings from index_meta`
-    );
-    return map;
-  } catch (error) {
-    console.error("[ImmersionKit] Error fetching index_meta:", error);
-    return new Map();
-  }
+  };
+  const first = await request().catch(() => null);
+  return first && first.status < 500 ? first : request();
 }
 
 /**
@@ -157,12 +158,14 @@ export async function searchImmersionKit(
 
     // When filtering by watched anime, we need to fetch more results iteratively
     // to ensure we get enough matches after filtering
-    const MAX_TOTAL_FETCH = 200; // Maximum total results to fetch (prevents infinite loops)
-    const BATCH_SIZE = 50; // Fetch 50 results at a time
+    const MAX_PAGES = 4;
+    const BATCH_SIZE = 50; // ImmersionKit applies the limit to each deck.
 
     let allFilteredResults: ImmersionKitSentence[] = [];
     let offset = skip;
     let totalFetched = 0;
+    const categoryQuery = category ? `&category=${category}` : "";
+    const deckQuery = shouldFilterByWatchedCategory ? immersionKitSingleDeckQuery(selectedAnimes) : "";
 
     // Load watched anime set once if needed (only if no manual selection and we have MAL username)
     const watchedAnimeSet =
@@ -184,32 +187,26 @@ export async function searchImmersionKit(
     const searchQuery = query.startsWith("〜") ? query.slice(1) : query;
 
     // Keep fetching batches until we have enough results or hit the limit
-    while (
-      allFilteredResults.length < maxResults &&
-      totalFetched < MAX_TOTAL_FETCH
-    ) {
+    for (let page = 0; page < MAX_PAGES && allFilteredResults.length < maxResults; page++) {
       // Build URL with proper encoding and offset for pagination
       const url = `${API_BASE_URL}/search?q=${encodeURIComponent(
         searchQuery
-      )}&exactMatch=${exactMatch}&limit=${BATCH_SIZE}&offset=${offset}`;
+      )}&exactMatch=${exactMatch}&limit=${BATCH_SIZE}&offset=${offset}${categoryQuery}${deckQuery}`;
 
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
+      const response = await fetchSearch(url).catch((error) => {
+        if (allFilteredResults.length) return null;
+        throw error;
       });
+      if (!response) break;
 
       if (!response.ok) {
+        if (allFilteredResults.length) break;
         if (response.status === 429) {
           throw new Error(
             "RATE_LIMIT:You've made too many requests to ImmersionKit. Please wait a few minutes before trying again."
           );
         }
-        console.warn(
-          `[ImmersionKit] API error: ${response.status} ${response.statusText}`
-        );
-        break;
+        throw new Error(`ImmersionKit returned ${response.status}.`);
       }
 
       const result: ImmersionKitResponse = await response.json();
@@ -295,13 +292,8 @@ export async function searchImmersionKit(
       // Make one more simple fetch without filtering
       const url = `${API_BASE_URL}/search?q=${encodeURIComponent(
         searchQuery
-      )}&exactMatch=${exactMatch}&limit=${maxResults * 2}`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-      });
+      )}&exactMatch=${exactMatch}&limit=${maxResults * 2}${categoryQuery}`;
+      const response = await fetchSearch(url);
 
       if (!response.ok && response.status === 429) {
         throw new Error(
@@ -320,6 +312,8 @@ export async function searchImmersionKit(
             );
           }
         }
+      } else {
+        throw new Error(`ImmersionKit returned ${response.status}.`);
       }
     }
 
@@ -416,7 +410,7 @@ export async function searchImmersionKit(
       console.error("[ImmersionKit] Error message:", error.message);
       console.error("[ImmersionKit] Error stack:", error.stack);
     }
-    return { results: [], nextOffset: 0 };
+    throw error;
   }
 }
 

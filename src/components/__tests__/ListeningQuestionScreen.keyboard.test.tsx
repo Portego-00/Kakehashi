@@ -150,37 +150,37 @@ it("keeps an unsubmitted listening answer and the mounted input while the window
   }
 });
 
-it("keeps the revealed sentence aligned with its resized image space", () => {
+it.each([true, false])("keeps a recovered scene visible after an answer graded %s", async (correct) => {
   const originalWindow = Dimensions.get("window");
-  jest.mocked(Animated.timing).mockImplementation((value, config) => {
-    if (value instanceof Animated.Value && typeof config.toValue === "number") {
-      value.setValue(config.toValue);
-    }
-    return { start: jest.fn(), stop: jest.fn(), reset: jest.fn() };
-  });
   const onKanjiAnswer = jest.fn();
-  const screen = render(<ListeningQuestionScreen
-    question={{ ...question, example: { ...question.example, imageUrl: "https://example.com/sentence.jpg" } }}
-    questionPhase="kanji" solutionMode="multiple_choice"
-    onKanjiAnswer={onKanjiAnswer} onMeaningAnswer={jest.fn()} onExit={jest.fn()}
-    currentItem={1} totalItems={4} correctAnswersCount={0} accuracyPercent={0} lastCompletedItem={null}
-    autoPlayAudio={false}
-  />);
-  fireEvent.press(screen.getByText("猫"));
+  const imageUrl = "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Death%20Note/media/frame.jpg";
+  const props = {
+    question: { ...question, example: { ...question.example, imageUrl } },
+    solutionMode: "multiple_choice" as const, onKanjiAnswer,
+    onMeaningAnswer: jest.fn(), onExit: jest.fn(), currentItem: 1, totalItems: 4,
+    correctAnswersCount: 0, accuracyPercent: 0, lastCompletedItem: null, autoPlayAudio: false,
+  };
+  const screen = render(<ListeningQuestionScreen {...props} questionPhase="kanji" />);
+  const scene = () => screen.UNSAFE_getByType(Image);
+  const imageContainerStyle = () => StyleSheet.flatten(screen.getByTestId("listening-media").props.style);
+  expect(scene().props.source.uri).toBe(imageUrl);
+  fireEvent(scene(), "error", { nativeEvent: { error: "Network error" } });
+  expect(scene().props.source.uri).toMatch(/frame\.jpg\?retry=\d+$/);
+
+  const choice = correct ? "猫" : "犬";
+  fireEvent.press(screen.getByText(choice));
   fireEvent.press(screen.getByText("Submit Answer"));
-  act(() => jest.advanceTimersByTime(100));
+  await act(async () => jest.advanceTimersByTime(350));
+  expect(onKanjiAnswer).toHaveBeenCalledWith(correct, choice);
+  screen.rerender(<ListeningQuestionScreen {...props} questionPhase="meaning" />);
+
   try {
     for (const [width, height] of [[951, 669], [466, 678], [669, 951]]) {
       act(() => Dimensions.set({ window: { ...originalWindow, width, height } }));
-      const imageContainer = screen.UNSAFE_getByType(Image).parent!;
-      expect(StyleSheet.flatten(imageContainer.props.style).height).toBe(height * 0.25);
-      const sentenceCard = screen.UNSAFE_getAllByType(Animated.View).find((node) => {
-        const style = StyleSheet.flatten(node.props.style);
-        return style?.transform?.some((transform: { translateY?: unknown }) => "translateY" in transform);
-      })!;
-      const style = StyleSheet.flatten(sentenceCard.props.style);
-      expect(style.transform[0].translateY.__getValue()).toBe(-(height * 0.25 + 16));
-      expect(onKanjiAnswer).not.toHaveBeenCalled();
+      expect(imageContainerStyle().height).toBe(height * 0.25);
+      expect(imageContainerStyle().opacity).toBeUndefined();
+      expect(scene().props.source.uri).toMatch(/frame\.jpg\?retry=\d+$/);
+      expect(screen.getByText("Meaning Question")).toBeTruthy();
     }
   } finally {
     screen.unmount();

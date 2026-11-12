@@ -151,7 +151,7 @@ export function StudyModeClient({ mode, seedSubjectIds = [], startImmediately = 
           const first = await stream.next();
           if (controller.signal.aborted) return;
           if (first.done || !first.value.length) {
-            setStartError("No matching anime examples with audio and images were found. Try another anime source or widen the SRS and level filters.");
+            setStartError("No matching anime examples with audio were found. Try another anime source or widen the SRS and level filters.");
             setPreparing(false);
             return;
           }

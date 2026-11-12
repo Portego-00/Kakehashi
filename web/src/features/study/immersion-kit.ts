@@ -1,4 +1,4 @@
-import { immersionKitMediaUrl } from "../../../../shared/immersion-kit-media";
+import { immersionKitDecks, immersionKitMediaUrl, immersionKitSingleDeckQuery } from "../../../../shared/immersion-kit-media";
 
 export const IMMERSION_KIT_API_BASE = "https://apiv2.immersionkit.com";
 
@@ -17,8 +17,8 @@ export interface ImmersionKitSearchPayload {
   examples?: unknown[];
 }
 
-export function immersionKitSearchUrl(query: string) {
-  return `${IMMERSION_KIT_API_BASE}/search?q=${encodeURIComponent(query)}&exactMatch=true&limit=50&offset=0`;
+export function immersionKitSearchUrl(query: string, sources: readonly string[]) {
+  return `${IMMERSION_KIT_API_BASE}/search?q=${encodeURIComponent(query)}&exactMatch=true&limit=50&offset=0${immersionKitSingleDeckQuery(sources)}`;
 }
 
 export function buildImmersionExamples(rawExamples: unknown, indexMeta: ImmersionKitIndexMeta, sourceValues: readonly string[]): ImmersionExample[] {
@@ -42,17 +42,18 @@ export function buildImmersionExamples(rawExamples: unknown, indexMeta: Immersio
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
 
+    const fallback = immersionKitDecks[sourceTitle];
     const meta = indexMeta[sourceTitle];
-    const category = meta?.category ?? id?.match(/^(anime|drama|games|literature|news)_/)?.[1] ?? "anime";
+    const category = meta?.category ?? fallback?.category ?? id?.match(/^(anime|drama|games|literature|news)_/)?.[1] ?? "anime";
     if (category !== "anime") continue;
-    const title = meta?.title || sourceTitle;
+    const folder = meta?.title || fallback?.title;
     examples.push({
       sentence,
       ...(typeof candidate.sentence_with_furigana === "string" ? { sentenceWithFurigana: candidate.sentence_with_furigana } : {}),
       translation,
-      title,
-      audio: immersionKitMediaUrl(category, title, sound),
-      imageUrl: immersionKitMediaUrl(category, title, image),
+      title: folder || sourceTitle,
+      audio: folder ? immersionKitMediaUrl(category, folder, sound) : undefined,
+      imageUrl: folder ? immersionKitMediaUrl(category, folder, image) : undefined,
     });
   }
 

@@ -253,6 +253,7 @@
 .sentencePrompt[data-visible="false"] { visibility: hidden; }
 .sentenceAnswerHighlight { border-radius: var(--radius-sm); background: color-mix(in oklch, var(--color-subject-text) 18%, transparent); color: inherit; padding-inline: .12em; font-weight: 750; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .sceneFrame { position: relative; width: min(100%, 30rem); }
+.sceneFrame:empty { display: none; }
 .contextImage { display: block; width: 100%; max-height: clamp(9rem, 24dvh, 16rem); object-fit: cover; border: 1px solid var(--color-subject-rule); border-radius: var(--radius-md); }
 /* Answer feedback grows below the scene, whose size depends only on the viewport. */
 .quizShell[data-listening="true"][data-scene="true"] {

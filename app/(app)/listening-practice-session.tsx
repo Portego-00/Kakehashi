@@ -24,6 +24,7 @@ import AudioSessionManager from "../../src/modules/AudioSessionManager";
 import { useSession } from "../../src/contexts/AuthContext";
 import { fontStyles } from "../../src/utils/fonts";
 import ListeningQuestionScreen from "../../src/components/ListeningQuestionScreen";
+import { ImmersionKitSceneImage } from "../../src/components/ImmersionKitSceneImage";
 import { generateListeningQuestionsProgressively } from "../../src/services/listeningPracticeService";
 import type {
   ListeningAnswer,
@@ -897,8 +898,8 @@ function SummaryAnswerCard({
       {/* Image + Audio Row */}
       <View style={summaryStyles.mediaRow}>
         {answer.example.imageUrl ? (
-          <Image
-            source={{ uri: answer.example.imageUrl }}
+          <ImmersionKitSceneImage
+            uri={answer.example.imageUrl}
             style={summaryStyles.cardImage}
             resizeMode="cover"
           />

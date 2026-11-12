@@ -15,6 +15,7 @@ const DEFAULT_RATE_LIMIT_DELAY_MS = 2_000;
 const MAX_RATE_LIMIT_DELAY_MS = 30_000;
 const MAX_RATE_LIMIT_RETRIES = 3;
 const LOOKUP_TIMEOUT_MS = 12_000;
+const INDEX_TIMEOUT_MS = 4_000;
 let indexMetaPromise: Promise<ImmersionKitIndexMeta> | null = null;
 let indexMetaFetch: typeof fetch | null = null;
 
@@ -49,14 +50,14 @@ function abortReason(signal: AbortSignal) {
   return signal.reason ?? new DOMException("Aborted", "AbortError");
 }
 
-function createLookupSignal(parent?: AbortSignal) {
+function createLookupSignal(parent?: AbortSignal, timeoutMs = LOOKUP_TIMEOUT_MS) {
   const controller = new AbortController();
   const relayAbort = () => controller.abort(parent ? abortReason(parent) : new DOMException("Aborted", "AbortError"));
   if (parent?.aborted) relayAbort();
   else parent?.addEventListener("abort", relayAbort, { once: true });
   const timeout = globalThis.setTimeout(
     () => controller.abort(new DOMException("Immersion lookup timed out.", "TimeoutError")),
-    LOOKUP_TIMEOUT_MS,
+    timeoutMs,
   );
   return {
     signal: controller.signal,
@@ -88,7 +89,7 @@ function getIndexMeta() {
     indexMetaPromise = null;
   }
   if (indexMetaPromise) return indexMetaPromise;
-  const request = createLookupSignal();
+  const request = createLookupSignal(undefined, INDEX_TIMEOUT_MS);
   indexMetaPromise = fetcher(`${IMMERSION_KIT_API_BASE}/index_meta`, {
     headers: { Accept: "application/json" },
     credentials: "omit",
@@ -97,7 +98,8 @@ function getIndexMeta() {
   }).then(async (response) => {
     if (!response.ok) throw new Error(`ImmersionKit index returned ${response.status}.`);
     const payload = await response.json() as { data?: ImmersionKitIndexMeta };
-    return payload.data ?? {};
+    if (!payload.data || !Object.keys(payload.data).length) throw new Error("ImmersionKit index was empty.");
+    return payload.data;
   }).catch(() => {
     if (indexMetaFetch === fetcher) indexMetaPromise = null;
     return {};
@@ -109,7 +111,7 @@ async function fetchImmersionExamplesDirect(query: string, sources: string[], si
   const request = createLookupSignal(signal);
   const indexMeta = getIndexMeta();
   try {
-    const response = await fetch(immersionKitSearchUrl(query), {
+    const response = await fetch(immersionKitSearchUrl(query, sources), {
       headers: { Accept: "application/json" },
       cache: "no-store",
       credentials: "omit",
@@ -169,7 +171,9 @@ async function fetchImmersionExampleWithRetry(characters: string, sources: strin
   let rateLimitRetries = 0;
   while (true) {
     try {
-      return await fetchImmersionExample(characters, sources, signal);
+      const examples = await fetchImmersionExamples(characters, sources, signal);
+      const playable = examples.filter((example) => example.audio && example.sentence.includes(characters));
+      return playable.find((example) => example.imageUrl) ?? playable[0] ?? null;
     } catch (error) {
       if (!(error instanceof ImmersionLookupError) || error.status !== 429 || rateLimitRetries >= MAX_RATE_LIMIT_RETRIES) throw error;
       rateLimitRetries += 1;
@@ -219,7 +223,7 @@ export async function* streamAnimeContext(questions: StudyQuestion[], filters: S
     if (yielded >= limit || options.signal?.aborted) return;
     try {
       const example = await fetchImmersionExampleWithRetry(characters, filters.animeSources, options);
-      if (!example?.audio || !example.imageUrl || !example.sentence.includes(characters)) continue;
+      if (!example) continue;
       const batch = group.slice(0, limit - yielded).map((question) => enrichQuestion(question, example, characterPool, filters));
       if (!batch.length) continue;
       yielded += batch.length;

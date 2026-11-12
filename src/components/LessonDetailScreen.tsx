@@ -108,6 +108,7 @@ import {
 } from "../utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../utils/store";
 import { MediaContextSource } from "./MediaContextSource";
+import { ImmersionKitSceneImage } from "./ImmersionKitSceneImage";
 import { useTheme } from "../utils/theme";
 import { tokenizeWaniKaniMnemonic } from "../utils/wanikaniMnemonic";
 import { MnemonicTag } from "./MnemonicTag";
@@ -490,15 +491,13 @@ const SubjectContent = ({
     setLoadingMediaSentence(null);
   };
   const [loadingMediaSentences, setLoadingMediaSentences] = useState(false);
+  const [mediaLookupFailed, setMediaLookupFailed] = useState(false);
   const [playingMediaSentence, setPlayingMediaSentence] = useState<
     number | null
   >(null);
   const [loadingMediaSentence, setLoadingMediaSentence] = useState<
     number | null
   >(null);
-  const [failedMediaUrls, setFailedMediaUrls] = useState<Set<string>>(
-    new Set()
-  );
   const [nextDataOffset, setNextDataOffset] = useState(0);
   const [visibleMediaCount, setVisibleMediaCount] = useState(10);
   const [revealedTranslations, setRevealedTranslations] = useState<Set<string>>(
@@ -1414,6 +1413,7 @@ const SubjectContent = ({
       return;
     }
 
+    if (offset === 0) setMediaLookupFailed(false);
     setLoadingMediaSentences(true);
 
     try {
@@ -1441,6 +1441,7 @@ const SubjectContent = ({
         return [...prev, ...newSentences];
       });
     } catch (error) {
+      if (offset === 0) setMediaLookupFailed(true);
       console.error("[LessonDetail] Error fetching media sentences:", error);
     } finally {
       setLoadingMediaSentences(false);
@@ -1636,14 +1637,12 @@ const SubjectContent = ({
     return <Text style={styles.mnemonicTextContainer}>{segments}</Text>;
   };
 
-  // Handle image load errors
-  const handleImageError = (imageUrl: string) => {
-    setFailedMediaUrls((prev) => new Set(prev).add(imageUrl));
-  };
-
-  // Filter out sentences with failed media
-  const validMediaSentences = mediaSentences.filter(
-    (sentence) => sentence.imageUrl && !failedMediaUrls.has(sentence.imageUrl)
+  const renderEmptyMedia = () => mediaLookupFailed ? (
+    <TouchableOpacity accessibilityRole="button" onPress={() => void fetchMediaSentences()}>
+      <Text style={styles.noteText}>Could not load anime examples. Tap to retry.</Text>
+    </TouchableOpacity>
+  ) : (
+    <Text style={styles.noteText}>No media examples found for this vocabulary.</Text>
   );
 
   const getSentenceSpeed = (sentenceId: string) =>
@@ -2502,17 +2501,13 @@ const SubjectContent = ({
         <MediaContextSource query={subject.data.characters ?? ""} active={active && isVocabularyContextTab} onYouGlishSelect={stopContextAudio}>
         {showMediaContextSentences ? <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>Media Context Sentences</Text>
-          {loadingMediaSentences && validMediaSentences.length === 0 && (
+          {loadingMediaSentences && mediaSentences.length === 0 && (
             <Text style={styles.noteText}>Loading examples...</Text>
           )}
-          {!loadingMediaSentences && validMediaSentences.length === 0 && (
-            <Text style={styles.noteText}>
-              No media examples found for this vocabulary.
-            </Text>
-          )}
-          {validMediaSentences.length > 0 && (
+          {!loadingMediaSentences && mediaSentences.length === 0 && renderEmptyMedia()}
+          {mediaSentences.length > 0 && (
             <View style={{ marginTop: 8 }}>
-              {validMediaSentences
+              {mediaSentences
                 .slice(0, visibleMediaCount)
                 .map((sentence, idx) => (
                   <View
@@ -2574,11 +2569,10 @@ const SubjectContent = ({
                     </View>
                     <View style={styles.mediaContentRow}>
                       {sentence.imageUrl && (
-                        <Image
-                          source={{ uri: sentence.imageUrl }}
+                        <ImmersionKitSceneImage
+                          uri={sentence.imageUrl}
                           style={styles.mediaImageLeft}
                           resizeMode="cover"
-                          onError={() => handleImageError(sentence.imageUrl!)}
                         />
                       )}
                       <View style={styles.mediaTextContent}>
@@ -3968,20 +3962,15 @@ const SubjectContent = ({
                         Media Context Sentences
                       </Text>
 
-                      {loadingMediaSentences && validMediaSentences.length === 0 && (
+                      {loadingMediaSentences && mediaSentences.length === 0 && (
                         <Text style={styles.noteText}>Loading examples...</Text>
                       )}
 
-                      {!loadingMediaSentences &&
-                        validMediaSentences.length === 0 && (
-                          <Text style={styles.noteText}>
-                            No media examples found for this vocabulary.
-                          </Text>
-                        )}
+                      {!loadingMediaSentences && mediaSentences.length === 0 && renderEmptyMedia()}
 
-                      {validMediaSentences.length > 0 && (
+                      {mediaSentences.length > 0 && (
                         <View style={{ marginTop: 8 }}>
-                          {validMediaSentences
+                          {mediaSentences
                             .slice(0, visibleMediaCount)
                             .map((sentence, index) => (
                                 <View
@@ -4055,13 +4044,10 @@ const SubjectContent = ({
                                   {/* Horizontal layout: Image on left, text on right */}
                                   <View style={styles.mediaContentRow}>
                                     {sentence.imageUrl && (
-                                      <Image
-                                        source={{ uri: sentence.imageUrl }}
+                                      <ImmersionKitSceneImage
+                                        uri={sentence.imageUrl}
                                         style={styles.mediaImageLeft}
                                         resizeMode="cover"
-                                        onError={() =>
-                                          handleImageError(sentence.imageUrl!)
-                                        }
                                       />
                                     )}
 
@@ -4385,20 +4371,15 @@ const SubjectContent = ({
                         Media Context Sentences
                       </Text>
 
-                      {loadingMediaSentences && validMediaSentences.length === 0 && (
+                      {loadingMediaSentences && mediaSentences.length === 0 && (
                         <Text style={styles.noteText}>Loading examples...</Text>
                       )}
 
-                      {!loadingMediaSentences &&
-                        validMediaSentences.length === 0 && (
-                          <Text style={styles.noteText}>
-                            No media examples found for this vocabulary.
-                          </Text>
-                        )}
+                      {!loadingMediaSentences && mediaSentences.length === 0 && renderEmptyMedia()}
 
-                      {validMediaSentences.length > 0 && (
+                      {mediaSentences.length > 0 && (
                         <View style={{ marginTop: 8 }}>
-                          {validMediaSentences
+                          {mediaSentences
                             .slice(0, visibleMediaCount)
                             .map((sentence, index) => (
                                 <View
@@ -4472,13 +4453,10 @@ const SubjectContent = ({
                                   {/* Horizontal layout: Image on left, text on right */}
                                   <View style={styles.mediaContentRow}>
                                     {sentence.imageUrl && (
-                                      <Image
-                                        source={{ uri: sentence.imageUrl }}
+                                      <ImmersionKitSceneImage
+                                        uri={sentence.imageUrl}
                                         style={styles.mediaImageLeft}
                                         resizeMode="cover"
-                                        onError={() =>
-                                          handleImageError(sentence.imageUrl!)
-                                        }
                                       />
                                     )}
 

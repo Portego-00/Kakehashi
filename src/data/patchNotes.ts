@@ -62,7 +62,7 @@ export const PATCH_NOTES: PatchNote[] = [
       {
         type: "fix",
         title: "Anime Context Media",
-        description: "Anime context screenshots and audio work again on mobile and web.",
+        description: "Anime context uses the new media host, retries failed screenshots, and keeps scenes visible after Listening Practice answers on mobile and web.",
       },
       {
         type: "fix",

@@ -2077,8 +2077,13 @@ for (const compactReviews of [false, true]) {
       await page.setViewportSize({ width: 1280, height: 720 });
     }
     await mockListeningApp(page);
-    await page.addInitScript(({ timestamp, compact }) => {
-      const imageUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='900'%3E%3Crect width='1600' height='900' fill='%23777'/%3E%3C/svg%3E";
+    const mediaBase = "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime";
+    await page.route(`${mediaBase}/**`, async (route) => {
+      const url = new URL(route.request().url());
+      if (!url.searchParams.has("retry")) return route.fulfill({ status: 503 });
+      await route.fulfill({ contentType: "image/svg+xml", body: `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><rect width="1600" height="900" fill="#777"/></svg>` });
+    });
+    await page.addInitScript(({ timestamp, compact, mediaBase }) => {
       const questions = ["Frieren", "Weathering with You"].map((sourceTitle, index) => ({
         id: `listening-${index}`,
         subjectId: index === 0 ? 6 : 5,
@@ -2092,7 +2097,7 @@ for (const compactReviews of [false, true]) {
         characters: "日本史",
         sentence: { ja: "日本史を勉強します。", en: "I study Japanese history.", masked: "＿＿を勉強します。" },
         audioUrl: "data:audio/mpeg;base64,",
-        imageUrl,
+        imageUrl: `${mediaBase}/${encodeURIComponent(sourceTitle)}/media/frame.jpg`,
         sourceTitle,
         autoPlayAudio: false,
         stopAfterAnswer: true,
@@ -2104,7 +2109,7 @@ for (const compactReviews of [false, true]) {
         version: 1, id: "listening-scene-size", mode: "listening", createdAt: timestamp, updatedAt: timestamp,
         currentIndex: 0, questions, answers: [], complete: false,
       }));
-    }, { timestamp: now, compact: compactReviews });
+    }, { timestamp: now, compact: compactReviews, mediaBase });
 
     await page.goto("/study/listening");
     await page.getByRole("button", { name: /Resume saved session/ }).click();
@@ -2116,6 +2121,7 @@ for (const compactReviews of [false, true]) {
       }
       const scene = page.getByRole("img", { name: `Scene from ${sourceTitle}` });
       await expect(scene).toBeVisible();
+      await expect(scene).toHaveAttribute("src", /\?retry=\d+$/);
       await scene.evaluate((image: HTMLImageElement) => image.decode());
       const before = (await scene.boundingBox())!;
       expect(before.height, "the scene should start large enough to see").toBeGreaterThanOrEqual(140);
