@@ -1952,18 +1952,17 @@ test("uses the full revealed Anki card as the buttonless gesture surface", async
   await expect(page.getByText("Incorrect", { exact: true })).toBeVisible();
 });
 
-test("preserves listening scenes and answers inside a desktop viewport with or without review extras", async ({ page }, testInfo) => {
+async function mockListeningApp(page: Page) {
+  await mockApp(page);
+  await page.route("**/api/notebooks", (route) => fulfillJson(route, { available: false, state: null, revision: -1 }));
+}
+
+test("keeps listening scenes and answer choices visible on desktop with or without review extras", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("desktop"), "Desktop viewport geometry assertion");
   await page.setViewportSize({ width: 1503, height: 840 });
-  await mockApp(page);
+  await mockListeningApp(page);
   await page.route("**/api/study/vocabulary-frequency", (route) => fulfillJson(route, { result: { provider: "jiten", frequencyRank: 6_961, wordId: 6, readingIndex: 0, matchedText: "日本史", matchedReading: "にほんし", sourceUrl: "https://jiten.moe/search?query=%E6%97%A5%E6%9C%AC%E5%8F%B2" } }));
 
-  const extras = [
-    "Show item level & SRS stage",
-    "Show vocabulary frequency",
-    "Vocabulary context sentence hints",
-    "Review search button",
-  ];
   const scenarios = [
     {
       extrasEnabled: false,
@@ -1990,13 +1989,16 @@ test("preserves listening scenes and answers inside a desktop viewport with or w
   ];
 
   for (const scenario of scenarios) {
-    await page.goto("/settings");
-    for (const label of extras) {
-      const checkbox = page.getByRole("checkbox", { name: label });
-      if (await checkbox.isChecked() !== scenario.extrasEnabled) await page.getByText(label, { exact: true }).click();
-    }
-
+    await page.goto("/study/listening");
     await page.evaluate(({ timestamp, fixture }) => {
+      window.localStorage.setItem("kakehashi-web:settings:webtester:v1", JSON.stringify({
+        study: {
+          showReviewItemLevelAndSrsStage: fixture.extrasEnabled,
+          showVocabularyFrequency: fixture.extrasEnabled,
+          showVocabContextSentencesInReviews: fixture.extrasEnabled,
+          reviewSearchButtonEnabled: fixture.extrasEnabled,
+        },
+      }));
       window.localStorage.setItem("kakehashi:study:v1:account:1:session:listening", JSON.stringify({
         version: 1,
         id: `listening-viewport-${fixture.extrasEnabled ? "extras" : "default"}`,
@@ -2040,7 +2042,6 @@ test("preserves listening scenes and answers inside a desktop viewport with or w
 
     const layout = await choices.evaluate((element) => ({
       answerBottom: element.getBoundingClientRect().bottom,
-      pageHeight: document.documentElement.scrollHeight,
       viewportHeight: window.innerHeight,
     }));
     const sceneBounds = await scene.boundingBox();
@@ -2056,7 +2057,6 @@ test("preserves listening scenes and answers inside a desktop viewport with or w
     expect(sceneBounds!.y, "the scene should stay below the quiz toolbar").toBeGreaterThanOrEqual(cardBounds.top - 1);
     expect(audioBounds!.y + audioBounds!.height, "the prompt should not overlap the answer area").toBeLessThanOrEqual(cardBounds.bottom + 1);
     expect(layout.answerBottom, "the full answer grid should stay above the fold").toBeLessThanOrEqual(layout.viewportHeight + 1);
-    expect(layout.pageHeight, "the listening question should not require page scrolling").toBeLessThanOrEqual(layout.viewportHeight + 1);
 
     if (!scenario.extrasEnabled) {
       await page.getByRole("button", { name: new RegExp(scenario.acceptedAnswer) }).click();
@@ -2066,20 +2066,90 @@ test("preserves listening scenes and answers inside a desktop viewport with or w
       expect(highlightBackground, "the restored Japanese term should have a restrained custom highlight").not.toBe("rgba(0, 0, 0, 0)");
       expect(highlightBackground, "the restored Japanese term should not use the browser's default yellow mark").not.toBe("rgb(255, 255, 0)");
       await expect(choices).toBeInViewport({ ratio: 1 });
-      const answeredLayout = await page.evaluate(() => ({ pageHeight: document.documentElement.scrollHeight, viewportHeight: window.innerHeight }));
-      expect(answeredLayout.pageHeight, "answer feedback should remain inside the viewport").toBeLessThanOrEqual(answeredLayout.viewportHeight + 1);
+      expect((await scene.boundingBox())!.height, "feedback below the choices should not shrink the scene").toBeCloseTo(sceneBounds!.height, 0);
     }
   }
 });
 
+for (const compactReviews of [false, true]) {
+  test(`keeps listening scenes the same size after both answer outcomes in ${compactReviews ? "compact" : "standard"} layout`, async ({ page }, testInfo) => {
+    if (testInfo.project.name.includes("desktop")) {
+      await page.setViewportSize({ width: 1280, height: 720 });
+    }
+    await mockListeningApp(page);
+    const mediaBase = "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime";
+    await page.route(`${mediaBase}/**`, async (route) => {
+      const url = new URL(route.request().url());
+      if (!url.searchParams.has("retry")) return route.fulfill({ status: 503 });
+      await route.fulfill({ contentType: "image/svg+xml", body: `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><rect width="1600" height="900" fill="#777"/></svg>` });
+    });
+    await page.addInitScript(({ timestamp, compact, mediaBase }) => {
+      const questions = ["Frieren", "Weathering with You"].map((sourceTitle, index) => ({
+        id: `listening-${index}`,
+        subjectId: index === 0 ? 6 : 5,
+        subjectType: "vocabulary",
+        kind: "listening-meaning",
+        prompt: "＿＿を勉強します。",
+        promptLabel: "Vocabulary",
+        acceptedAnswers: ["History"],
+        displayAnswer: "History",
+        choices: ["History", "Weather", "Ocean", "School"],
+        characters: "日本史",
+        sentence: { ja: "日本史を勉強します。", en: "I study Japanese history.", masked: "＿＿を勉強します。" },
+        audioUrl: "data:audio/mpeg;base64,",
+        imageUrl: `${mediaBase}/${encodeURIComponent(sourceTitle)}/media/frame.jpg`,
+        sourceTitle,
+        autoPlayAudio: false,
+        stopAfterAnswer: true,
+      }));
+      window.localStorage.setItem("kakehashi-web:settings:webtester:v1", JSON.stringify({
+        study: { compactReviews: compact, showListeningTranslation: true, answerFeedbackSoundEnabled: false },
+      }));
+      window.localStorage.setItem("kakehashi:study:v1:account:1:session:listening", JSON.stringify({
+        version: 1, id: "listening-scene-size", mode: "listening", createdAt: timestamp, updatedAt: timestamp,
+        currentIndex: 0, questions, answers: [], complete: false,
+      }));
+    }, { timestamp: now, compact: compactReviews, mediaBase });
+
+    await page.goto("/study/listening");
+    await page.getByRole("button", { name: /Resume saved session/ }).click();
+    const choices = page.getByRole("group", { name: "Answer choices" });
+
+    for (const [sourceTitle, choice, result] of [["Frieren", "History", "correct"], ["Weathering with You", "Weather", "incorrect"]]) {
+      if (compactReviews && result === "incorrect" && testInfo.project.name.includes("desktop")) {
+        await page.setViewportSize({ width: 900, height: 700 });
+      }
+      const scene = page.getByRole("img", { name: `Scene from ${sourceTitle}` });
+      await expect(scene).toBeVisible();
+      await expect(scene).toHaveAttribute("src", /\?retry=\d+$/);
+      await expect.poll(() => scene.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+      const before = (await scene.boundingBox())!;
+      expect(before.height, "the scene should start large enough to see").toBeGreaterThanOrEqual(140);
+      const selected = choices.getByRole("button", { name: new RegExp(choice) });
+      await selected.click();
+      await expect(selected).toHaveAttribute("data-result", result);
+      await choices.evaluate(async (element) => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const feedback = element.parentElement!.querySelector("[data-answer-stop]");
+        const animations = feedback?.getAnimations({ subtree: true }).filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime)) ?? [];
+        await Promise.allSettled(animations.map((animation) => animation.finished));
+      });
+      const after = (await scene.boundingBox())!;
+      expect(Math.abs(after.width - before.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(after.height - before.height)).toBeLessThanOrEqual(1);
+      expect(after.y + after.height).toBeLessThan((await choices.boundingBox())!.y);
+      if (result === "correct") await page.getByRole("button", { name: "Next", exact: true }).click();
+    }
+  });
+}
+
 test("keeps listening prompts above answers when subject details expand", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes("desktop"), "Desktop viewport geometry assertion");
   await page.setViewportSize({ width: 1503, height: 840 });
-  await mockApp(page);
-  await page.goto("/settings");
-  const pauseOnCorrect = page.getByRole("checkbox", { name: "Pause on correct answer" });
-  if (!await pauseOnCorrect.isChecked()) await page.getByText("Pause on correct answer", { exact: true }).click();
+  await mockListeningApp(page);
+  await page.goto("/study/listening");
   await page.evaluate((timestamp) => {
+    window.localStorage.setItem("kakehashi-web:settings:webtester:v1", JSON.stringify({ study: { pauseOnCorrect: true } }));
     window.localStorage.setItem("kakehashi:study:v1:account:1:session:listening", JSON.stringify({
       version: 1,
       id: "listening-expanded-details",

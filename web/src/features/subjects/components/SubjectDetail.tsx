@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { ImmersionKitSceneImage } from "@/features/study/components/ImmersionKitSceneImage";
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Bookmark, ChevronDown, ChevronUp, Download, ExternalLink, Headphones, ImagePlus, Layers3, LoaderCircle, Pencil, Save, Square, Volume2, X } from "lucide-react";
@@ -462,10 +463,6 @@ function RadicalMnemonicIllustration({ documentUrl, meaning }: { documentUrl: st
   </figure>;
 }
 
-function passthroughImageLoader({ src }: { src: string }) {
-  return src;
-}
-
 function HighlightedJapanese({ value, query }: { value: string; query: string }) {
   if (!query || !value.includes(query)) return value;
   const parts = value.split(query);
@@ -518,7 +515,7 @@ export function AnimeContext({ examples, query, loading, failed }: { examples: I
   return <DetailSection title="Anime context"><div className={styles.immersionList}>{visibleExamples.map((example, index) => {
     const source = example.title || "this scene";
     return <figure className={styles.immersionExample} key={`${example.title}-${example.sentence}-${index}`}>
-      {example.imageUrl ? <Image src={example.imageUrl} alt={`Scene from ${example.title}`} width={480} height={360} sizes="(max-width: 42rem) 7rem, 7.5rem" loader={passthroughImageLoader} unoptimized /> : null}
+      {example.imageUrl ? <ImmersionKitSceneImage src={example.imageUrl} alt={`Scene from ${example.title}`} width={480} height={360} sizes="(max-width: 42rem) 7rem, 7.5rem" /> : null}
       <figcaption>
         <div className={styles.immersionHeader}>
           <strong>{example.title}</strong>

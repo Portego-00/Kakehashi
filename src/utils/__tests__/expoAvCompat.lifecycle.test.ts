@@ -2,6 +2,7 @@ import { setAudioModeAsync as setNativeAudioModeAsync } from "expo-audio";
 import { Audio, type AudioSound } from "../expoAvCompat";
 
 type PlaybackUpdate = {
+  error?: string;
   playing?: boolean;
   didJustFinish?: boolean;
   currentTime?: number;
@@ -111,6 +112,14 @@ describe("audio compatibility listener and ducking lifecycle", () => {
     mockPlayers[0].emit({ playing: false, didJustFinish: true });
     await Promise.resolve();
     expect(currentListener).not.toHaveBeenCalled();
+  });
+
+  it("forwards native playback errors to the legacy listener", async () => {
+    const sound = await createSound();
+    const onStatus = jest.fn();
+    sound.setOnPlaybackStatusUpdate(onStatus);
+    mockPlayers[0].emit({ error: "Failed to load remote audio" });
+    expect(onStatus).toHaveBeenLastCalledWith({ isLoaded: false, error: "Failed to load remote audio" });
   });
 
   it("keeps other audio ducked until the last overlapping pronunciation stops", async () => {

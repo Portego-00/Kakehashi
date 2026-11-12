@@ -1,13 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
-import { Audio, type AudioSound } from "@/src/utils/expoAvCompat";
+import { Audio, type AudioSound, type AVPlaybackStatus } from "@/src/utils/expoAvCompat";
 import { useIsFocused } from "expo-router/react-navigation";
 import * as Haptics from "@/src/utils/haptics";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   type KeyboardEvent,
@@ -33,8 +32,11 @@ import { useSubjectColors } from "../utils/subjectColors";
 import { useSettingsStore } from "../utils/store";
 import KanaInput from "./TextToKanaInput";
 import MultipleChoiceKeyboard from "./multiple-choice-keyboard";
+import { ImmersionKitSceneImage } from "./ImmersionKitSceneImage";
+import { retryImmersionKitMediaUrl } from "../../shared/immersion-kit-media";
 
 const ANDROID_AUTOFOCUS_DELAY_MS = 200;
+const AUDIO_LOAD_TIMEOUT_MS = 8_000;
 const CONTEXT_AUDIO_SPEED_MIN = 0.5;
 const CONTEXT_AUDIO_SPEED_MAX = 1.5;
 const CONTEXT_AUDIO_SPEED_STEP = 0.05;
@@ -101,7 +103,7 @@ export default function ListeningQuestionScreen({
   );
   const [vocabAnswer, setVocabAnswer] = useState("");
   const [meaningAnswer, setMeaningAnswer] = useState("");
-  const [hasPlayedAudio, setHasPlayedAudio] = useState(false);
+  const [audioFailed, setAudioFailed] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [audioPlaybackSpeed, setAudioPlaybackSpeed] = useState(
@@ -109,6 +111,9 @@ export default function ListeningQuestionScreen({
   );
   const [isSpeedControlExpanded, setIsSpeedControlExpanded] = useState(false);
   const soundRef = useRef<AudioSound | null>(null);
+  const audioLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackRequestRef = useRef(0);
+  const playbackActiveRef = useRef(false);
   const vocabInputRef = useRef<any>(null);
   const meaningInputRef = useRef<any>(null);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
@@ -128,8 +133,6 @@ export default function ListeningQuestionScreen({
   >(null);
   const [showVocabInSentence, setShowVocabInSentence] = useState(false);
   const [wasKanjiCorrect, setWasKanjiCorrect] = useState(false);
-  const imageOpacity = useRef(new Animated.Value(1)).current;
-  const sentenceRevealProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     return () => {
@@ -197,7 +200,14 @@ export default function ListeningQuestionScreen({
     setTimeout(syncMetrics, 120);
   }, []);
 
+  const clearAudioLoadTimeout = useCallback(() => {
+    if (audioLoadTimeoutRef.current === null) return;
+    clearTimeout(audioLoadTimeoutRef.current);
+    audioLoadTimeoutRef.current = null;
+  }, []);
+
   const unloadCurrentSound = useCallback(async () => {
+    clearAudioLoadTimeout();
     const currentSound = soundRef.current;
     if (!currentSound) {
       return;
@@ -216,7 +226,7 @@ export default function ListeningQuestionScreen({
     } catch {
       // Ignore unload errors to avoid blocking next playback attempts
     }
-  }, []);
+  }, [clearAudioLoadTimeout]);
 
   // Reset state when question changes
   useEffect(() => {
@@ -224,15 +234,13 @@ export default function ListeningQuestionScreen({
     kanjiSubmissionRef.current = false;
     setVocabAnswer("");
     setMeaningAnswer("");
-    setHasPlayedAudio(false);
+    setAudioFailed(false);
     setIsPlayingAudio(false);
     setIsLoadingAudio(false);
     setAnswerFeedback(null);
     setShowVocabInSentence(false);
     setWasKanjiCorrect(false);
     feedbackOpacity.setValue(0);
-    imageOpacity.setValue(1);
-    sentenceRevealProgress.setValue(0);
 
     // Clear the KanaInputs when question changes
     if (vocabInputRef.current?.clearInput) {
@@ -242,18 +250,17 @@ export default function ListeningQuestionScreen({
       meaningInputRef.current.clearInput();
     }
 
-    // Cleanup sound
     return () => {
+      ++playbackRequestRef.current;
+      playbackActiveRef.current = false;
       void unloadCurrentSound();
     };
-  }, [question.id, feedbackOpacity, imageOpacity, sentenceRevealProgress, unloadCurrentSound]);
+  }, [question.id, feedbackOpacity, unloadCurrentSound]);
 
   // Auto-play audio on mount (only for kanji phase, if enabled)
   useEffect(() => {
-    if (autoPlayAudio && questionPhase === "kanji" && !hasPlayedAudio) {
-      playAudio();
-    }
-  }, [questionPhase, hasPlayedAudio, autoPlayAudio]);
+    if (autoPlayAudio && questionPhase === "kanji") void playAudio();
+  }, [question.id, questionPhase, autoPlayAudio]);
 
   // Animate progress bar (2 steps per item)
   useEffect(() => {
@@ -291,71 +298,69 @@ export default function ListeningQuestionScreen({
     }
   }, [question.id, questionPhase, solutionMode, syncAndroidKeyboardMetrics]);
 
-  const playAudio = async () => {
-    if (isPlayingAudio || isLoadingAudio || !question.example.audio) return;
+  const playAudio = async (retry = false) => {
+    const audioUrl = question.example.audio;
+    if (playbackActiveRef.current || !audioUrl) return;
+    const request = ++playbackRequestRef.current;
+    playbackActiveRef.current = true;
+    const source = retry ? retryImmersionKitMediaUrl(audioUrl) : audioUrl;
+    setAudioFailed(false);
+    setIsLoadingAudio(true);
 
     try {
-      setIsLoadingAudio(true);
-
-      // Set up audio session for playback through speaker (iOS only)
       if (Platform.OS === "ios") {
         try {
           await AudioSessionManager.overrideSpeaker();
-          console.log(
-            "[ListeningQuestion] Audio session overridden to use speaker"
-          );
         } catch (error) {
-          console.warn(
-            "[ListeningQuestion] Failed to override audio session:",
-            error
-          );
+          console.warn("[ListeningQuestion] Failed to set up the audio session:", error);
         }
       }
 
+      if (request !== playbackRequestRef.current) return;
       await unloadCurrentSound();
-
-      const playbackRate = showContextSentenceSpeedControl
-        ? audioPlaybackSpeed
-        : DEFAULT_CONTEXT_AUDIO_SPEED;
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: question.example.audio },
+      const { sound, status } = await Audio.Sound.createAsync(
+        { uri: source },
         {
           shouldPlay: true,
-          volume: 1.0,
-          rate: playbackRate,
+          volume: 1,
+          rate: showContextSentenceSpeedControl ? audioPlaybackSpeed : DEFAULT_CONTEXT_AUDIO_SPEED,
           shouldCorrectPitch: true,
         },
       );
+      if (request !== playbackRequestRef.current) {
+        await sound.unloadAsync();
+        return;
+      }
 
-      setIsLoadingAudio(false);
-      setIsPlayingAudio(true);
       soundRef.current = sound;
-      setHasPlayedAudio(true);
-
-      // Cleanup after playback
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (soundRef.current !== sound) {
-          return;
+      const finish = (failed: boolean) => {
+        if (soundRef.current !== sound) return;
+        playbackActiveRef.current = false;
+        setIsLoadingAudio(false);
+        setIsPlayingAudio(false);
+        setAudioFailed(failed);
+        void unloadCurrentSound();
+      };
+      const onPlaybackStatus = (playback: AVPlaybackStatus) => {
+        if (soundRef.current !== sound) return;
+        if (!playback.isLoaded) {
+          if (playback.error) finish(true);
+        } else if (playback.didJustFinish) {
+          finish(false);
+        } else if (playback.isPlaying && !playback.isBuffering) {
+          clearAudioLoadTimeout();
+          setIsLoadingAudio(false);
+          setIsPlayingAudio(true);
         }
-
-        if (!status.isLoaded) {
-          if (status.error) {
-            setIsPlayingAudio(false);
-            setIsLoadingAudio(false);
-            soundRef.current = null;
-          }
-          return;
-        }
-
-        if (status.didJustFinish) {
-          setIsPlayingAudio(false);
-          soundRef.current = null;
-          void sound.unloadAsync();
-        }
-      });
+      };
+      audioLoadTimeoutRef.current = setTimeout(() => finish(true), AUDIO_LOAD_TIMEOUT_MS);
+      sound.setOnPlaybackStatusUpdate(onPlaybackStatus);
+      onPlaybackStatus(status);
     } catch (error) {
+      if (request !== playbackRequestRef.current) return;
+      playbackActiveRef.current = false;
       console.error("[ListeningQuestion] Failed to play audio:", error);
+      setAudioFailed(true);
       setIsLoadingAudio(false);
       setIsPlayingAudio(false);
       await unloadCurrentSound();
@@ -428,24 +433,7 @@ export default function ListeningQuestionScreen({
     showFeedbackAnimation(isCorrect);
     setWasKanjiCorrect(isCorrect);
 
-    // After kanji answer, show vocabulary in sentence and fade out image, move sentence up
-    setTimeout(() => {
-      setShowVocabInSentence(true);
-
-      // Fade out image and move sentence to where image was
-      Animated.parallel([
-        Animated.timing(imageOpacity, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(sentenceRevealProgress, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }, 100);
+    setShowVocabInSentence(true);
 
     setTimeout(() => {
       onKanjiAnswer(isCorrect, submittedAnswer);
@@ -728,21 +716,20 @@ export default function ListeningQuestionScreen({
         automaticallyAdjustKeyboardInsets={isKanjiWritingPhase}
         showsVerticalScrollIndicator={false}
       >
-        {/* Image Display with Audio Button - Animated */}
-        {question.example.imageUrl && (
-          <Animated.View
-            style={[
-              styles.imageContainer,
-              {
-                opacity: imageOpacity,
-              },
-            ]}
-          >
-            <Image
-              source={{ uri: question.example.imageUrl }}
-              style={styles.contextImage}
-              resizeMode="cover"
-            />
+        {(question.example.imageUrl || question.example.audio) && (
+          <View testID="listening-media" style={[
+            styles.imageContainer,
+            !question.example.imageUrl && styles.audioOnlyContainer,
+          ]}>
+            {question.example.imageUrl ? (
+              <ImmersionKitSceneImage
+                uri={question.example.imageUrl}
+                accessibilityLabel={`Scene from ${question.example.title}`}
+                style={styles.contextImage}
+                resizeMode="cover"
+                fallback={<Text style={styles.sceneUnavailable}>Scene image unavailable</Text>}
+              />
+            ) : null}
 
             {/* Previous Item Indicator */}
             {lastCompletedItem && (
@@ -829,7 +816,9 @@ export default function ListeningQuestionScreen({
               )}
 
               <TouchableOpacity
-                onPress={playAudio}
+                onPress={() => void playAudio(audioFailed)}
+                accessibilityRole="button"
+                accessibilityLabel="Play anime clip"
                 style={[
                   styles.audioButtonOverlay,
                   isPlayingAudio && { backgroundColor: subjectColors.vocabulary },
@@ -847,23 +836,14 @@ export default function ListeningQuestionScreen({
                 )}
               </TouchableOpacity>
             </View>
-          </Animated.View>
+          </View>
         )}
 
-        {/* Sentence with Blank - Animated */}
-        <Animated.View
-          style={[
-            styles.sentenceCard,
-            {
-              transform: [{ translateY: sentenceRevealProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, -(height * 0.25 + 16)],
-              }) }],
-            },
-          ]}
-        >
+        {audioFailed ? <Text accessibilityLiveRegion="polite" style={styles.audioError}>Could not play the clip. Tap Play to retry.</Text> : null}
+
+        <View style={styles.sentenceCard}>
           {renderSentence()}
-        </Animated.View>
+        </View>
 
       </ScrollView>
 
@@ -1064,6 +1044,14 @@ const createStyles = (width: number, height: number) => StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.6)",
   },
+  audioOnlyContainer: {
+    height: 42,
+    borderWidth: 0,
+  },
+  sceneUnavailable: {
+    margin: "auto",
+    color: "white",
+  },
   contextImage: {
     width: "100%",
     height: "100%",
@@ -1102,6 +1090,10 @@ const createStyles = (width: number, height: number) => StyleSheet.create({
   },
   audioButtonPlaying: {
     backgroundColor: "transparent",
+  },
+  audioError: {
+    color: "white",
+    marginBottom: 12,
   },
   sentenceCard: {
     backgroundColor: "rgba(255, 255, 255, 0.15)",

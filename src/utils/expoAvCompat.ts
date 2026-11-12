@@ -191,9 +191,10 @@ function toPlaybackStatus(
   progressUpdateIntervalMillis: number,
   volume: number,
 ): AVPlaybackStatus {
-  if (!status.isLoaded) {
+  if (status.error || !status.isLoaded) {
     return {
       isLoaded: false,
+      ...(status.error ? { error: status.error } : {}),
     };
   }
 

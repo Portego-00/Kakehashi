@@ -2,6 +2,7 @@ import { TranslatedStudyText } from "../features/translation-packages/Translated
 import type { ViewInstance } from "react-native";
 import { useLearningDisplay } from "../features/translation-packages/display";
 import { MediaContextSource } from "./MediaContextSource";
+import { ImmersionKitSceneImage } from "./ImmersionKitSceneImage";
 import { SubjectHistoryButton } from "../features/subject-history/SubjectHistory";
 import { MeaningRows } from "../features/translation-packages/MeaningRows";
 import { SentenceExplanation } from "../features/translation-packages/SentenceExplanation";
@@ -13,7 +14,6 @@ import { BlurView } from "expo-blur";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Platform,
   StyleProp,
   StyleSheet,
@@ -329,15 +329,13 @@ export default function VocabularyDetails({
     []
   );
   const [loadingMediaSentences, setLoadingMediaSentences] = useState(false);
+  const [mediaLookupFailed, setMediaLookupFailed] = useState(false);
   const [playingMediaSentence, setPlayingMediaSentence] = useState<
     number | null
   >(null);
   const [loadingMediaSentence, setLoadingMediaSentence] = useState<
     number | null
   >(null);
-  const [failedMediaUrls, setFailedMediaUrls] = useState<Set<string>>(
-    new Set()
-  );
   const [nextDataOffset, setNextDataOffset] = useState(0);
   const [visibleMediaCount, setVisibleMediaCount] = useState(10);
   const [cachedVocabularySubjects, setCachedVocabularySubjects] = useState<
@@ -525,6 +523,7 @@ export default function VocabularyDetails({
       return;
     }
 
+    if (offset === 0) setMediaLookupFailed(false);
     setLoadingMediaSentences(true);
 
     try {
@@ -555,6 +554,7 @@ export default function VocabularyDetails({
         return [...prev, ...newSentences];
       });
     } catch (error) {
+      if (offset === 0) setMediaLookupFailed(true);
       console.error("[VocabDetails] Error fetching media sentences:", error);
     } finally {
       setLoadingMediaSentences(false);
@@ -1391,16 +1391,6 @@ export default function VocabularyDetails({
 
     return <View style={styles.rubyLine}>{parts}</View>;
   };
-
-  // Handle image load errors
-  const handleImageError = (imageUrl: string) => {
-    setFailedMediaUrls((prev) => new Set(prev).add(imageUrl));
-  };
-
-  // Filter out sentences with failed media
-  const validMediaSentences = mediaSentences.filter(
-    (sentence) => sentence.imageUrl && !failedMediaUrls.has(sentence.imageUrl)
-  );
 
   const getSentenceSpeed = (sentenceId: string) =>
     showContextSentenceSpeedControl
@@ -2532,20 +2522,16 @@ export default function VocabularyDetails({
                   )}
 
                   {!loadingMediaSentences &&
-                    validMediaSentences.length === 0 &&
                     mediaSentences.length === 0 && (
-                      <View>
-                        <Text
-                          style={[
-                            styles.loadingText,
-                            { color: theme.textSecondary },
-                          ]}
-                        >
-                          No media examples found for &quot;
-                          {vocabulary.characters}
-                          &quot;
+                      mediaLookupFailed ? (
+                        <TouchableOpacity accessibilityRole="button" onPress={() => void fetchMediaSentences()}>
+                          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Could not load anime examples. Tap to retry.</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+                          No media examples found for &quot;{vocabulary.characters}&quot;.
                         </Text>
-                      </View>
+                      )
                     )}
 
                   {/* Media Sentences List - Render if we have items, even if loading more */}
@@ -2649,13 +2635,11 @@ export default function VocabularyDetails({
                             <View style={styles.mediaContentRow}>
                               {/* Screenshot from the media */}
                               {sentence.imageUrl && (
-                                <Image
-                                  source={{ uri: sentence.imageUrl }}
+                                <ImmersionKitSceneImage
+                                  uri={sentence.imageUrl}
+                                  accessibilityLabel={`Scene from ${sentence.title}`}
                                   style={styles.mediaImageLeft}
                                   resizeMode="cover"
-                                  onError={() =>
-                                    handleImageError(sentence.imageUrl!)
-                                  }
                                 />
                               )}
 

@@ -2,6 +2,7 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 import { Animated, Dimensions, Image, StyleSheet, TouchableOpacity } from "react-native";
 import type { ListeningQuestion } from "../../types/listening";
+import { Audio, type AudioSound, type AVPlaybackStatus } from "../../utils/expoAvCompat";
 import ListeningQuestionScreen from "../ListeningQuestionScreen";
 import KanaInput from "../TextToKanaInput";
 
@@ -13,7 +14,7 @@ jest.mock("../../utils/store", () => ({ useSettingsStore: () => ({ showContextSe
 jest.mock("../../utils/subjectColors", () => ({ useSubjectColors: () => ({ vocabulary: "#9933cc" }) }));
 jest.mock("../../utils/haptics", () => ({ impactAsync: jest.fn(), notificationAsync: jest.fn(), ImpactFeedbackStyle: { Light: "light" }, NotificationFeedbackType: { Success: "success", Error: "error" } }));
 jest.mock("../../utils/expoAvCompat", () => ({ Audio: { Sound: { createAsync: jest.fn() } } }));
-jest.mock("../../modules/AudioSessionManager", () => ({ __esModule: true, default: null }));
+jest.mock("../../modules/AudioSessionManager", () => ({ __esModule: true, default: { overrideSpeaker: jest.fn(async () => "Speaker output active") } }));
 jest.mock("../../hooks/useBluetoothAudioKeepAlive", () => ({ __esModule: true, default: jest.fn() }));
 jest.mock("../TextToKanaInput", () => "KanaInput");
 
@@ -150,40 +151,72 @@ it("keeps an unsubmitted listening answer and the mounted input while the window
   }
 });
 
-it("keeps the revealed sentence aligned with its resized image space", () => {
+it.each([true, false])("keeps a recovered scene visible after an answer graded %s", async (correct) => {
   const originalWindow = Dimensions.get("window");
-  jest.mocked(Animated.timing).mockImplementation((value, config) => {
-    if (value instanceof Animated.Value && typeof config.toValue === "number") {
-      value.setValue(config.toValue);
-    }
-    return { start: jest.fn(), stop: jest.fn(), reset: jest.fn() };
-  });
   const onKanjiAnswer = jest.fn();
-  const screen = render(<ListeningQuestionScreen
-    question={{ ...question, example: { ...question.example, imageUrl: "https://example.com/sentence.jpg" } }}
-    questionPhase="kanji" solutionMode="multiple_choice"
-    onKanjiAnswer={onKanjiAnswer} onMeaningAnswer={jest.fn()} onExit={jest.fn()}
-    currentItem={1} totalItems={4} correctAnswersCount={0} accuracyPercent={0} lastCompletedItem={null}
-    autoPlayAudio={false}
-  />);
-  fireEvent.press(screen.getByText("猫"));
+  const imageUrl = "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Death%20Note/media/frame.jpg";
+  const props = {
+    question: { ...question, example: { ...question.example, imageUrl } },
+    solutionMode: "multiple_choice" as const, onKanjiAnswer,
+    onMeaningAnswer: jest.fn(), onExit: jest.fn(), currentItem: 1, totalItems: 4,
+    correctAnswersCount: 0, accuracyPercent: 0, lastCompletedItem: null, autoPlayAudio: false,
+  };
+  const screen = render(<ListeningQuestionScreen {...props} questionPhase="kanji" />);
+  const scene = () => screen.UNSAFE_getByType(Image);
+  const imageContainerStyle = () => StyleSheet.flatten(screen.getByTestId("listening-media").props.style);
+  expect(scene().props.source.uri).toBe(imageUrl);
+  fireEvent(scene(), "error", { nativeEvent: { error: "Network error" } });
+  expect(scene().props.source.uri).toMatch(/frame\.jpg\?retry=\d+$/);
+
+  const choice = correct ? "猫" : "犬";
+  fireEvent.press(screen.getByText(choice));
   fireEvent.press(screen.getByText("Submit Answer"));
-  act(() => jest.advanceTimersByTime(100));
+  await act(async () => jest.advanceTimersByTime(350));
+  expect(onKanjiAnswer).toHaveBeenCalledWith(correct, choice);
+  screen.rerender(<ListeningQuestionScreen {...props} questionPhase="meaning" />);
+
   try {
     for (const [width, height] of [[951, 669], [466, 678], [669, 951]]) {
       act(() => Dimensions.set({ window: { ...originalWindow, width, height } }));
-      const imageContainer = screen.UNSAFE_getByType(Image).parent!;
-      expect(StyleSheet.flatten(imageContainer.props.style).height).toBe(height * 0.25);
-      const sentenceCard = screen.UNSAFE_getAllByType(Animated.View).find((node) => {
-        const style = StyleSheet.flatten(node.props.style);
-        return style?.transform?.some((transform: { translateY?: unknown }) => "translateY" in transform);
-      })!;
-      const style = StyleSheet.flatten(sentenceCard.props.style);
-      expect(style.transform[0].translateY.__getValue()).toBe(-(height * 0.25 + 16));
-      expect(onKanjiAnswer).not.toHaveBeenCalled();
+      expect(imageContainerStyle().height).toBe(height * 0.25);
+      expect(imageContainerStyle().opacity).toBeUndefined();
+      expect(scene().props.source.uri).toMatch(/frame\.jpg\?retry=\d+$/);
+      expect(screen.getByText("Meaning Question")).toBeTruthy();
     }
   } finally {
     screen.unmount();
     act(() => Dimensions.set({ window: originalWindow }));
   }
+});
+
+it.each(["playback error", "load timeout"])("lets the learner retry after a clip %s", async (failure) => {
+  const audio = "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Death%20Note/media/clip.mp3";
+  const sound = {
+    setOnPlaybackStatusUpdate: jest.fn(),
+    stopAsync: jest.fn(async () => undefined),
+    unloadAsync: jest.fn(async () => undefined),
+  };
+  const createAudio = jest.mocked(Audio.Sound.createAsync);
+  createAudio.mockResolvedValue({ sound: sound as unknown as AudioSound, status: { isLoaded: false } });
+  const screen = render(<ListeningQuestionScreen
+    question={{ ...question, example: { ...question.example, audio } }} questionPhase="kanji" solutionMode="multiple_choice"
+    onKanjiAnswer={jest.fn()} onMeaningAnswer={jest.fn()} onExit={jest.fn()}
+    currentItem={1} totalItems={4} correctAnswersCount={0} accuracyPercent={0} lastCompletedItem={null}
+    autoPlayAudio={false}
+  />);
+  const playButton = () => screen.getByRole("button", { name: "Play anime clip" });
+  await act(async () => fireEvent.press(playButton()));
+  expect(createAudio).toHaveBeenLastCalledWith({ uri: audio }, expect.any(Object));
+  expect(playButton().props.accessibilityState.disabled).toBe(true);
+
+  await act(async () => {
+    if (failure === "load timeout") jest.advanceTimersByTime(8_000);
+    else (sound.setOnPlaybackStatusUpdate.mock.calls[0][0] as (status: AVPlaybackStatus) => void)({ isLoaded: false, error: failure });
+  });
+  expect(screen.getByText("Could not play the clip. Tap Play to retry.")).toBeTruthy();
+  expect(sound.unloadAsync).toHaveBeenCalled();
+
+  await act(async () => fireEvent.press(playButton()));
+  expect(createAudio).toHaveBeenLastCalledWith({ uri: expect.stringMatching(/clip\.mp3\?retry=\d+$/) }, expect.any(Object));
+  expect(screen.queryByText("Could not play the clip. Tap Play to retry.")).toBeNull();
 });

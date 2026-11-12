@@ -140,10 +140,53 @@ describe("ImmersionKit browser transport", () => {
     await expect(fetchImmersionExamples("家族", ["!"])).resolves.toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("uses the real folder during an index outage and recovers updated metadata on the next lookup", async () => {
+    let indexCalls = 0;
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/index_meta")) {
+        if (++indexCalls === 1) return new Response(null, { status: 503 });
+        return Response.json({ data: { frieren_beyond_journey_s_end: { title: "Updated folder", category: "anime" } } });
+      }
+      expect(new URL(url).searchParams.get("index")).toBe("frieren_beyond_journey_s_end");
+      return Response.json({ examples: [{ id: "anime_1", title: "frieren_beyond_journey_s_end", sentence: "十分すぎるか", translation: "There's more than enough.", image: "frame.jpg", sound: "clip.mp3" }] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const sources = ["frieren_beyond_journey_s_end"];
+    await expect(fetchImmersionExamples("十分", sources)).resolves.toEqual([expect.objectContaining({
+      imageUrl: "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Frieren%20Beyond%20Journey's%20End/media/frame.jpg",
+      audio: "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Frieren%20Beyond%20Journey's%20End/media/clip.mp3",
+    })]);
+    await expect(fetchImmersionExamples("十分", sources)).resolves.toEqual([expect.objectContaining({ title: "Updated folder" })]);
+  });
 });
 
 describe("progressive anime listening context", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("finds a later playable scene and can use an audio-only result", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/index_meta")) return new Response(null, { status: 503 });
+      const word = new URL(url).searchParams.get("q");
+      return Response.json({ examples: [
+        { id: "anime_1", title: "death_note", sentence: "猫だ", translation: "A cat.", image: "cat.jpg" },
+        { id: "anime_2", title: "death_note", sentence: "猫の声", translation: "The sound of a cat.", sound: "cat.mp3" },
+        { id: "anime_3", title: "death_note", sentence: "猫が来た。", translation: "A cat came.", image: "arrival.jpg", sound: "arrival.mp3" },
+        ...(word === "犬" ? [{ id: "anime_4", title: "death_note", sentence: "犬が来た。", translation: "A dog came.", sound: "dog.mp3" }] : []),
+      ] });
+    }));
+    const stream = streamAnimeContext([...listeningPair("猫", 1), ...listeningPair("犬", 2)], DEFAULT_STUDY_FILTERS);
+
+    const cats = (await stream.next()).value as StudyQuestion[];
+    expect(cats).toHaveLength(2);
+    expect(cats[0]).toMatchObject({ audioUrl: expect.stringMatching(/arrival\.mp3$/), imageUrl: expect.stringMatching(/arrival\.jpg$/) });
+    const dogs = (await stream.next()).value as StudyQuestion[];
+    expect(dogs).toHaveLength(2);
+    expect(dogs[0]).toMatchObject({ audioUrl: expect.stringMatching(/dog\.mp3$/), imageUrl: undefined });
+  });
 
   it("yields the first playable item, then waits and retries the rate-limited remainder", async () => {
     let searchRequests = 0;

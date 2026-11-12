@@ -11,9 +11,16 @@ let indexMetaPromise: Promise<ImmersionKitIndexMeta> | null = null;
 
 function getIndexMeta() {
   indexMetaPromise ??= fetch(`${IMMERSION_KIT_API_BASE}/index_meta`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12_000), next: { revalidate: 86_400 } })
-    .then((response) => response.ok ? response.json() : { data: {} })
-    .then((payload: { data?: ImmersionKitIndexMeta }) => payload.data ?? {})
-    .catch(() => ({}));
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`ImmersionKit index returned ${response.status}.`);
+      const payload = await response.json() as { data?: ImmersionKitIndexMeta };
+      if (!payload.data || !Object.keys(payload.data).length) throw new Error("ImmersionKit index was empty.");
+      return payload.data;
+    })
+    .catch(() => {
+      indexMetaPromise = null;
+      return {};
+    });
   return indexMetaPromise;
 }
 
@@ -23,7 +30,7 @@ export async function POST(request: Request) {
     if (typeof body.query !== "string" || !body.query.trim() || body.query.length > 16) return NextResponse.json({ error: "Invalid query." }, { status: 400 });
     const sourceValues = Array.isArray(body.sources) ? body.sources.filter((value): value is string => typeof value === "string").slice(0, 100) : [];
     if (sourceValues.includes("!")) return NextResponse.json({ example: null });
-    const url = immersionKitSearchUrl(body.query.trim());
+    const url = immersionKitSearchUrl(body.query.trim(), sourceValues);
     const [response, indexMeta] = await Promise.all([fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12_000), cache: "no-store" }), getIndexMeta()]);
     if (!response.ok) {
       const rateLimited = response.status === 429;

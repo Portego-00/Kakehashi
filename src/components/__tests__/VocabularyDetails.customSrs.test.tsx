@@ -356,6 +356,21 @@ it("fetches anime context using the word rather than its synthetic subject ID", 
   expect(screen.getByText("Fixture anime")).toBeTruthy();
 });
 
+it("keeps the vocabulary example when its screenshot fails twice", async () => {
+  const imageUrl = "https://immersionkit.s3.bhs.io.cloud.ovh.net/media/anime/Death%20Note/media/frame.jpg";
+  jest.mocked(searchImmersionKit).mockResolvedValue({ results: [{
+    id: "anime-test", sentence: "やっぱり、君だったんだ。", translation: "It was you after all.",
+    title: "Death Note", category: "anime", imageUrl, audio: "https://example.test/clip.mp3",
+  }], nextOffset: 1 });
+  const screen = render(<VocabularyDetails vocabulary={vocabulary} progressionStatus="success" initialTab="context" />);
+  const label = "Scene from Death Note";
+  fireEvent(await screen.findByLabelText(label), "error", { nativeEvent: { error: "Network error" } });
+  fireEvent(screen.getByLabelText(label), "error", { nativeEvent: { error: "Network error" } });
+  expect(screen.queryByLabelText(label)).toBeNull();
+  expect(screen.getByText("It was you after all.")).toBeTruthy();
+  expect(screen.queryByText(/No media examples found/)).toBeNull();
+});
+
 it("retains the Reading tab for custom kanji vocabulary", async () => {
   const screen = render(<VocabularyDetails vocabulary={{ ...vocabulary, object: "vocabulary", characters: "女子", level: 3, readings: [{ reading: "じょし", primary: true }], readingMnemonic: "The <reading>JO</reading>ker meets a sheep." }} progressionStatus="success" />);
   expect(screen.getByText("Reading")).toBeTruthy();

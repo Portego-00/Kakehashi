@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { searchImmersionKit, type ImmersionKitSentence } from "../../services/immersionKitService";
 import { useAuthStore, useSettingsStore } from "../../utils/store";
 import { useTheme } from "../../utils/theme";
 import { useBunproAudio } from "../../hooks/useBunproAudio";
 import { MediaContextSource } from "../MediaContextSource";
+import { ImmersionKitSceneImage } from "../ImmersionKitSceneImage";
 
 export function BunproContext({ query }: { query: string }) {
   return <MediaContextSource query={query}><BunproAnimeContext query={query} /></MediaContextSource>;
@@ -57,7 +58,7 @@ function BunproAnimeContext({ query }: { query: string }) {
         </TouchableOpacity>
       </View>
       <View style={styles.row}>
-        {scene.imageUrl ? <Image source={{ uri: scene.imageUrl }} accessibilityLabel={`Scene from ${scene.title}`} style={styles.image} /> : null}
+        {scene.imageUrl ? <ImmersionKitSceneImage uri={scene.imageUrl} accessibilityLabel={`Scene from ${scene.title}`} style={styles.image} /> : null}
         <View style={styles.copy}>
           <Text selectable style={[styles.japanese, { color: theme.textColor }]}>{scene.sentence.split(query).map((part, index) => <React.Fragment key={index}>{index ? <Text style={styles.highlight}>{query}</Text> : null}{part}</React.Fragment>)}</Text>
           {!hideContextSentenceTranslationsCompletely ? !hideContextSentenceTranslations || translations.has(scene.id) ? <Text selectable style={{ color: theme.textSecondary }}>{scene.translation}</Text> : <TouchableOpacity accessibilityRole="button" onPress={() => setTranslations((previous) => new Set(previous).add(scene.id))}><Text style={[styles.action, { color: theme.textSecondary }]}>Show translation</Text></TouchableOpacity> : null}
