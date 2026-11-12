@@ -14,7 +14,7 @@ export function ImmersionKitSceneImage(props: SceneImageProps) {
   return <SceneImage key={props.src} {...props} />;
 }
 
-function SceneImage({ src, ...props }: SceneImageProps) {
+function SceneImage({ src, alt, ...props }: SceneImageProps) {
   const [source, setSource] = useState<string | null>(src);
   if (!source) return null;
 
@@ -22,6 +22,7 @@ function SceneImage({ src, ...props }: SceneImageProps) {
     {...props}
     key={source}
     src={source}
+    alt={alt}
     loader={passthroughImageLoader}
     unoptimized
     onError={() => {
