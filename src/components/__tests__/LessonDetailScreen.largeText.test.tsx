@@ -1030,3 +1030,85 @@ it.each([
     mockRenderRadicalsTab = false;
   }
 });
+
+describe("kanji lesson alternative meanings", () => {
+  beforeEach(async () => {
+    await packageManager.hydrate();
+    packageManager.state.setState({ packet: null, hydrated: true });
+    useLearningContentStore.setState({ enabled: false });
+    mockRenderMeaningTab = true;
+    mockRenderContextTab = false;
+  });
+
+  afterEach(() => {
+    packageManager.state.setState({ packet: null });
+    useLearningContentStore.setState({ enabled: false });
+    mockRenderMeaningTab = false;
+    mockSinglePageLessonView = false;
+  });
+
+  function renderKanjiLesson(
+    meanings: { meaning: string; primary: boolean }[],
+    entry?: { source: { word: string; readingsJa: string[] } },
+  ) {
+    const subject = {
+      id: entry ? 440 : 910,
+      object: "kanji",
+      data: {
+        characters: entry?.source.word ?? "外",
+        meanings,
+        readings: (entry?.source.readingsJa ?? []).map(reading => ({ reading, primary: true })),
+      },
+    };
+    return render(
+      <LessonDetailScreen item={{ id: subject.id, subject }} batchItems={[{ id: subject.id, subject }]}
+        currentBatchIndex={0} onNext={jest.fn()} onPrev={jest.fn()} canGoBack={false} canGoForward={false}
+        progress={{ current: 1, total: 1, batchCurrent: 1, batchTotal: 1 }} onExit={jest.fn()} />,
+    );
+  }
+
+  it.each([false, true])("shows all English alternatives once (single page: %s)", singlePage => {
+    mockSinglePageLessonView = singlePage;
+    const screen = renderKanjiLesson([
+      { meaning: "Outside", primary: false },
+      { meaning: "Foreign", primary: true },
+      { meaning: "Beyond", primary: false },
+    ]);
+    expect(screen.getAllByText("Alternative Meanings:")).toHaveLength(1);
+    expect(screen.getByText("Outside, Beyond")).toBeTruthy();
+  });
+
+  it.each([false, true])("omits an empty alternatives section (single page: %s)", singlePage => {
+    mockSinglePageLessonView = singlePage;
+    const screen = renderKanjiLesson([{ meaning: "Foreign", primary: true }]);
+    expect(screen.queryByText("Alternative Meanings:")).toBeNull();
+  });
+
+  it.each([false, true])("keeps translated alternatives and the original-English toggle (single page: %s)", singlePage => {
+    mockSinglePageLessonView = singlePage;
+    const packet = parseTranslationPackage(translationData)!;
+    const entry = packet.subjects["440"];
+    entry.source.meaningsEn.push("Single");
+    packageManager.state.setState({ packet });
+    useLearningContentStore.setState({ enabled: true });
+    const screen = renderKanjiLesson(entry.source.meaningsEn.map((meaning, index) => ({ meaning, primary: index === 0 })), entry);
+    expect(screen.getAllByText("Alternative")).toHaveLength(1);
+    expect(screen.getByText("1")).toBeTruthy();
+    expect(screen.queryByText("Alternative Meanings:")).toBeNull();
+    expect(screen.queryByText(/Single/)).toBeNull();
+    fireEvent.press(screen.getByLabelText("Show original English meanings"));
+    expect(screen.getByText(/Single/)).toBeTruthy();
+  });
+
+  it.each([false, true])("falls back to English for an unmatched translation (single page: %s)", singlePage => {
+    mockSinglePageLessonView = singlePage;
+    packageManager.state.setState({ packet: parseTranslationPackage(translationData)! });
+    useLearningContentStore.setState({ enabled: true });
+    const screen = renderKanjiLesson([
+      { meaning: "Foreign", primary: true },
+      { meaning: "Outside", primary: false },
+    ]);
+    expect(screen.getByText("Alternative Meanings:")).toBeTruthy();
+    expect(screen.getByText("Outside")).toBeTruthy();
+  });
+});
