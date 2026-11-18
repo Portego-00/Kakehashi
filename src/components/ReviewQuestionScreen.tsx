@@ -104,6 +104,7 @@ import {
   tryStartQuestionSubmission,
 } from "../utils/reviewSubmissionGuard";
 import { useAuthStore, useSettingsStore } from "../utils/store";
+import { buildReviewPausedUiStyles } from "../utils/reviewPausedUiScale";
 import { useTheme } from "../utils/theme";
 import {
   createReviewAnswerChoices,
@@ -1087,6 +1088,10 @@ export default function ReviewQuestionScreen({
     showJLPTLevel,
     reviewAnimatePreviousQuestion,
     reviewSearchButtonEnabled,
+    hideReviewWrapUpButton,
+    reviewAnswerRevealScale,
+    reviewCorrectionButtonScale,
+    allowMarkingCorrectAnswersWrong,
     reviewLeftHandedMode,
     reviewCharacterFontScale,
     reviewPromptTextColor,
@@ -1103,6 +1108,19 @@ export default function ReviewQuestionScreen({
     () => Math.min(windowWidth * 0.045, 18) * reviewInputFontScale,
     [reviewInputFontScale, windowWidth],
   );
+  const pausedUi = useMemo(
+    () =>
+      buildReviewPausedUiStyles(
+        reviewAnswerRevealScale,
+        reviewCorrectionButtonScale,
+      ),
+    [reviewAnswerRevealScale, reviewCorrectionButtonScale],
+  );
+  // Marking a correct answer wrong needs a pause to act on, so this setting
+  // also stops auto-progress after correct answers.
+  const canMarkCorrectAnswerWrong = allowMarkingCorrectAnswersWrong === true;
+  const shouldPauseOnCorrect =
+    disableAutoProgressOnCorrect || canMarkCorrectAnswerWrong;
   const effectiveShowAnswerStopSubjectDetails = showAnswerStopSubjectDetails;
   const isVoiceReviewEnabled = Platform.OS === "ios" && voiceReviewAnswersEnabled;
   const resolvedReviewIncorrectKeyboardShortcuts = useMemo(
@@ -3069,7 +3087,7 @@ export default function ReviewQuestionScreen({
         }
 
         // If pause on correct is enabled, show accepted answers and wait for user action
-        if (disableAutoProgressOnCorrect) {
+        if (shouldPauseOnCorrect) {
           setIsPausedOnCloseAnswer(false);
           setIsPausedOnWrong(false);
           setIsPausedOnCorrect(true);
@@ -3979,6 +3997,7 @@ export default function ReviewQuestionScreen({
       key={label}
       style={[
         styles.pausedDetailsActionButton,
+        pausedUi.buttons.detailsButton,
         { borderColor: `${color}55`, backgroundColor: `${color}22` },
         disabled && styles.pausedActionDisabled,
       ]}
@@ -3986,8 +4005,8 @@ export default function ReviewQuestionScreen({
       disabled={disabled}
       activeOpacity={0.78}
     >
-      <Ionicons name={iconName} size={16} color={color} />
-      <Text style={[styles.pausedDetailsActionButtonText, { color }]}>
+      <Ionicons name={iconName} size={pausedUi.buttons.detailsIconSize} color={color} />
+      <Text style={[styles.pausedDetailsActionButtonText, pausedUi.buttons.detailsText, { color }]}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -4037,7 +4056,7 @@ export default function ReviewQuestionScreen({
         }),
       );
     } else if (isPausedOnCorrect) {
-      if (currentSelectedChoice !== undefined) buttons.push(
+      if (currentSelectedChoice !== undefined || canMarkCorrectAnswerWrong) buttons.push(
         renderPausedDetailsActionButton({ label: "Mark Wrong", iconName: "close", color: "#f44336", onPress: handleProgressAsWrong }),
       );
       buttons.push(
@@ -4109,13 +4128,19 @@ export default function ReviewQuestionScreen({
         <View
           style={[
             styles.pausedDetailsCorrectAnswerBadge,
+            pausedUi.reveal.detailsBadge,
             { backgroundColor: `${accentColor}22` },
           ]}
         >
-          <Ionicons name={iconName} size={12} color={accentColor} />
+          <Ionicons
+            name={iconName}
+            size={pausedUi.reveal.detailsBadgeIconSize}
+            color={accentColor}
+          />
           <Text
             style={[
               styles.pausedDetailsCorrectAnswerLabel,
+              pausedUi.reveal.detailsBadgeLabel,
               { color: accentColor },
             ]}
           >
@@ -4125,9 +4150,10 @@ export default function ReviewQuestionScreen({
         <View style={styles.pausedDetailsAnswerContent}>
           <Text
             selectable
-            numberOfLines={2}
+            numberOfLines={pausedUi.reveal.detailsAnswerLines}
             style={[
               styles.pausedDetailsCorrectAnswerText,
+              pausedUi.reveal.detailsAnswerText,
               { color: theme.textColor },
               questionType === "reading" && fontStyles.japaneseText,
             ]}
@@ -4459,7 +4485,7 @@ export default function ReviewQuestionScreen({
     };
 
     if (isPausedOnCorrect) {
-      if (currentSelectedChoice !== undefined && doesReviewShortcutMatchKey(pressedKey, resolvedReviewIncorrectKeyboardShortcuts.markIncorrect)) {
+      if ((currentSelectedChoice !== undefined || canMarkCorrectAnswerWrong) && doesReviewShortcutMatchKey(pressedKey, resolvedReviewIncorrectKeyboardShortcuts.markIncorrect)) {
         suppressSubmitTemporarily();
         handleProgressAsWrong();
         return true;
@@ -4921,7 +4947,8 @@ export default function ReviewQuestionScreen({
   const isUsingDefaultJitaiFont =
     !jitaiCycleAllFonts && jitaiFontCycleIndex % 2 === 1;
   const showReviewSearchButton = reviewSearchButtonEnabled && !isLessonFlow;
-  const showWrapUpButton = isWrapUpAvailable && !isLessonFlow && !isWrapUpMode;
+  const showWrapUpButton =
+    isWrapUpAvailable && !isLessonFlow && !isWrapUpMode && !hideReviewWrapUpButton;
   const showWrapUpIndicator = isWrapUpMode && !isLessonFlow;
   const hasFloatingWrapUpPill = showWrapUpButton || showWrapUpIndicator;
   const floatingToolButtonsTop = hasFloatingWrapUpPill
@@ -6890,17 +6917,18 @@ export default function ReviewQuestionScreen({
             {isPausedOnWrong && !shouldUsePausedSubjectDetailsMode && (
               <View style={styles.pausedCard}>
                 <View style={styles.pausedCardHeader}>
-                  <View style={styles.pausedCardIconContainer}>
-                    <Ionicons name="close-circle" size={24} color="#f44336" />
+                  <View style={[styles.pausedCardIconContainer, pausedUi.reveal.iconContainer]}>
+                    <Ionicons name="close-circle" size={pausedUi.reveal.iconSize} color="#f44336" />
                   </View>
-                  <Text style={styles.pausedCardTitle}>Incorrect</Text>
+                  <Text style={[styles.pausedCardTitle, pausedUi.reveal.title]}>Incorrect</Text>
                 </View>
 
                 <View style={styles.correctAnswerSection}>
-                  <Text style={styles.correctAnswerLabel}>Correct answer:</Text>
+                  <Text style={[styles.correctAnswerLabel, pausedUi.reveal.answerLabel]}>Correct answer:</Text>
                   <Text
                     style={[
                       styles.correctAnswerText,
+                      pausedUi.reveal.answerText,
                       questionType === "reading" && fontStyles.japaneseText,
                     ]}
                   >
@@ -6916,31 +6944,31 @@ export default function ReviewQuestionScreen({
                   ]}
                 >
                   <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
+                    style={[styles.pausedActionButton, pausedUi.buttons.primaryButton, styles.pausedButtonIncorrect]}
                     onPress={handleProgressAsWrong}
                   >
-                    <Ionicons name="close" size={18} color="#f44336" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#f44336" }]}>
+                    <Ionicons name="close" size={pausedUi.buttons.primaryIconSize} color="#f44336" />
+                    <Text style={[styles.pausedActionButtonText, pausedUi.buttons.primaryText, { color: "#f44336" }]}>
                       Mark Incorrect
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonSkip]}
+                    style={[styles.pausedActionButton, pausedUi.buttons.primaryButton, styles.pausedButtonSkip]}
                     onPress={handlePausedSkip}
                   >
-                    <Ionicons name="play-skip-forward" size={18} color="#2196F3" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#2196F3" }]}>
+                    <Ionicons name="play-skip-forward" size={pausedUi.buttons.primaryIconSize} color="#2196F3" />
+                    <Text style={[styles.pausedActionButtonText, pausedUi.buttons.primaryText, { color: "#2196F3" }]}>
                       Skip
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonCorrect]}
+                    style={[styles.pausedActionButton, pausedUi.buttons.primaryButton, styles.pausedButtonCorrect]}
                     onPress={handleMarkCorrect}
                   >
-                    <Ionicons name="checkmark" size={18} color="#4caf50" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#4caf50" }]}>
+                    <Ionicons name="checkmark" size={pausedUi.buttons.primaryIconSize} color="#4caf50" />
+                    <Text style={[styles.pausedActionButtonText, pausedUi.buttons.primaryText, { color: "#4caf50" }]}>
                       Mark Correct
                     </Text>
                   </TouchableOpacity>
@@ -6951,6 +6979,7 @@ export default function ReviewQuestionScreen({
                     <TouchableOpacity
                       style={[
                         styles.pausedSecondaryAction,
+                        pausedUi.buttons.secondaryButton,
                         styles.pausedButtonReplay,
                         isReplayingAudio && styles.pausedActionDisabled,
                       ]}
@@ -6961,12 +6990,13 @@ export default function ReviewQuestionScreen({
                     >
                       <Ionicons
                         name={isReplayingAudio ? "sync" : "volume-high"}
-                        size={16}
+                        size={pausedUi.buttons.secondaryIconSize}
                         color="#9575cd"
                       />
                       <Text
                         style={[
                           styles.pausedSecondaryActionText,
+                          pausedUi.buttons.secondaryText,
                           { color: "#9575cd" },
                         ]}
                       >
@@ -6978,23 +7008,23 @@ export default function ReviewQuestionScreen({
                   )}
 
                   <TouchableOpacity
-                    style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]}
+                    style={[styles.pausedSecondaryAction, pausedUi.buttons.secondaryButton, styles.pausedButtonDetails]}
                     onPress={handleViewDetails}
                   >
-                    <Ionicons name="information-circle" size={16} color="#9E9E9E" />
-                    <Text style={[styles.pausedSecondaryActionText, { color: "#9E9E9E" }]}>
+                    <Ionicons name="information-circle" size={pausedUi.buttons.secondaryIconSize} color="#9E9E9E" />
+                    <Text style={[styles.pausedSecondaryActionText, pausedUi.buttons.secondaryText, { color: "#9E9E9E" }]}>
                       Details
                     </Text>
                   </TouchableOpacity>
 
                   {item.subject.id > 0 && currentSelectedChoice !== "" && showAddSynonymButton && questionType === "meaning" && (
                     <TouchableOpacity
-                      style={[styles.pausedSecondaryAction, styles.pausedButtonSynonym]}
+                      style={[styles.pausedSecondaryAction, pausedUi.buttons.secondaryButton, styles.pausedButtonSynonym]}
                       onPress={handleAddAsSynonym}
                       disabled={isAddingSynonym}
                     >
-                      <Ionicons name="add-circle" size={16} color="#ff9800" />
-                      <Text style={[styles.pausedSecondaryActionText, { color: "#ff9800" }]}>
+                      <Ionicons name="add-circle" size={pausedUi.buttons.secondaryIconSize} color="#ff9800" />
+                      <Text style={[styles.pausedSecondaryActionText, pausedUi.buttons.secondaryText, { color: "#ff9800" }]}>
                         {isAddingSynonym ? "Adding..." : "Synonym"}
                       </Text>
                     </TouchableOpacity>
@@ -7009,23 +7039,25 @@ export default function ReviewQuestionScreen({
                   <View
                     style={[
                       styles.pausedCardIconContainer,
+                      pausedUi.reveal.iconContainer,
                       styles.pausedCardIconContainerClose,
                     ]}
                   >
-                    <Ionicons name="warning" size={22} color="#ff9800" />
+                    <Ionicons name="warning" size={Math.round(pausedUi.reveal.iconSize * 0.92)} color="#ff9800" />
                   </View>
                   <Text
-                    style={[styles.pausedCardTitle, styles.pausedCardTitleClose]}
+                    style={[styles.pausedCardTitle, styles.pausedCardTitleClose, pausedUi.reveal.title]}
                   >
                     Close Match
                   </Text>
                 </View>
 
                 <View style={styles.correctAnswerSection}>
-                  <Text style={styles.correctAnswerLabel}>Accepted answers:</Text>
+                  <Text style={[styles.correctAnswerLabel, pausedUi.reveal.answerLabel]}>Accepted answers:</Text>
                   <Text
                     style={[
                       styles.correctAnswerText,
+                      pausedUi.reveal.answerText,
                       styles.correctAnswerTextClose,
                       questionType === "reading" && fontStyles.japaneseText,
                     ]}
@@ -7042,21 +7074,21 @@ export default function ReviewQuestionScreen({
                   ]}
                 >
                   <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonIncorrect]}
+                    style={[styles.pausedActionButton, pausedUi.buttons.primaryButton, styles.pausedButtonIncorrect]}
                     onPress={handleProgressAsWrong}
                   >
-                    <Ionicons name="close" size={18} color="#f44336" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#f44336" }]}>
+                    <Ionicons name="close" size={pausedUi.buttons.primaryIconSize} color="#f44336" />
+                    <Text style={[styles.pausedActionButtonText, pausedUi.buttons.primaryText, { color: "#f44336" }]}>
                       Mark Incorrect
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.pausedActionButton, styles.pausedButtonCorrect]}
+                    style={[styles.pausedActionButton, pausedUi.buttons.primaryButton, styles.pausedButtonCorrect]}
                     onPress={handleProgressAsCorrect}
                   >
-                    <Ionicons name="checkmark" size={18} color="#4caf50" />
-                    <Text style={[styles.pausedActionButtonText, { color: "#4caf50" }]}>
+                    <Ionicons name="checkmark" size={pausedUi.buttons.primaryIconSize} color="#4caf50" />
+                    <Text style={[styles.pausedActionButtonText, pausedUi.buttons.primaryText, { color: "#4caf50" }]}>
                       Mark Correct
                     </Text>
                   </TouchableOpacity>
@@ -7067,6 +7099,7 @@ export default function ReviewQuestionScreen({
                     <TouchableOpacity
                       style={[
                         styles.pausedSecondaryAction,
+                        pausedUi.buttons.secondaryButton,
                         styles.pausedButtonReplay,
                         isReplayingAudio && styles.pausedActionDisabled,
                       ]}
@@ -7077,12 +7110,13 @@ export default function ReviewQuestionScreen({
                     >
                       <Ionicons
                         name={isReplayingAudio ? "sync" : "volume-high"}
-                        size={16}
+                        size={pausedUi.buttons.secondaryIconSize}
                         color="#9575cd"
                       />
                       <Text
                         style={[
                           styles.pausedSecondaryActionText,
+                          pausedUi.buttons.secondaryText,
                           { color: "#9575cd" },
                         ]}
                       >
@@ -7094,11 +7128,11 @@ export default function ReviewQuestionScreen({
                   )}
 
                   <TouchableOpacity
-                    style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]}
+                    style={[styles.pausedSecondaryAction, pausedUi.buttons.secondaryButton, styles.pausedButtonDetails]}
                     onPress={handleViewDetails}
                   >
-                    <Ionicons name="information-circle" size={16} color="#9E9E9E" />
-                    <Text style={[styles.pausedSecondaryActionText, { color: "#9E9E9E" }]}>
+                    <Ionicons name="information-circle" size={pausedUi.buttons.secondaryIconSize} color="#9E9E9E" />
+                    <Text style={[styles.pausedSecondaryActionText, pausedUi.buttons.secondaryText, { color: "#9E9E9E" }]}>
                       Details
                     </Text>
                   </TouchableOpacity>
@@ -7112,23 +7146,25 @@ export default function ReviewQuestionScreen({
                   <View
                     style={[
                       styles.pausedCardIconContainer,
+                      pausedUi.reveal.iconContainer,
                       styles.pausedCardIconContainerCorrect,
                     ]}
                   >
-                    <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
+                    <Ionicons name="checkmark-circle" size={pausedUi.reveal.iconSize} color="#4caf50" />
                   </View>
                   <Text
-                    style={[styles.pausedCardTitle, styles.pausedCardTitleCorrect]}
+                    style={[styles.pausedCardTitle, styles.pausedCardTitleCorrect, pausedUi.reveal.title]}
                   >
                     Correct
                   </Text>
                 </View>
 
                 <View style={styles.correctAnswerSection}>
-                  <Text style={styles.correctAnswerLabel}>Accepted answers:</Text>
+                  <Text style={[styles.correctAnswerLabel, pausedUi.reveal.answerLabel]}>Accepted answers:</Text>
                   <Text
                     style={[
                       styles.correctAnswerText,
+                      pausedUi.reveal.answerText,
                       questionType === "reading" && fontStyles.japaneseText,
                     ]}
                   >
@@ -7138,23 +7174,24 @@ export default function ReviewQuestionScreen({
                 </View>
 
                 <View style={styles.pausedSecondaryActions}>
-                  {currentSelectedChoice !== undefined && (
+                  {(currentSelectedChoice !== undefined || canMarkCorrectAnswerWrong) && (
                     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mark Wrong"
-                      style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]} onPress={handleProgressAsWrong}>
-                      <Ionicons name="close" size={16} color="#f44336" />
-                      <Text style={[styles.pausedSecondaryActionText, { color: "#f44336" }]}>Mark Wrong</Text>
+                      style={[styles.pausedSecondaryAction, pausedUi.buttons.secondaryButton, styles.pausedButtonDetails]} onPress={handleProgressAsWrong}>
+                      <Ionicons name="close" size={pausedUi.buttons.secondaryIconSize} color="#f44336" />
+                      <Text style={[styles.pausedSecondaryActionText, pausedUi.buttons.secondaryText, { color: "#f44336" }]}>Mark Wrong</Text>
                     </TouchableOpacity>
                   )}
-                  {currentSelectedChoice !== undefined && (
+                  {(currentSelectedChoice !== undefined || canMarkCorrectAnswerWrong) && (
                     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Continue"
-                      style={styles.pausedSecondaryAction} onPress={handleProgressAsCorrect}>
-                      <Text style={[styles.pausedSecondaryActionText, { color: "#4caf50" }]}>Continue</Text>
+                      style={[styles.pausedSecondaryAction, pausedUi.buttons.secondaryButton]} onPress={handleProgressAsCorrect}>
+                      <Text style={[styles.pausedSecondaryActionText, pausedUi.buttons.secondaryText, { color: "#4caf50" }]}>Continue</Text>
                     </TouchableOpacity>
                   )}
                   {canReplayPausedAudio && (
                     <TouchableOpacity
                       style={[
                         styles.pausedSecondaryAction,
+                        pausedUi.buttons.secondaryButton,
                         styles.pausedButtonReplay,
                         isReplayingAudio && styles.pausedActionDisabled,
                       ]}
@@ -7165,12 +7202,13 @@ export default function ReviewQuestionScreen({
                     >
                       <Ionicons
                         name={isReplayingAudio ? "sync" : "volume-high"}
-                        size={16}
+                        size={pausedUi.buttons.secondaryIconSize}
                         color="#9575cd"
                       />
                       <Text
                         style={[
                           styles.pausedSecondaryActionText,
+                          pausedUi.buttons.secondaryText,
                           { color: "#9575cd" },
                         ]}
                       >
@@ -7182,11 +7220,11 @@ export default function ReviewQuestionScreen({
                   )}
 
                   <TouchableOpacity
-                    style={[styles.pausedSecondaryAction, styles.pausedButtonDetails]}
+                    style={[styles.pausedSecondaryAction, pausedUi.buttons.secondaryButton, styles.pausedButtonDetails]}
                     onPress={handleViewDetails}
                   >
-                    <Ionicons name="information-circle" size={16} color="#9E9E9E" />
-                    <Text style={[styles.pausedSecondaryActionText, { color: "#9E9E9E" }]}>
+                    <Ionicons name="information-circle" size={pausedUi.buttons.secondaryIconSize} color="#9E9E9E" />
+                    <Text style={[styles.pausedSecondaryActionText, pausedUi.buttons.secondaryText, { color: "#9E9E9E" }]}>
                       Details
                     </Text>
                   </TouchableOpacity>

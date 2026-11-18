@@ -47,6 +47,7 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
   const reviewSearchEnabled = useSettingsStore(state => state.reviewSearchButtonEnabled);
   const jitaiEnabled = useSettingsStore(state => state.jitaiEnabled);
   const wrapUpSize = useSettingsStore((state) => state.reviewWrapUpTargetSubjects);
+  const hideWrapUpButton = useSettingsStore((state) => state.hideReviewWrapUpButton) === true;
   const startedAt = useRef(Date.now());
   const [duration, setDuration] = useState(0);
   const [state, setState] = useState(() => createMixedReviewState(mode));
@@ -184,7 +185,7 @@ export function MixedReviewSession({ mode }: { mode: "all" | "grammar" | "vocab"
       </View>;
     })}
     {!state.complete && state.active === "wanikani" && state.started ? <>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mixed review settings" disabled={isSaving} onPress={() => { Keyboard.dismiss(); setSettingsOpen(true); }} style={{ position: "absolute", top: wrapUp || progress.total - progress.completed > wrapUpSize ? 184 : 140, right: 16 + (reviewSearchEnabled ? 48 : 0) + (jitaiEnabled ? 48 : 0), minHeight: 44, minWidth: 36, padding: 8, zIndex: 40 }}><Text style={{ color: theme.textColor }}>⚙</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mixed review settings" disabled={isSaving} onPress={() => { Keyboard.dismiss(); setSettingsOpen(true); }} style={{ position: "absolute", top: wrapUp || (!hideWrapUpButton && progress.total - progress.completed > wrapUpSize) ? 184 : 140, right: 16 + (reviewSearchEnabled ? 48 : 0) + (jitaiEnabled ? 48 : 0), minHeight: 44, minWidth: 36, padding: 8, zIndex: 40 }}><Text style={{ color: theme.textColor }}>⚙</Text></TouchableOpacity>
       {bunproProgression ? <View pointerEvents="none" style={{ position: "absolute", bottom: insets.bottom + 96, left: 24, right: 24 }}><BunproProgressionCard progression={bunproProgression} /></View> : null}
     </> : null}
     <BunproReviewSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
