@@ -747,8 +747,9 @@ export function ReviewSettingsSection() {
                       { color: theme.textSecondary },
                     ]}
                   >
-                    Pause after correct answers with Mark Wrong and Continue
-                    buttons. Enter still continues.
+                    Tap the previous answer card after a correct answer to mark
+                    it wrong. That answer is saved once you answer the next
+                    question.
                   </Text>
                 </View>
                 <Switch

@@ -186,6 +186,11 @@ type ContextHintDisplayMode = "toggle" | "visible";
 
 interface PreviousAnswerItem {
   id: number;
+  // The review item id passed to onAnswer (not always the subject id).
+  answerItemId?: number;
+  // True for typed/multiple-choice correct answers that the parent may still
+  // let the user mark wrong from the previous-answer card.
+  correctable?: boolean;
   subject: WKSubject;
   characters: string;
   meaning: string;
@@ -261,6 +266,12 @@ interface ReviewQuestionProps {
   overridePromptUsesJapaneseFont?: boolean;
   // Optional override for the paused-card "Correct answer" text.
   overridePausedCorrectAnswerText?: string;
+  // Mark the previous correct answer wrong from the previous-answer card.
+  // Returns false when that answer can no longer be changed.
+  onMarkPreviousAnswerWrong?: (
+    item: { id: number; subject: WKSubject },
+    questionType: QuestionType,
+  ) => boolean;
   // Wrap up functionality
   isWrapUpAvailable?: boolean;
   isWrapUpMode?: boolean;
@@ -1026,6 +1037,7 @@ export default function ReviewQuestionScreen({
   overridePromptSubtext,
   overridePromptUsesJapaneseFont = false,
   overridePausedCorrectAnswerText,
+  onMarkPreviousAnswerWrong,
   isWrapUpAvailable = false,
   isWrapUpMode = false,
   wrapUpTargetSubjects = 10,
@@ -1116,11 +1128,7 @@ export default function ReviewQuestionScreen({
       ),
     [reviewAnswerRevealScale, reviewCorrectionButtonScale],
   );
-  // Marking a correct answer wrong needs a pause to act on, so this setting
-  // also stops auto-progress after correct answers.
   const canMarkCorrectAnswerWrong = allowMarkingCorrectAnswersWrong === true;
-  const shouldPauseOnCorrect =
-    disableAutoProgressOnCorrect || canMarkCorrectAnswerWrong;
   const effectiveShowAnswerStopSubjectDetails = showAnswerStopSubjectDetails;
   const isVoiceReviewEnabled = Platform.OS === "ios" && voiceReviewAnswersEnabled;
   const resolvedReviewIncorrectKeyboardShortcuts = useMemo(
@@ -3087,7 +3095,7 @@ export default function ReviewQuestionScreen({
         }
 
         // If pause on correct is enabled, show accepted answers and wait for user action
-        if (shouldPauseOnCorrect) {
+        if (disableAutoProgressOnCorrect) {
           setIsPausedOnCloseAnswer(false);
           setIsPausedOnWrong(false);
           setIsPausedOnCorrect(true);
@@ -3122,6 +3130,8 @@ export default function ReviewQuestionScreen({
           backgroundColor: getItemColor(item.subject.object),
           isCorrect: true,
           questionType: questionType,
+          answerItemId: item.id,
+          correctable: true,
         });
 
         // Animate the item to the top left
@@ -3389,6 +3399,44 @@ export default function ReviewQuestionScreen({
     setVoiceError(message);
   });
 
+  const [previousAnswerMenuOpen, setPreviousAnswerMenuOpen] = useState(false);
+  useEffect(() => {
+    setPreviousAnswerMenuOpen(false);
+  }, [previousAnswerItem]);
+  const canOfferPreviousMarkWrong =
+    canMarkCorrectAnswerWrong &&
+    Boolean(onMarkPreviousAnswerWrong) &&
+    previousAnswerItem?.isCorrect === true &&
+    previousAnswerItem.correctable === true;
+
+  const handlePreviousAnswerPress = () => {
+    if (canOfferPreviousMarkWrong) {
+      setPreviousAnswerMenuOpen((open) => !open);
+      return;
+    }
+    navigateToPreviousItemDetail();
+  };
+
+  const handleMarkPreviousAnswerWrong = () => {
+    const previous = previousAnswerItem;
+    setPreviousAnswerMenuOpen(false);
+    if (!previous || !onMarkPreviousAnswerWrong) return;
+    const changed = onMarkPreviousAnswerWrong(
+      { id: previous.answerItemId ?? previous.id, subject: previous.subject },
+      previous.questionType,
+    );
+    if (changed) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setPreviousAnswerItem({ ...previous, isCorrect: false, correctable: false });
+      return;
+    }
+    setPreviousAnswerItem({ ...previous, correctable: false });
+    Alert.alert(
+      "Already Saved",
+      "That answer has already been saved, so it can't be marked wrong anymore.",
+    );
+  };
+
   // Improve the navigateToPreviousItemDetail function to handle repeated navigation properly
   const navigateToPreviousItemDetail = () => {
     if (!previousAnswerItem || navigatingToDetail) {
@@ -3470,6 +3518,8 @@ export default function ReviewQuestionScreen({
       backgroundColor: getItemColor(item.subject.object),
       isCorrect: true,
       questionType: questionType,
+      answerItemId: item.id,
+      correctable: true,
     });
 
     // Animate the item to the top left
@@ -3520,6 +3570,8 @@ export default function ReviewQuestionScreen({
       backgroundColor: getItemColor(item.subject.object),
       isCorrect: true,
       questionType: questionType,
+      answerItemId: item.id,
+      correctable: true,
     });
 
     // Animate the item to the top left
@@ -6008,9 +6060,16 @@ export default function ReviewQuestionScreen({
               { backgroundColor: previousAnswerItem.backgroundColor },
               navigatingToDetail && styles.disabledTouchable,
             ]}
-            onPress={navigateToPreviousItemDetail}
+            onPress={handlePreviousAnswerPress}
             activeOpacity={0.7}
             disabled={navigatingToDetail}
+            accessibilityRole="button"
+            accessibilityLabel={`Previous answer: ${previousAnswerItem.characters}, ${previousAnswerItem.isCorrect ? "correct" : "incorrect"}`}
+            accessibilityHint={
+              canOfferPreviousMarkWrong
+                ? "Shows options to mark this answer wrong"
+                : "Opens subject details"
+            }
           >
             <AnsweredItemCharacterDisplay
               subject={previousAnswerItem.subject}
@@ -6035,6 +6094,75 @@ export default function ReviewQuestionScreen({
           </TouchableOpacity>
         </Animated.View>
       ))}
+
+      {!hidePreviousAnswer &&
+        !mixedPrevious &&
+        previousAnswerMenuOpen &&
+        canOfferPreviousMarkWrong && (
+          <View
+            style={[
+              styles.previousAnswerMenu,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.previousAnswerMenuButton,
+                pausedUi.buttons.secondaryButton,
+                styles.pausedButtonIncorrect,
+              ]}
+              onPress={handleMarkPreviousAnswerWrong}
+              accessibilityRole="button"
+              accessibilityLabel="Mark previous answer wrong"
+            >
+              <Ionicons
+                name="close"
+                size={pausedUi.buttons.secondaryIconSize}
+                color="#f44336"
+              />
+              <Text
+                style={[
+                  styles.pausedSecondaryActionText,
+                  pausedUi.buttons.secondaryText,
+                  { color: "#f44336" },
+                ]}
+              >
+                Mark Wrong
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.previousAnswerMenuButton,
+                pausedUi.buttons.secondaryButton,
+                { backgroundColor: theme.isDark ? "#ffffff14" : "#0000000d" },
+              ]}
+              onPress={() => {
+                setPreviousAnswerMenuOpen(false);
+                navigateToPreviousItemDetail();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Previous answer details"
+            >
+              <Ionicons
+                name="information-circle"
+                size={pausedUi.buttons.secondaryIconSize}
+                color={theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.pausedSecondaryActionText,
+                  pausedUi.buttons.secondaryText,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Details
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
       <ReviewKeyboardAvoidingView
         style={styles.questionContainer}
@@ -7641,6 +7769,39 @@ const styles = StyleSheet.create({
     zIndex: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+  previousAnswerMenu: {
+    // Sits just under the previous-answer card once it settles top-left
+    // (see animateAnsweredItemBox).
+    position: "absolute",
+    top: 190,
+    left: 8,
+    zIndex: 30,
+    flexDirection: "row",
+    gap: 8,
+    padding: 8,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  previousAnswerMenuButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   answeredItemBoxTouchable: {
     minWidth: 80,

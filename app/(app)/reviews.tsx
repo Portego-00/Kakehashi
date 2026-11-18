@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Platform,
   StatusBar,
   StyleSheet,
@@ -167,6 +168,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     autoplayVocabularyAudio,
     showAnswerStopSubjectDetails,
     showVocabContextSentencesInReviews,
+    allowMarkingCorrectAnswersWrong,
   } = useSettingsStore();
   // Capture the launch preset for this session; defaults remain independently editable.
   const [sessionPreset] = useState(() => mixed ? null : getEnabledReviewPreset({
@@ -259,6 +261,37 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
       loadGenerationRef.current += 1;
     };
   }, []);
+
+  // With "Allow Marking Correct Answers Wrong", the most recent correct answer
+  // that completes an item is held here instead of being saved right away, so
+  // it can still be marked wrong from the previous-answer card. It is saved as
+  // soon as anything else happens: the next answer, a skip, leaving the
+  // session, or the app going to the background.
+  const deferredCompletionRef = useRef<{
+    itemId: number;
+    questionType: "meaning" | "reading";
+    commit: () => Promise<void>;
+  } | null>(null);
+  const flushDeferredCompletion = useCallback((): Promise<void> => {
+    const deferred = deferredCompletionRef.current;
+    if (!deferred) return Promise.resolve();
+    deferredCompletionRef.current = null;
+    return deferred.commit();
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") void flushDeferredCompletion();
+    });
+    return () => {
+      subscription.remove();
+      void flushDeferredCompletion();
+    };
+  }, [flushDeferredCompletion]);
+
+  useEffect(() => {
+    if (isFinished) void flushDeferredCompletion();
+  }, [isFinished, flushDeferredCompletion]);
 
   // Study materials for answer checking and embedded pause details.
   const [studyMaterialsMap, setStudyMaterialsMap] = useState<
@@ -2235,6 +2268,8 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     }
 
     answerInFlightKeysRef.current.add(answerKey);
+    // Save any held completion before this answer changes the queue.
+    await flushDeferredCompletion();
     const queueQuestionBeingAnswered =
       currentQuestionRef.current?.itemId === item.id
         ? currentQuestionRef.current
@@ -2413,6 +2448,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
         availableAt: updatedItems[itemIndex].availableAt ?? null,
       };
 
+      let advanceAfterPersist = shouldAdvanceAfterAnswer;
       const persistCompletedReview = async (): Promise<void> => {
         try {
           await queueProgress(apiToken, queuedReview);
@@ -2568,10 +2604,38 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
             );
           });
 
-        if (shouldAdvanceAfterAnswer) {
+        if (advanceAfterPersist) {
           moveToNextQuestion(queueQuestionBeingAnswered);
         }
       };
+
+      const hasQuestionsAfterThisOne = [
+        ...activeQueueRef.current,
+        ...masterQueueRef.current,
+      ].some(
+        (question) =>
+          question.itemId !== queueQuestionBeingAnswered.itemId ||
+          question.type !== queueQuestionBeingAnswered.type,
+      );
+      if (
+        allowMarkingCorrectAnswersWrong &&
+        !mixedRef.current &&
+        !isGroupedAnswer &&
+        isCorrect &&
+        shouldAdvanceAfterAnswer &&
+        hasQuestionsAfterThisOne
+      ) {
+        // Advance now and save later, keeping this answer correctable.
+        advanceAfterPersist = false;
+        deferredCompletionRef.current = {
+          itemId: item.id,
+          questionType,
+          commit: persistCompletedReview,
+        };
+        moveToNextQuestion(queueQuestionBeingAnswered);
+        releaseAnswerGuard();
+        return;
+      }
 
       await persistCompletedReview();
       releaseAnswerGuard();
@@ -2599,6 +2663,92 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     setSrsProgression(null);
   };
 
+  // Turn the most recent correct answer into a wrong one. Only possible while
+  // that answer has not been saved: either its item still has an unanswered
+  // part, or its completion is being held in deferredCompletionRef.
+  const handleMarkPreviousAnswerWrong = (
+    item: { id: number; subject: any },
+    questionType: "meaning" | "reading",
+  ): boolean => {
+    if (mixedRef.current) return false;
+    const itemIndex = reviewItemsRef.current.findIndex(
+      (reviewItem) => reviewItem.id === item.id,
+    );
+    if (itemIndex === -1) return false;
+    const target = reviewItemsRef.current[itemIndex];
+    const deferred = deferredCompletionRef.current;
+    const isDeferred =
+      deferred?.itemId === item.id && deferred.questionType === questionType;
+    if (!isDeferred && (target.submitted || target.progressCounted)) {
+      return false;
+    }
+    const isMeaning = questionType === "meaning";
+    if (!(isMeaning ? target.meaningDone : target.readingDone)) return false;
+    if (isDeferred) deferredCompletionRef.current = null;
+
+    const wasCountedCorrect = isMeaning
+      ? target.meaningCorrectlyAnswered === true
+      : target.readingCorrectlyAnswered === true;
+    const updated: ReviewItem = { ...target };
+    if (isMeaning) {
+      updated.meaningDone = false;
+      updated.meaningCorrectlyAnswered = false;
+      if (!updated.meaningIncorrectCounted) {
+        updated.meaningIncorrect += 1;
+        updated.meaningIncorrectCounted = true;
+      }
+    } else {
+      updated.readingDone = false;
+      updated.readingCorrectlyAnswered = false;
+      if (!updated.readingIncorrectCounted) {
+        updated.readingIncorrect += 1;
+        updated.readingIncorrectCounted = true;
+      }
+    }
+    const nextItems = reviewItemsRef.current.map((reviewItem, index) =>
+      index === itemIndex ? updated : reviewItem,
+    );
+    reviewItemsRef.current = nextItems;
+    setReviewItems(nextItems);
+    setProgress((prev) => ({
+      ...prev,
+      correctAnswersCount: Math.max(0, (prev.correctAnswersCount ?? 0) - 1),
+      meaningCorrect:
+        isMeaning && wasCountedCorrect
+          ? Math.max(0, prev.meaningCorrect - 1)
+          : prev.meaningCorrect,
+      readingCorrect:
+        !isMeaning && wasCountedCorrect
+          ? Math.max(0, prev.readingCorrect - 1)
+          : prev.readingCorrect,
+    }));
+
+    // Ask the question again later without disturbing the current question.
+    const question: ReviewQueueQuestion = { type: questionType, itemId: item.id };
+    const queue = activeQueueRef.current;
+    const alreadyQueued = [...queue, ...masterQueueRef.current].some(
+      (queued) => queued.itemId === item.id && queued.type === questionType,
+    );
+    if (!alreadyQueued) {
+      const insertPosition =
+        queue.length <= 1
+          ? queue.length
+          : 1 + Math.floor(Math.random() * queue.length);
+      const nextQueue = [
+        ...queue.slice(0, insertPosition),
+        question,
+        ...queue.slice(insertPosition),
+      ];
+      activeQueueRef.current = nextQueue;
+      setActiveQueue(nextQueue);
+      if (!currentQuestionRef.current) {
+        currentQuestionRef.current = nextQueue[0];
+        setCurrentQuestion(nextQueue[0]);
+      }
+    }
+    return true;
+  };
+
   // Handle Ask Again from paused-wrong state (legacy behavior).
   // This keeps the existing requeue logic and does not reset the item.
   const handleAskAgain = (
@@ -2606,6 +2756,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     questionType: "meaning" | "reading",
   ) => {
     if (mixedRef.current && (!mixedRef.current.active || currentQuestionRef.current?.itemId !== item.id)) return;
+    void flushDeferredCompletion();
     const newQuestion: ReviewQueueQuestion = {
       type: questionType,
       itemId: item.id,
@@ -2620,6 +2771,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
     questionType: "meaning" | "reading",
   ) => {
     if (mixedRef.current && (!mixedRef.current.active || currentQuestionRef.current?.itemId !== item.id)) return;
+    void flushDeferredCompletion();
     lastAdvancedItemIdRef.current = null;
     setQuestionOccurrence((value) => value + 1);
     const reviewItem = reviewItems.find(
@@ -2798,6 +2950,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
 
   // Handle back to dashboard
   const handleBackToDashboard = () => {
+    void flushDeferredCompletion();
     void refreshRecentMistakes();
     router.dismissAll();
     router.replace({
@@ -2873,6 +3026,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
         }}
         questionType={currentQuestion.type}
         onAnswer={handleAnswer}
+        onMarkPreviousAnswerWrong={mixed ? undefined : handleMarkPreviousAnswerWrong}
         onAskAgain={handleAskAgain}
         onSkip={handleSkip}
         reviewPermissionWarning={reviewPermissionWarning}
@@ -2891,6 +3045,7 @@ export default function ReviewScreen({ mixed }: { mixed?: MixedReviewBridge } = 
             return;
           }
           const exitReviews = () => {
+            void flushDeferredCompletion();
             void refreshRecentMistakes();
             router.dismissAll();
             router.replace({

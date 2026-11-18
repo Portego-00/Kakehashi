@@ -78,6 +78,7 @@ const mockGetPendingProgressAssignmentIds = jest.fn(async () => ({
 const mockGetStudyMaterials = jest.fn(async (..._args: unknown[]): Promise<{ data: unknown[] }> => ({ data: [] }));
 const mockGetCachedStudyMaterials = jest.fn(async (_subjectIds: number[]): Promise<{ data: { subject_id: number; meaning_synonyms: string[]; meaning_note: string; reading_note: string } }[] | null> => []);
 let mockAcceptUserSynonymsAsAnswers = false;
+let mockAllowMarkingCorrectAnswersWrong = false;
 
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({
@@ -129,6 +130,7 @@ jest.mock("../../src/utils/store", () => ({
     autoplayVocabularyAudio: false,
     showAnswerStopSubjectDetails: false,
     showVocabContextSentencesInReviews: false,
+    allowMarkingCorrectAnswersWrong: mockAllowMarkingCorrectAnswersWrong,
   }),
 }));
 jest.mock("../../src/utils/theme", () => ({
@@ -260,6 +262,7 @@ describe("review parent manual-correction accounting", () => {
     mockLearningPageId = undefined;
     mockLearningPages = [];
     mockAcceptUserSynonymsAsAnswers = false;
+    mockAllowMarkingCorrectAnswersWrong = false;
     mockQuestionProps = null;
     mockQueueProgress.mockReset();
     mockPersistProgress.mockReset();
@@ -299,6 +302,130 @@ describe("review parent manual-correction accounting", () => {
           },
         },
       },
+    });
+  });
+
+  describe("marking the previous correct answer wrong", () => {
+    const markPrevious = (
+      item: { id: number; subject: any },
+      questionType: "meaning" | "reading",
+    ) => {
+      let changed: boolean | undefined;
+      act(() => {
+        changed = currentQuestion().onMarkPreviousAnswerWrong?.(item, questionType);
+      });
+      return changed;
+    };
+    const answerAndRemember = async (isCorrect = true) => {
+      const { item, questionType } = currentQuestion();
+      await answerCurrent(isCorrect);
+      return { item, questionType };
+    };
+    const payloadFor = (assignmentId: number) =>
+      mockPersistProgress.mock.calls
+        .map(([payload]) => payload as { assignmentId: number; meaningIncorrectCount: number; readingIncorrectCount: number })
+        .filter((payload) => payload.assignmentId === assignmentId);
+
+    beforeEach(() => {
+      mockAllowMarkingCorrectAnswersWrong = true;
+    });
+
+    it("is not offered when the setting is off", async () => {
+      mockAllowMarkingCorrectAnswersWrong = false;
+      addCachedReviews(2);
+      const screen = render(<ReviewScreen />);
+      await screen.findByTestId("accounting-question");
+      expect(currentQuestion().onMarkPreviousAnswerWrong).toBeDefined();
+      const first = await answerAndRemember();
+      const second = await answerAndRemember();
+      expect(first.item.id).toBe(second.item.id);
+      // Without the setting the completed item is saved immediately.
+      expect(mockPersistProgress).toHaveBeenCalledTimes(1);
+      expect(markPrevious(second.item, second.questionType)).toBe(false);
+      screen.unmount();
+    });
+
+    it("holds a completed item until the next answer, then saves it unchanged", async () => {
+      addCachedReviews(2);
+      const screen = render(<ReviewScreen />);
+      await screen.findByTestId("accounting-question");
+      const meaning = await answerAndRemember();
+      const reading = await answerAndRemember();
+      expect([meaning.questionType, reading.questionType]).toEqual(["meaning", "reading"]);
+      expect(mockPersistProgress).not.toHaveBeenCalled();
+      expect(currentQuestion().item.id).not.toBe(reading.item.id);
+
+      await answerAndRemember();
+      expect(payloadFor(reading.item.id)).toEqual([
+        expect.objectContaining({ meaningIncorrectCount: 0, readingIncorrectCount: 0 }),
+      ]);
+      // Once saved, the earlier answer can no longer be changed.
+      expect(markPrevious(reading.item, "reading")).toBe(false);
+      screen.unmount();
+    });
+
+    it("turns a held completion into a wrong answer and asks it again", async () => {
+      addCachedReviews(2);
+      const screen = render(<ReviewScreen />);
+      await screen.findByTestId("accounting-question");
+      await answerAndRemember();
+      const reading = await answerAndRemember();
+      expect(markPrevious(reading.item, "reading")).toBe(true);
+      expect(currentQuestion().correctAnswersCount).toBe(1);
+
+      // Finish the session; the undone reading must come back before results.
+      const asked: string[] = [];
+      for (let guard = 0; guard < 10 && !screen.queryByText("Results"); guard += 1) {
+        const { item, questionType } = currentQuestion();
+        asked.push(`${item.id}:${questionType}`);
+        await answerCurrent(true);
+      }
+      await screen.findByText("Results");
+      expect(asked).toContain(`${reading.item.id}:reading`);
+      expect(payloadFor(reading.item.id)).toEqual([
+        expect.objectContaining({ meaningIncorrectCount: 0, readingIncorrectCount: 1 }),
+      ]);
+      screen.unmount();
+    });
+
+    it("reverts an answer whose item is not finished yet", async () => {
+      addCachedReviews(2);
+      const screen = render(<ReviewScreen />);
+      await screen.findByTestId("accounting-question");
+      const meaning = await answerAndRemember();
+      expect(meaning.questionType).toBe("meaning");
+      expect(markPrevious(meaning.item, "meaning")).toBe(true);
+      expect(markPrevious(meaning.item, "meaning")).toBe(false);
+
+      for (let guard = 0; guard < 10 && !screen.queryByText("Results"); guard += 1) {
+        await answerCurrent(true);
+      }
+      await screen.findByText("Results");
+      expect(payloadFor(meaning.item.id)).toEqual([
+        expect.objectContaining({ meaningIncorrectCount: 1, readingIncorrectCount: 0 }),
+      ]);
+      screen.unmount();
+    });
+
+    it("saves the last item of the session right away", async () => {
+      const screen = render(<ReviewScreen />);
+      await screen.findByTestId("accounting-question");
+      await answerAndRemember();
+      const reading = await answerAndRemember();
+      await screen.findByText("Results");
+      expect(payloadFor(reading.item.id)).toHaveLength(1);
+      screen.unmount();
+    });
+
+    it("saves a held completion when the review screen closes", async () => {
+      addCachedReviews(2);
+      const screen = render(<ReviewScreen />);
+      await screen.findByTestId("accounting-question");
+      await answerAndRemember();
+      const reading = await answerAndRemember();
+      expect(mockPersistProgress).not.toHaveBeenCalled();
+      screen.unmount();
+      await waitFor(() => expect(payloadFor(reading.item.id)).toHaveLength(1));
     });
   });
 

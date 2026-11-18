@@ -2220,28 +2220,84 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false);
   });
 
-  it.each([false, true])("can mark a correct typed answer wrong when enabled (inline details %s)", async (details) => {
-    mockSettings.allowMarkingCorrectAnswersWrong = true;
-    mockSettings.showAnswerStopSubjectDetails = details;
+  const renderWithPreviousAnswerUndo = (onMarkPreviousAnswerWrong: jest.Mock) => {
     const onAnswer = jest.fn();
-    const screen = renderQuestion({ onAnswer });
-    fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
-    fireEvent.press(getSubmitButton(screen));
-    const wrong = await screen.findByText("Mark Wrong");
-    expect(screen.getByText("Continue")).toBeTruthy();
-    expect(onAnswer).not.toHaveBeenCalled();
-    fireEvent.press(wrong);
-    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
-    expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", false, true, false);
-  });
+    const screen = render(
+      <ReviewQuestionScreen
+        item={radicalItem}
+        questionType="meaning"
+        onAnswer={onAnswer}
+        onMarkPreviousAnswerWrong={onMarkPreviousAnswerWrong}
+        showHeader={false}
+        showBackgroundColor={false}
+      />,
+    );
+    return { screen, onAnswer };
+  };
 
-  it("still auto-advances correct typed answers when the option is off", async () => {
-    const onAnswer = jest.fn();
-    const screen = renderQuestion({ onAnswer });
+  it("keeps correct typed answers auto-advancing and offers Mark Wrong from the previous card", async () => {
+    mockSettings.allowMarkingCorrectAnswersWrong = true;
+    const onMarkPreviousAnswerWrong = jest.fn(() => true);
+    const { screen, onAnswer } = renderWithPreviousAnswerUndo(onMarkPreviousAnswerWrong);
     fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
     fireEvent.press(getSubmitButton(screen));
     await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", true, false, false));
-    expect(screen.queryByText("Mark Wrong")).toBeNull();
+    expect(screen.queryByText("Continue")).toBeNull();
+    expect(screen.queryByLabelText("Mark previous answer wrong")).toBeNull();
+
+    fireEvent.press(screen.getByLabelText(/^Previous answer: .*, correct$/));
+    fireEvent.press(screen.getByLabelText("Mark previous answer wrong"));
+
+    expect(onMarkPreviousAnswerWrong).toHaveBeenCalledWith(
+      { id: radicalItem.id, subject: radicalItem.subject },
+      "meaning",
+    );
+    expect(screen.getByLabelText(/^Previous answer: .*, incorrect$/)).toBeTruthy();
+    expect(screen.queryByLabelText("Mark previous answer wrong")).toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("explains when the previous answer was already saved", async () => {
+    mockSettings.allowMarkingCorrectAnswersWrong = true;
+    const onMarkPreviousAnswerWrong = jest.fn(() => false);
+    const { screen, onAnswer } = renderWithPreviousAnswerUndo(onMarkPreviousAnswerWrong);
+    fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
+    fireEvent.press(getSubmitButton(screen));
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    fireEvent.press(screen.getByLabelText(/^Previous answer: .*, correct$/));
+    fireEvent.press(screen.getByLabelText("Mark previous answer wrong"));
+    expect(mockAlert).toHaveBeenCalledWith("Already Saved", expect.any(String));
+    expect(screen.getByLabelText(/^Previous answer: .*, correct$/)).toBeTruthy();
+  });
+
+  it("opens previous answer details directly when the option is off", async () => {
+    jest.useFakeTimers();
+    try {
+      const onMarkPreviousAnswerWrong = jest.fn(() => true);
+      const { screen, onAnswer } = renderWithPreviousAnswerUndo(onMarkPreviousAnswerWrong);
+      fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
+      fireEvent.press(getSubmitButton(screen));
+      await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+      fireEvent.press(screen.getByLabelText(/^Previous answer: .*, correct$/));
+      expect(screen.queryByLabelText("Mark previous answer wrong")).toBeNull();
+      act(() => jest.advanceTimersByTime(400));
+      expect(router.push).toHaveBeenCalled();
+      expect(onMarkPreviousAnswerWrong).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("offers Mark Wrong on a paused correct typed answer when both options are on", async () => {
+    mockSettings.allowMarkingCorrectAnswersWrong = true;
+    mockSettings.disableAutoProgressOnCorrect = true;
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
+    fireEvent.press(getSubmitButton(screen));
+    fireEvent.press(await screen.findByText("Mark Wrong"));
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", false, true, false);
   });
 
   it("keeps Anki reveal controls when multiple choice is also enabled", async () => {
