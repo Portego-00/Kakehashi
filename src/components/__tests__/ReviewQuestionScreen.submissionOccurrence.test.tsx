@@ -97,6 +97,10 @@ const mockAuthState: { apiToken: string | null; userData: { username: string } |
 
 const mockSettings = {
   reviewMultipleChoiceEnabled: false,
+  allowMarkingCorrectAnswersWrong: false,
+  hideReviewWrapUpButton: false,
+  reviewAnswerRevealScale: 1,
+  reviewCorrectionButtonScale: 1,
   setReviewMultipleChoiceEnabled: jest.fn(),
   ankiCardMode: false,
   ankiGroupQuestions: false,
@@ -2214,6 +2218,30 @@ describe("ReviewQuestionScreen question occurrences", () => {
     fireEvent.press(wrong);
     await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
     expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false);
+  });
+
+  it.each([false, true])("can mark a correct typed answer wrong when enabled (inline details %s)", async (details) => {
+    mockSettings.allowMarkingCorrectAnswersWrong = true;
+    mockSettings.showAnswerStopSubjectDetails = details;
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
+    fireEvent.press(getSubmitButton(screen));
+    const wrong = await screen.findByText("Mark Wrong");
+    expect(screen.getByText("Continue")).toBeTruthy();
+    expect(onAnswer).not.toHaveBeenCalled();
+    fireEvent.press(wrong);
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledTimes(1));
+    expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", false, true, false);
+  });
+
+  it("still auto-advances correct typed answers when the option is off", async () => {
+    const onAnswer = jest.fn();
+    const screen = renderQuestion({ onAnswer });
+    fireEvent.changeText(screen.getByTestId("answer-input"), "ground");
+    fireEvent.press(getSubmitButton(screen));
+    await waitFor(() => expect(onAnswer).toHaveBeenCalledWith(radicalItem, "meaning", true, false, false));
+    expect(screen.queryByText("Mark Wrong")).toBeNull();
   });
 
   it("keeps Anki reveal controls when multiple choice is also enabled", async () => {
