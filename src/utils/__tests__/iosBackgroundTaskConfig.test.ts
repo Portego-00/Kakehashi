@@ -6,7 +6,10 @@ import appConfig from "../../../app.json";
 describe("iOS background task configuration", () => {
   it("enables the Expo processing task in source and native configuration", () => {
     const infoPlist = appConfig.expo.ios.infoPlist;
-    expect(infoPlist.UIBackgroundModes).toEqual(["processing"]);
+    expect(infoPlist.UIBackgroundModes).toEqual(["fetch", "processing"]);
+    expect(infoPlist.BGTaskSchedulerPermittedIdentifiers).toContain(
+      "com.kakehashi.reviewdata.refresh",
+    );
     expect(infoPlist.BGTaskSchedulerPermittedIdentifiers).toContain(
       "com.expo.modules.backgroundtask.processing",
     );
@@ -18,6 +21,10 @@ describe("iOS background task configuration", () => {
     expect(nativeInfoPlist).toContain("<string>processing</string>");
     expect(nativeInfoPlist).toContain(
       "<string>com.expo.modules.backgroundtask.processing</string>",
+    );
+    expect(nativeInfoPlist).toContain("<string>fetch</string>");
+    expect(nativeInfoPlist).toContain(
+      "<string>com.kakehashi.reviewdata.refresh</string>",
     );
   });
 
@@ -56,8 +63,13 @@ describe("iOS background task configuration", () => {
     expect(appDelegate).not.toContain(
       "super.application(application, performFetchWithCompletionHandler:",
     );
-    expect(appDelegate).not.toContain(
-      "let backgroundFetch = WaniKaniBackgroundFetch()",
+    // The processing task alone runs too rarely; an app refresh task drives
+    // the native fetch between runs.
+    expect(appDelegate).toContain(
+      'kakehashiAppRefreshTaskIdentifier = "com.kakehashi.reviewdata.refresh"',
+    );
+    expect(appDelegate).toContain(
+      "BGAppRefreshTaskRequest(identifier: kakehashiAppRefreshTaskIdentifier)",
     );
 
     expect(backgroundFetch).toContain(

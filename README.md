@@ -18,10 +18,19 @@ available. Background refresh keeps the selected review batch stable, replacing
 only unstarted reviews that are no longer due. Requests that reach an
 unresponsive connection time out instead of holding the app indefinitely.
 
-On iOS, widget refresh uses Expo's processing task. Keep `processing` in
-`UIBackgroundModes`, and keep `com.expo.modules.backgroundtask.processing` in
-`BGTaskSchedulerPermittedIdentifiers` in both `app.json` and the checked-in
-native `Info.plist` when regenerating the iOS project.
+On iOS, widget refresh uses two background tasks. Expo's processing task runs
+the JavaScript sync, but iOS only runs processing tasks occasionally, usually
+while the device is idle. A native app refresh task
+(`com.kakehashi.reviewdata.refresh`, registered in `AppDelegate.swift`) runs
+more often and calls the native WaniKani fetch, so widgets pick up reviews
+completed on the web or another device. Keep both `fetch` and `processing` in
+`UIBackgroundModes`, and keep both `com.expo.modules.backgroundtask.processing`
+and `com.kakehashi.reviewdata.refresh` in `BGTaskSchedulerPermittedIdentifiers`
+in both `app.json` and the checked-in native `Info.plist` when regenerating the
+iOS project.
+
+Every root view in the iOS widget layout must declare a widget container
+background. Without one, iOS draws the widget blank.
 
 ## Saved news
 

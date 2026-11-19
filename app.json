@@ -25,10 +25,12 @@
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
         "NSPhotoLibraryAddUsageDescription": "Allow $(PRODUCT_NAME) to save photos",
         "UIBackgroundModes": [
+          "fetch",
           "processing"
         ],
         "BGTaskSchedulerPermittedIdentifiers": [
-          "com.expo.modules.backgroundtask.processing"
+          "com.expo.modules.backgroundtask.processing",
+          "com.kakehashi.reviewdata.refresh"
         ],
         "NSSpeechRecognitionUsageDescription": "$(PRODUCT_NAME) uses speech recognition to convert your spoken Japanese into text, allowing you to search for vocabulary by speaking words or phrases aloud.",
         "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) uses the microphone to listen to your voice when you speak Japanese words or phrases for vocabulary search.",
