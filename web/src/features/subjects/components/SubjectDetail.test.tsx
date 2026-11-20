@@ -239,6 +239,65 @@ describe("normal vocabulary context speech", () => {
   });
 });
 
+describe("radical mnemonic illustrations", () => {
+  const radical: Subject = {
+    ...audioSubject,
+    object: "radical",
+    data: {
+      ...audioSubject.data,
+      slug: "soul",
+      document_url: "https://www.wanikani.com/radicals/soul",
+      characters: "忄",
+      meanings: [{ meaning: "Soul", primary: true, accepted_answer: true }],
+      readings: [],
+      pronunciation_audios: [],
+      meaning_mnemonic: "A friendly little soul on its way to a new body.",
+    },
+  };
+
+  function renderRadical(embedded: boolean, compact: boolean) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    return render(<QueryClientProvider client={client}><SubjectDetailPanels
+      record={radical}
+      materialLoading={false}
+      materialsKey={["study-material", radical.id]}
+      relatedSubjects={[]}
+      pitchAccents={[]}
+      usagePatterns={[]}
+      immersionExamples={[]}
+      immersionLoading={false}
+      immersionFailed={false}
+      settings={{ showContextSentences: false, showImmersionExamples: false, showPitchAccent: false, showKanjiReadingExamples: false, showStrokeOrder: false, showPatternsOfUse: false }}
+      returnTo="/subjects"
+      embedded={embedded}
+      compact={compact}
+    /></QueryClientProvider>);
+  }
+
+  it.each([
+    { surface: "subject and lesson pages", embedded: false, compact: false },
+    { surface: "expanded review details", embedded: true, compact: false },
+    { surface: "compact review details", embedded: true, compact: true },
+  ])("automatically shows one illustration beside the mnemonic in $surface", ({ embedded, compact }) => {
+    renderRadical(embedded, compact);
+    const image = screen.getByRole("img", { name: "Mnemonic illustration for Soul" });
+    expect(image).toHaveAttribute("src", expect.stringContaining(`/api/wanikani/mnemonic-image?documentUrl=${encodeURIComponent(radical.data.document_url)}`));
+    const mnemonic = screen.getByRole("heading", { name: "Mnemonic" }).closest("section")!;
+    expect(mnemonic).toContainElement(image);
+    if (compact) {
+      fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+      expect(screen.getAllByRole("img", { name: "Mnemonic illustration for Soul" })).toHaveLength(1);
+    }
+  });
+
+  it("removes unavailable artwork while keeping the mnemonic readable", () => {
+    renderRadical(true, true);
+    fireEvent.error(screen.getByRole("img", { name: "Mnemonic illustration for Soul" }));
+    expect(screen.queryByRole("img", { name: "Mnemonic illustration for Soul" })).not.toBeInTheDocument();
+    expect(screen.getByText(radical.data.meaning_mnemonic!)).toBeVisible();
+  });
+});
+
 describe("subject detail media buttons", () => {
   it.each([
     { surface: "subject and lesson pages", embedded: false, compact: false },

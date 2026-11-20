@@ -10,9 +10,26 @@ describe("WaniKani mnemonic image proxy", () => {
     expect(extractMnemonicImageUrl('<img src="@https://files.wanikani.com/legacy" class="other subject-mnemonic-image__image">')).toBe("https://files.wanikani.com/legacy");
   });
 
+  it("skips the empty templates before the real subject illustration", () => {
+    expect(extractMnemonicImageUrl(`
+      <template><wk-mnemonic-image src="" aria-label="template"></wk-mnemonic-image></template>
+      <wk-mnemonic-image src='   '></wk-mnemonic-image>
+      <wk-mnemonic-image aria-label="Soul" src="https://files.wanikani.com/soul"></wk-mnemonic-image>
+    `)).toBe("https://files.wanikani.com/soul");
+  });
+
+  it("uses legacy artwork after empty components and image placeholders", () => {
+    expect(extractMnemonicImageUrl(`
+      <wk-mnemonic-image src=""></wk-mnemonic-image>
+      <img class="subject-mnemonic-image__image" src="">
+      <img src="@https://files.wanikani.com/legacy" class="subject-mnemonic-image__image">
+    `)).toBe("https://files.wanikani.com/legacy");
+    expect(extractMnemonicImageUrl('<wk-mnemonic-image src=""><img class="subject-mnemonic-image__image" src="">')).toBeNull();
+  });
+
   it("returns a bounded mnemonic image with safe response headers", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response('<wk-mnemonic-image src="https://files.wanikani.com/ground">', { status: 200, headers: { "Content-Type": "text/html" } }))
+      .mockResolvedValueOnce(new Response('<template><wk-mnemonic-image src=""></template><wk-mnemonic-image src="https://files.wanikani.com/ground">', { status: 200, headers: { "Content-Type": "text/html" } }))
       .mockResolvedValueOnce(new Response('<svg xmlns="http://www.w3.org/2000/svg"/>', { status: 200, headers: { "Content-Type": "image/svg+xml" } }));
     vi.stubGlobal("fetch", fetchMock);
 
