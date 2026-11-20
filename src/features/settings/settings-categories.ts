@@ -74,9 +74,9 @@ export const SETTINGS_CATEGORIES: readonly {
   {
     id: "data",
     title: "Data & progress",
-    description: "Cache maintenance and level summaries",
+    description: "Settings transfer and level summaries",
     icon: "storage",
-    sections: ["dataStorage", "levelRecap"],
+    sections: ["settingsTransfer", "dataStorage", "levelRecap"],
     group: "Account & app",
   },
   {

@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useActivityTracking } from "../../src/hooks/useActivityTracking";
 import { useSubjectLists } from "../../src/hooks/useSubjectLists";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -21,29 +21,20 @@ import {
   buildReviewQuestionQueue,
   sortReviewItemsForQueue,
   type OrderableReviewItem,
+  type ReviewQuestionType,
   type ReviewQueueQuestion,
 } from "../../src/utils/reviewOrdering";
 import { useSubjectColors } from "../../src/utils/subjectColors";
 import { useAuthStore, useSettingsStore } from "../../src/utils/store";
 import { useTheme } from "../../src/utils/theme";
 
-// Define interfaces similar to the regular lesson screen
 interface LessonItem {
   id: number;
-  assignmentId: number; // We'll use a fake ID for custom lessons
-  subjectId: number;
   subject: ApiSubject;
-  meaningDone: boolean;
-  readingDone: boolean;
-  meaningIncorrect: number;
-  readingIncorrect: number;
-  submitted?: boolean;
-  submissionFailed?: boolean;
 }
 
 interface LessonBatch {
   items: LessonItem[];
-  completed: boolean;
 }
 
 // Type interface for lesson counts
@@ -59,10 +50,7 @@ enum LessonsMode {
   BATCH_COMPLETE = "batch_complete", // Showing batch completion screen
 }
 
-// Helper function to check if a subject is of a specific type
-const isSubjectType = (subject: any, type: string): boolean => {
-  return subject.object === type;
-};
+const MAX_RETRY_DISTANCE = 9;
 
 export default function CustomLessonScreen() {
   useActivityTracking("custom_lesson");
@@ -93,16 +81,11 @@ export default function CustomLessonScreen() {
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
   const [mode, setMode] = useState<LessonsMode>(LessonsMode.LESSON);
   
-  // Queue-based review state (like reviews.tsx)
-  const [reviewItems, setReviewItems] = useState<LessonItem[]>([]);
-  const [masterQueue, setMasterQueue] = useState<ReviewQueueQuestion[]>([]);
-  const [activeQueue, setActiveQueue] = useState<ReviewQueueQuestion[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState<ReviewQueueQuestion | null>(null);
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueQuestion[]>([]);
+  const [quizStats, setQuizStats] = useState({ answered: 0, correct: 0 });
   const [sessionCompleting, setSessionCompleting] = useState(false);
-  
-  // Queue configuration
-  const ACTIVE_QUEUE_SIZE = 10;
-  const REFILL_THRESHOLD = 3;
+  const groupedMeaningCorrect = useRef(false);
+  const currentQuestion = reviewQueue[0];
   
   const [progress, setProgress] = useState({
     totalItems: 0,
@@ -222,14 +205,7 @@ export default function CustomLessonScreen() {
       // Create lesson items from subjects
       const items: LessonItem[] = loadedSubjects.map((subject) => ({
         id: subject.id,
-        assignmentId: -subject.id, // Negative ID to indicate custom lesson
-        subjectId: subject.id,
-        subject: subject,
-        meaningDone: false,
-        readingDone: false,
-        meaningIncorrect: 0,
-        readingIncorrect: 0,
-        submitted: false, // No actual submission for custom lessons
+        subject,
       }));
 
       // Calculate the counts for each subject type
@@ -321,8 +297,7 @@ export default function CustomLessonScreen() {
       const batches: LessonBatch[] = [];
       for (let i = 0; i < items.length; i += batchSize) {
         batches.push({
-          items: items.slice(i, Math.min(i + batchSize, items.length)),
-          completed: false
+          items: items.slice(i, i + batchSize),
         });
       }
 
@@ -331,6 +306,7 @@ export default function CustomLessonScreen() {
       setCurrentItemIndex(0);
       setMode(LessonsMode.LESSON);
       setCompletedBatchStats(null);
+      setSessionCompleting(false);
       
       setProgress({
         totalItems: items.length,
@@ -360,17 +336,11 @@ export default function CustomLessonScreen() {
         setCurrentItemIndex(currentItemIndex + 1);
       } else {
         if (skipCustomLessonQuiz) {
-          // Skip the review quiz and go directly to batch completion.
-          setReviewItems([]);
-          setMasterQueue([]);
-          setActiveQueue([]);
-          setCurrentQuestion(null);
           handleSessionComplete();
         } else {
           // Finished going through all items in batch - start review
           setMode(LessonsMode.REVIEW);
-          const items = [...currentBatch.items];
-          initializeReviewQueue(items);
+          initializeReviewQueue(currentBatch.items);
         }
       }
     }
@@ -395,91 +365,28 @@ export default function CustomLessonScreen() {
       maxQuestionGap: 10,
     });
 
-    setReviewItems(sortedItems);
-    setMasterQueue(orderedQuestions);
-    setActiveQueue(
-      orderedQuestions.slice(0, Math.min(ACTIVE_QUEUE_SIZE, orderedQuestions.length))
-    );
-    setCurrentQuestion(orderedQuestions[0] || null);
-    setSessionCompleting(false); // Reset completion flag
+    setReviewQueue(orderedQuestions);
+    setQuizStats({ answered: 0, correct: 0 });
+    groupedMeaningCorrect.current = false;
   };
 
-  // Move to next question in queue
-  const moveToNextQuestion = () => {
-    if (sessionCompleting) return; // Prevent multiple completion calls
-    
-    if (activeQueue.length <= 1) {
-      // Queue is empty or will be empty, check if we're done
-      if (masterQueue.length <= ACTIVE_QUEUE_SIZE) {
-        // Session complete
-        setSessionCompleting(true);
-        handleSessionComplete();
-        return;
-      }
-    }
-    
-    // Remove current question from active queue
-    const newActiveQueue = activeQueue.slice(1);
-    setActiveQueue(newActiveQueue);
-    
-    // Refill queue if needed
-    refillActiveQueueIfNeeded(newActiveQueue);
-    
-    // Set next question
-    const nextQuestion = newActiveQueue[0] || null;
-    setCurrentQuestion(nextQuestion);
-  };
-
-  // Requeue question for incorrect answers
+  // Keep missed and skipped questions within the next ten prompts.
   const requeueQuestion = () => {
-    if (!currentQuestion) return;
-    
-    // Remove current question from active queue
-    const newActiveQueue = activeQueue.slice(1);
-    
-    // Insert question at random position (avoid position 0)
-    const insertPosition = newActiveQueue.length > 0 
-      ? Math.floor(Math.random() * newActiveQueue.length) + 1
-      : 0;
-    
-    newActiveQueue.splice(insertPosition, 0, { ...currentQuestion });
-    setActiveQueue(newActiveQueue);
-    
-    // Refill queue if needed
-    refillActiveQueueIfNeeded(newActiveQueue);
-    
-    // Set next question
-    const nextQuestion = newActiveQueue[0] || null;
-    setCurrentQuestion(nextQuestion);
-  };
-
-  // Skip current question without counting it as incorrect.
-  const handleSkip = (
-    _item: { id: number; subject: any },
-    _questionType: "meaning" | "reading"
-  ) => {
-    requeueQuestion();
-  };
-
-  // Refill active queue from master queue
-  const refillActiveQueueIfNeeded = (currentActiveQueue: ReviewQueueQuestion[]) => {
-    if (currentActiveQueue.length <= REFILL_THRESHOLD && masterQueue.length > ACTIVE_QUEUE_SIZE) {
-      const needed = ACTIVE_QUEUE_SIZE - currentActiveQueue.length;
-      const toAdd = masterQueue.slice(ACTIVE_QUEUE_SIZE, ACTIVE_QUEUE_SIZE + needed);
-      
-      setActiveQueue(prev => [...prev, ...toAdd]);
-    }
+    if (sessionCompleting || !currentQuestion || reviewQueue.length === 1) return;
+    const remaining = reviewQueue.slice(1);
+    const retryDistance = Math.min(remaining.length, MAX_RETRY_DISTANCE);
+    const insertPosition = Math.floor(Math.random() * retryDistance) + 1;
+    remaining.splice(insertPosition, 0, currentQuestion);
+    setReviewQueue(remaining);
   };
 
   // Handle session completion
   const handleSessionComplete = () => {
-    // Mark batch as completed
-    const updatedBatches = [...lessonBatches];
-    updatedBatches[currentBatchIndex].completed = true;
-    setLessonBatches(updatedBatches);
+    if (sessionCompleting) return;
+    setSessionCompleting(true);
 
     // Calculate type counts for the completed batch
-    const completedBatch = updatedBatches[currentBatchIndex];
+    const completedBatch = lessonBatches[currentBatchIndex];
     const batchTypeCounts: TypeCounts = {
       radical: 0,
       kanji: 0,
@@ -508,14 +415,13 @@ export default function CustomLessonScreen() {
     }));
 
     // Move to next batch or finish
-    if (currentBatchIndex < updatedBatches.length - 1) {
+    if (currentBatchIndex < lessonBatches.length - 1) {
       setCompletedBatchStats({
         batchNumber: currentBatchIndex + 1,
         itemCount: completedBatch.items.length,
         typeCounts: batchTypeCounts,
       });
       setMode(LessonsMode.BATCH_COMPLETE);
-      setSessionCompleting(false); // Reset for next batch
 
       setProgress((prev) => ({
         ...prev,
@@ -544,64 +450,37 @@ export default function CustomLessonScreen() {
     setCurrentItemIndex(0);
     setMode(LessonsMode.LESSON);
     setCompletedBatchStats(null);
-    setReviewItems([]);
-    setMasterQueue([]);
-    setActiveQueue([]);
-    setCurrentQuestion(null);
+    setReviewQueue([]);
     setSessionCompleting(false);
   };
 
-  const handleAnswer = async (
-    item: { id: number; subject: any },
-    questionType: "meaning" | "reading",
-    isCorrect: boolean
+  const handleAnswer = (
+    item: { id: number },
+    questionType: ReviewQuestionType,
+    isCorrect: boolean,
+    _wasIncorrect?: boolean,
+    isGroupedAnswer = false,
   ) => {
-    if (!currentQuestion) return;
-    
-    // Find the review item
-    const updatedItems = [...reviewItems];
-    const itemIndex = updatedItems.findIndex((ri) => ri.id === item.id);
-    if (itemIndex === -1) return;
-
-    // Update the item based on the answer
-    if (isCorrect) {
-      if (questionType === "meaning") {
-        updatedItems[itemIndex].meaningDone = true;
-      } else {
-        updatedItems[itemIndex].readingDone = true;
-      }
-      
-      // Move to next question
-      moveToNextQuestion();
-    } else {
-      // Increment incorrect count
-      if (questionType === "meaning") {
-        updatedItems[itemIndex].meaningIncorrect += 1;
-      } else {
-        updatedItems[itemIndex].readingIncorrect += 1;
-      }
-      
-      // Requeue the question
-      requeueQuestion();
+    if (sessionCompleting || currentQuestion?.itemId !== item.id) return;
+    // A grouped card reports meaning first and reading second in the same submission.
+    if (isGroupedAnswer && questionType === "meaning") {
+      groupedMeaningCorrect.current = isCorrect;
+      return;
     }
 
-    setReviewItems(updatedItems);
+    const correct = isCorrect && (!isGroupedAnswer || groupedMeaningCorrect.current);
+    groupedMeaningCorrect.current = false;
+    setQuizStats((stats) => ({
+      answered: stats.answered + 1,
+      correct: stats.correct + Number(correct),
+    }));
 
-    // For custom lessons, we don't actually submit assignments to API
-    // Just mark as submitted locally for consistency
-    const isRadical = updatedItems[itemIndex].subject.object === "radical";
-    const isVocabWithoutReading =
-      (updatedItems[itemIndex].subject.object === "vocabulary" ||
-        updatedItems[itemIndex].subject.object === "kana_vocabulary") &&
-      !updatedItems[itemIndex].subject.data.readings;
-
-    const isItemComplete =
-      updatedItems[itemIndex].meaningDone &&
-      (updatedItems[itemIndex].readingDone || isRadical || isVocabWithoutReading);
-
-    if (isItemComplete && !updatedItems[itemIndex].submitted) {
-      updatedItems[itemIndex].submitted = true;
-      setReviewItems(updatedItems);
+    if (!correct) {
+      requeueQuestion();
+    } else if (reviewQueue.length === 1) {
+      handleSessionComplete();
+    } else {
+      setReviewQueue(reviewQueue.slice(1));
     }
   };
 
@@ -717,8 +596,10 @@ export default function CustomLessonScreen() {
   }
 
   // If we're in review mode, show the review question screen
-  if (mode === LessonsMode.REVIEW && reviewItems.length > 0 && currentQuestion) {
+  if (mode === LessonsMode.REVIEW && currentQuestion) {
+    const reviewItems = lessonBatches[currentBatchIndex].items;
     const currentItem = reviewItems.find(item => item.id === currentQuestion.itemId);
+    const pendingSubjectCount = new Set(reviewQueue.map((question) => question.itemId)).size;
     
     if (!currentItem) {
       return (
@@ -754,7 +635,7 @@ export default function CustomLessonScreen() {
         item={{ id: currentItem.id, subject: adaptedSubject }}
         questionType={currentQuestion.type}
         onAnswer={handleAnswer}
-        onSkip={handleSkip}
+        onSkip={requeueQuestion}
         onExit={() => {
           Alert.alert(
             "Exit Custom Lessons",
@@ -768,24 +649,9 @@ export default function CustomLessonScreen() {
         showHeader={true}
         showBackgroundColor={true}
         totalItems={reviewItems.length}
-        currentItem={activeQueue.length > 0 ? 
-          (effectiveAnkiGrouping ? 
-            reviewItems.length - (activeQueue.length + masterQueue.length - ACTIVE_QUEUE_SIZE) :
-            (reviewItems.length * 2) - (activeQueue.length + masterQueue.length - ACTIVE_QUEUE_SIZE)
-          ) : 
-          (effectiveAnkiGrouping ? reviewItems.length : reviewItems.length * 2)
-        }
-        completedCount={reviewItems.filter(item => 
-          (item.meaningDone && item.readingDone) || 
-          (item.meaningDone && isSubjectType(item.subject, "radical")) ||
-          (item.meaningDone && isSubjectType(item.subject, "vocabulary") && !item.subject.data.readings)
-        ).length}
-        correctAnswersCount={reviewItems.reduce((count, item) => {
-          let correctCount = 0;
-          if (item.meaningDone) correctCount++;
-          if (item.readingDone) correctCount++;
-          return count + correctCount;
-        }, 0)}
+        currentItem={quizStats.answered}
+        completedCount={sessionCompleting ? reviewItems.length : reviewItems.length - pendingSubjectCount}
+        correctAnswersCount={quizStats.correct}
         isLessonFlow={true}
         // No SRS progression for custom lessons
         srsProgression={undefined}

@@ -372,7 +372,7 @@ function normalizeLessonPickerViewMode(value: unknown): LessonPickerViewMode {
   }
 }
 
-function normalizeCustomTabOrder(value: unknown): CustomTabId[] {
+export function normalizeCustomTabOrder(value: unknown): CustomTabId[] {
   if (!Array.isArray(value)) {
     return [...DEFAULT_CUSTOM_TAB_ORDER];
   }

@@ -315,6 +315,7 @@ type SettingsSectionKey =
   | "theme"
   | "widgets"
   | "notifications"
+  | "settingsTransfer"
   | "dataStorage"
   | "levelRecap"
   | "patreon"
@@ -345,6 +346,7 @@ const SCROLL_TO_SECTION_KEY_MAP: Record<string, SettingsSectionKey> = {
   subjectLists: "subjectLists",
   subjectDetails: "subjectDetails",
   levelRecap: "levelRecap",
+  settingsTransfer: "settingsTransfer",
   jpdbApiKey: "profile",
   jpdb: "profile",
 };
@@ -765,6 +767,14 @@ export function useSettingsController() {
       label: "Notifications",
       icon: "notifications-outline",
     });
+
+    if (Platform.OS === "ios" || Platform.OS === "android") {
+      chips.push({
+        key: "settingsTransfer",
+        label: "Settings Transfer",
+        icon: "swap-vertical",
+      });
+    }
 
     if (showDataStorageSection) {
       chips.push({ key: "dataStorage", label: "Data", icon: "server-outline" });

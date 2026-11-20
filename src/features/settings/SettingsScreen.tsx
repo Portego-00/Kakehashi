@@ -56,6 +56,7 @@ import { AppearanceSection } from "./sections/AppearanceSection";
 import { ThemeSection } from "./sections/ThemeSection";
 import { WidgetSection } from "./sections/WidgetSection";
 import { NotificationsSection } from "./sections/NotificationsSection";
+import { SettingsTransferSection } from "./sections/SettingsTransferSection";
 import { DataStorageSection } from "./sections/DataStorageSection";
 import { LevelRecapSection } from "./sections/LevelRecapSection";
 import { PatreonSupportersSection } from "./sections/PatreonSupportersSection";
@@ -100,6 +101,7 @@ const SETTINGS_SECTIONS: readonly [string, React.ComponentType][] = [
   ["theme", ThemeSection],
   ["widgets", WidgetSection],
   ["notifications", NotificationsSection],
+  ["settingsTransfer", SettingsTransferSection],
   ["dataStorage", DataStorageSection],
   ["levelRecap", LevelRecapSection],
   ["patreon", PatreonSupportersSection],
