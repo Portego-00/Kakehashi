@@ -2220,6 +2220,36 @@ describe("ReviewQuestionScreen question occurrences", () => {
     expect(onAnswer).toHaveBeenCalledWith(audioItem, "reading", false, true, false);
   });
 
+  it("hides the floating Wrap Up, search and Jitai buttons on the paused detail screen", async () => {
+    mockSettings.disableAutoProgressOnCorrect = true;
+    mockSettings.showAnswerStopSubjectDetails = true;
+    mockSettings.reviewSearchButtonEnabled = true;
+    mockSettings.jitaiEnabled = true;
+    const screen = render(
+      <ReviewQuestionScreen
+        item={radicalItem}
+        questionType="meaning"
+        onAnswer={jest.fn()}
+        isWrapUpAvailable
+        onWrapUp={jest.fn()}
+        showHeader={false}
+        showBackgroundColor={false}
+      />,
+    );
+    const floatingTools = () => [
+      screen.queryByLabelText(/^Wrap up after/),
+      screen.queryByLabelText("Open search"),
+      screen.queryByLabelText(/font for this question$/),
+    ];
+    expect(floatingTools().every(Boolean)).toBe(true);
+
+    fireEvent(screen.getByTestId("answer-input"), "submitEditing", {
+      nativeEvent: { text: "ground" },
+    });
+    await screen.findByText("Edit meaning note");
+    expect(floatingTools()).toEqual([null, null, null]);
+  });
+
   const renderWithPreviousAnswerUndo = (onMarkPreviousAnswerWrong: jest.Mock) => {
     const onAnswer = jest.fn();
     const screen = render(
