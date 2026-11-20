@@ -588,6 +588,13 @@ export default function StudyTab() {
   ]);
 
   useEffect(() => {
+    // Background launches (app refresh, processing tasks) mount this screen
+    // while the phone is locked, so the token and data may never load. Never
+    // overwrite the widget with the empty initial counts.
+    if (!dashboardData.dataLoadingState.assignments) {
+      return;
+    }
+
     const currentDayKey = toDayKeyInTimezone(new Date(), streakTimezone);
     const shouldWaitForStreakSnapshot =
       widgetContentMode === "streak" &&
@@ -669,6 +676,7 @@ export default function StudyTab() {
     }
   }, [
     currentStreak,
+    dashboardData.dataLoadingState.assignments,
     dashboardData.nextReviewDate,
     dashboardData.recentMistakes.length,
     dashboardData.reviewCount,

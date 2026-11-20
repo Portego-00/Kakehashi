@@ -1,8 +1,12 @@
 internal import Expo
+import BackgroundTasks
 import React
 import ReactAppDependencyProvider
 import UserNotifications
 import WidgetKit
+
+// Must match BGTaskSchedulerPermittedIdentifiers in Info.plist / app.json.
+private let kakehashiAppRefreshTaskIdentifier = "com.kakehashi.reviewdata.refresh"
 
 @main
 class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
@@ -10,6 +14,7 @@ class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
 
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
+  private var activeBackgroundFetch: WaniKaniBackgroundFetch?
 
   public override func application(
     _ application: UIApplication,
@@ -31,6 +36,16 @@ class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
     UNUserNotificationCenter.current().requestAuthorization(options: [.badge, .alert, .sound]) { _, _ in }
     KakehashiWatchBridge.shared.activate()
 
+    // Expo's background task is a BGProcessingTask, which iOS runs rarely
+    // (idle, usually charging). App refresh keeps the widget and badge current.
+    BGTaskScheduler.shared.register(
+      forTaskWithIdentifier: kakehashiAppRefreshTaskIdentifier,
+      using: nil
+    ) { [weak self] task in
+      self?.handleAppRefresh(task)
+    }
+    scheduleAppRefresh()
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -41,6 +56,44 @@ class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
     removeDeliveredKakehashiReviewNotifications()
   }
   
+  // MARK: - Background App Refresh
+
+  private func scheduleAppRefresh() {
+    let request = BGAppRefreshTaskRequest(identifier: kakehashiAppRefreshTaskIdentifier)
+    // Earliest start only; iOS picks the real cadence from app usage.
+    request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+    do {
+      try BGTaskScheduler.shared.submit(request)
+    } catch {
+      // Expected on the simulator and when Background App Refresh is off.
+      NSLog("Kakehashi app refresh not scheduled: %@", error.localizedDescription)
+    }
+  }
+
+  private func handleAppRefresh(_ task: BGTask) {
+    scheduleAppRefresh()
+
+    // setTaskCompleted must be called exactly once.
+    var didComplete = false
+    let complete: (Bool) -> Void = { success in
+      DispatchQueue.main.async {
+        guard !didComplete else { return }
+        didComplete = true
+        task.setTaskCompleted(success: success)
+      }
+    }
+    task.expirationHandler = { complete(false) }
+
+    // performBackgroundFetch only holds itself weakly, so own it until it finishes;
+    // otherwise it is released mid-fetch and the widget update is skipped.
+    let backgroundFetch = WaniKaniBackgroundFetch()
+    activeBackgroundFetch = backgroundFetch
+    backgroundFetch.performBackgroundFetch { [weak self] result in
+      DispatchQueue.main.async { self?.activeBackgroundFetch = nil }
+      complete(result != .failed)
+    }
+  }
+
   // Handle widget update notifications
   private func processWidgetUpdateNotification(_ userInfo: [AnyHashable: Any]) {
     let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)

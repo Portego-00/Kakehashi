@@ -14,6 +14,7 @@ import {
   allowsTightening,
   clipped,
   clipShape,
+  containerBackground,
   font,
   frame,
   foregroundStyle,
@@ -51,6 +52,10 @@ const KakehashiHomeWidget = (
     hasContainerBackground && !isAccentedRenderingMode;
   const shouldUseAccentedImageRendering =
     isAccentedRenderingMode || !hasContainerBackground;
+  // iOS 17+ draws nothing for a widget that never declares a container
+  // background. Every root view below must carry this; the layouts paint
+  // their own background, so it stays clear.
+  const widgetContainerBackground = containerBackground("#00000000", "widget");
 
   // Expo Widgets serializes this component into the widget extension, so keep
   // this branch self-contained and avoid calling file-scope helpers here.
@@ -80,6 +85,7 @@ const KakehashiHomeWidget = (
             monospacedDigit(),
             lineLimit(1),
             allowsTightening(true),
+            widgetContainerBackground,
           ]}
         >
           {countLabel} {reviewStateLabel}
@@ -100,7 +106,10 @@ const KakehashiHomeWidget = (
       return (
         <ZStack
           alignment="center"
-          modifiers={[frame({ maxWidth: 999, maxHeight: 999 })]}
+          modifiers={[
+            frame({ maxWidth: 999, maxHeight: 999 }),
+            widgetContainerBackground,
+          ]}
         >
           <Circle
             modifiers={[
@@ -166,7 +175,10 @@ const KakehashiHomeWidget = (
     return (
       <ZStack
         alignment="leading"
-        modifiers={[frame({ maxWidth: 999, maxHeight: 999 })]}
+        modifiers={[
+          frame({ maxWidth: 999, maxHeight: 999 }),
+          widgetContainerBackground,
+        ]}
       >
         <VStack
           alignment="leading"
@@ -320,6 +332,7 @@ const KakehashiHomeWidget = (
         modifiers={[
           frame({ maxWidth: 999, maxHeight: 999 }),
           clipShape("roundedRectangle", 18),
+          widgetContainerBackground,
         ]}
       >
         {shouldRenderGradientBackground ? (
@@ -465,7 +478,10 @@ const KakehashiHomeWidget = (
     return (
       <ZStack
         alignment="topLeading"
-        modifiers={[frame({ maxWidth: 999, maxHeight: 999 })]}
+        modifiers={[
+          frame({ maxWidth: 999, maxHeight: 999 }),
+          widgetContainerBackground,
+        ]}
       >
         {shouldRenderGradientBackground ? (
           <RoundedRectangle
@@ -700,7 +716,12 @@ const KakehashiHomeWidget = (
     : foregroundStyle({ type: "hierarchical", style: "primary" });
 
   return (
-    <ZStack modifiers={[frame({ maxWidth: 999, maxHeight: 999 })]}>
+    <ZStack
+      modifiers={[
+        frame({ maxWidth: 999, maxHeight: 999 }),
+        widgetContainerBackground,
+      ]}
+    >
       {shouldRenderGradientBackground ? (
         <RoundedRectangle
           cornerRadius={0}

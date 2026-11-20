@@ -90,11 +90,13 @@
     </dict>
     <key>UIBackgroundModes</key>
     <array>
+      <string>fetch</string>
       <string>processing</string>
     </array>
     <key>BGTaskSchedulerPermittedIdentifiers</key>
     <array>
       <string>com.expo.modules.backgroundtask.processing</string>
+      <string>com.kakehashi.reviewdata.refresh</string>
     </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
