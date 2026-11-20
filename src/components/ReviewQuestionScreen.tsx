@@ -5569,6 +5569,10 @@ export default function ReviewQuestionScreen({
     effectiveShowAnswerStopSubjectDetails && isPausedOnAnswer && !effectiveAnkiCardMode;
   const shouldShowPausedSubjectDetails =
     shouldUsePausedSubjectDetailsMode && pausedDetailsSheetVisible;
+  // The details sheet can rise to the top of short screens, where the floating
+  // Wrap Up, search and Jitai buttons would cover its next-card button. None of
+  // them is needed during the pause; they return with the next card.
+  const showFloatingReviewTools = !shouldUsePausedSubjectDetailsMode;
   // KeyboardAvoidingView owns the active iOS answer's movement. Applying a
   // second layout transition retimes that movement after the keyboard starts.
   const shouldAnimatePausedDetailsLayout =
@@ -5889,7 +5893,7 @@ export default function ReviewQuestionScreen({
       )}
 
       {/* Floating Wrap Up Button - positioned below header */}
-      {showWrapUpButton && (
+      {showWrapUpButton && showFloatingReviewTools && (
         <TouchableOpacity
           style={styles.floatingWrapUpButton}
           onPress={onWrapUp}
@@ -5901,7 +5905,7 @@ export default function ReviewQuestionScreen({
         </TouchableOpacity>
       )}
 
-      {showReviewSearchButton && (
+      {showReviewSearchButton && showFloatingReviewTools && (
         <TouchableOpacity
           style={[
             styles.floatingReviewToolButton,
@@ -5916,7 +5920,7 @@ export default function ReviewQuestionScreen({
       )}
 
       {/* Floating Wrap Up Mode Toggle */}
-      {showWrapUpIndicator && (
+      {showWrapUpIndicator && showFloatingReviewTools && (
         <TouchableOpacity
           style={styles.floatingWrapUpIndicator}
           onPress={onWrapUp}
@@ -6012,7 +6016,7 @@ export default function ReviewQuestionScreen({
         </Animated.View>
       )}
 
-      {canToggleJitaiFont && (
+      {canToggleJitaiFont && showFloatingReviewTools && (
         <TouchableOpacity
           style={[
             styles.floatingReviewToolButton,
