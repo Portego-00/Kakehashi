@@ -4,7 +4,12 @@ import { SettingsLabel } from "../../../ui/settings/settings-search";
 import { SettingsDisclosure } from "../components/settings-disclosure";
 import { ReviewAnswerModeSetting } from "../components/review-answer-mode-setting";
 import React from "react";
-import { useSettingsStore } from "../../../utils/store";
+import {
+  REVIEW_PAUSED_UI_SCALE_MAX,
+  REVIEW_PAUSED_UI_SCALE_MIN,
+  REVIEW_PAUSED_UI_SCALE_STEP,
+  useSettingsStore,
+} from "../../../utils/store";
 
 import { SettingsIcon as Ionicons } from "../../../ui/settings/settings-icon";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
@@ -27,6 +32,30 @@ export function ReviewSettingsSection() {
   );
   const jitaiCycleAllFonts = useSettingsStore(
     (state) => state.jitaiCycleAllFonts,
+  );
+  const hideReviewWrapUpButton = useSettingsStore(
+    (state) => state.hideReviewWrapUpButton,
+  );
+  const setHideReviewWrapUpButton = useSettingsStore(
+    (state) => state.setHideReviewWrapUpButton,
+  );
+  const reviewAnswerRevealScale = useSettingsStore(
+    (state) => state.reviewAnswerRevealScale,
+  );
+  const setReviewAnswerRevealScale = useSettingsStore(
+    (state) => state.setReviewAnswerRevealScale,
+  );
+  const reviewCorrectionButtonScale = useSettingsStore(
+    (state) => state.reviewCorrectionButtonScale,
+  );
+  const setReviewCorrectionButtonScale = useSettingsStore(
+    (state) => state.setReviewCorrectionButtonScale,
+  );
+  const allowMarkingCorrectAnswersWrong = useSettingsStore(
+    (state) => state.allowMarkingCorrectAnswersWrong,
+  );
+  const setAllowMarkingCorrectAnswersWrong = useSettingsStore(
+    (state) => state.setAllowMarkingCorrectAnswersWrong,
   );
   const setJitaiCycleAllFonts = useSettingsStore(
     (state) => state.setJitaiCycleAllFonts,
@@ -356,6 +385,38 @@ export function ReviewSettingsSection() {
                   { borderBottomColor: theme.border },
                 ]}
               >
+                <SettingsRowIcon setting="hide-wrap-up" color={theme.primary} />
+                <View style={styles.settingTextContainer}>
+                  <SettingsLabel
+                    style={[styles.settingText, { color: theme.textColor }]}
+                  >
+                    Hide Wrap Up Button
+                  </SettingsLabel>
+                  <Text
+                    style={[
+                      styles.settingSubtext,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Remove the Wrap Up button from review sessions
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Hide Wrap Up Button"
+                  value={hideReviewWrapUpButton}
+                  onValueChange={setHideReviewWrapUpButton}
+                  trackColor={{ false: "#767577", true: theme.primary }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+            </AdvancedSetting>
+            <AdvancedSetting>
+              <View
+                style={[
+                  styles.settingItem,
+                  { borderBottomColor: theme.border },
+                ]}
+              >
 
                 <SettingsRowIcon setting="wrap-up" color={theme.primary} />
                 <View style={styles.settingTextContainer}>
@@ -658,6 +719,43 @@ export function ReviewSettingsSection() {
                 <Switch
                   value={disableAutoProgressOnCorrect}
                   onValueChange={setDisableAutoProgressOnCorrect}
+                  trackColor={{ false: "#767577", true: theme.primary }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
+            </AdvancedSetting>
+            <AdvancedSetting>
+              <View
+                style={[
+                  styles.settingItem,
+                  { borderBottomColor: theme.border },
+                ]}
+              >
+                <SettingsRowIcon
+                  setting="mark-correct-wrong"
+                  color={theme.primary}
+                />
+                <View style={styles.settingTextContainer}>
+                  <SettingsLabel
+                    style={[styles.settingText, { color: theme.textColor }]}
+                  >
+                    Allow Marking Correct Answers Wrong
+                  </SettingsLabel>
+                  <Text
+                    style={[
+                      styles.settingSubtext,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Tap the previous answer card after a correct answer to mark
+                    it wrong. That answer is saved once you answer the next
+                    question.
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Allow Marking Correct Answers Wrong"
+                  value={allowMarkingCorrectAnswersWrong}
+                  onValueChange={setAllowMarkingCorrectAnswersWrong}
                   trackColor={{ false: "#767577", true: theme.primary }}
                   thumbColor="#f4f3f4"
                 />
@@ -997,6 +1095,186 @@ export function ReviewSettingsSection() {
                         canIncreaseReviewInputFontScale
                           ? theme.textColor
                           : theme.textSecondary
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </AdvancedSetting>
+            <AdvancedSetting>
+              <View
+                style={[
+                  styles.settingItem,
+                  { borderBottomColor: theme.border },
+                ]}
+              >
+                <SettingsRowIcon setting="answer-reveal-size" color={theme.primary} />
+                <View style={styles.settingTextContainer}>
+                  <SettingsLabel
+                    style={[styles.settingText, { color: theme.textColor }]}
+                  >
+                    Answer Reveal Size
+                  </SettingsLabel>
+                  <Text
+                    style={[
+                      styles.settingSubtext,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Enlarge the correct answer and the Correct / Incorrect indicator when a review pauses
+                  </Text>
+                </View>
+                <View style={styles.batchSizeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.batchSizeButton,
+                      { backgroundColor: theme.border },
+                      reviewAnswerRevealScale <= REVIEW_PAUSED_UI_SCALE_MIN &&
+                        styles.batchSizeButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      reviewAnswerRevealScale > REVIEW_PAUSED_UI_SCALE_MIN &&
+                      setReviewAnswerRevealScale(
+                        reviewAnswerRevealScale - REVIEW_PAUSED_UI_SCALE_STEP,
+                      )
+                    }
+                    disabled={reviewAnswerRevealScale <= REVIEW_PAUSED_UI_SCALE_MIN}
+                    accessibilityRole="button"
+                    accessibilityLabel="Decrease answer reveal size"
+                  >
+                    <Ionicons
+                      name="remove"
+                      size={18}
+                      color={
+                        reviewAnswerRevealScale <= REVIEW_PAUSED_UI_SCALE_MIN
+                          ? theme.textSecondary
+                          : theme.textColor
+                      }
+                    />
+                  </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.batchSizeValue,
+                      styles.reviewCharacterSizeValue,
+                      { color: theme.textColor },
+                    ]}
+                  >
+                    {formatReviewFontScale(reviewAnswerRevealScale)}
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.batchSizeButton,
+                      { backgroundColor: theme.border },
+                      reviewAnswerRevealScale >= REVIEW_PAUSED_UI_SCALE_MAX &&
+                        styles.batchSizeButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      reviewAnswerRevealScale < REVIEW_PAUSED_UI_SCALE_MAX &&
+                      setReviewAnswerRevealScale(
+                        reviewAnswerRevealScale + REVIEW_PAUSED_UI_SCALE_STEP,
+                      )
+                    }
+                    disabled={reviewAnswerRevealScale >= REVIEW_PAUSED_UI_SCALE_MAX}
+                    accessibilityRole="button"
+                    accessibilityLabel="Increase answer reveal size"
+                  >
+                    <Ionicons
+                      name="add"
+                      size={18}
+                      color={
+                        reviewAnswerRevealScale >= REVIEW_PAUSED_UI_SCALE_MAX
+                          ? theme.textSecondary
+                          : theme.textColor
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </AdvancedSetting>
+            <AdvancedSetting>
+              <View
+                style={[
+                  styles.settingItem,
+                  { borderBottomColor: theme.border },
+                ]}
+              >
+                <SettingsRowIcon setting="correction-button-size" color={theme.primary} />
+                <View style={styles.settingTextContainer}>
+                  <SettingsLabel
+                    style={[styles.settingText, { color: theme.textColor }]}
+                  >
+                    Correction Button Size
+                  </SettingsLabel>
+                  <Text
+                    style={[
+                      styles.settingSubtext,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Enlarge Mark Wrong, Skip, Mark Correct and the other buttons shown when a review pauses
+                  </Text>
+                </View>
+                <View style={styles.batchSizeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.batchSizeButton,
+                      { backgroundColor: theme.border },
+                      reviewCorrectionButtonScale <= REVIEW_PAUSED_UI_SCALE_MIN &&
+                        styles.batchSizeButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      reviewCorrectionButtonScale > REVIEW_PAUSED_UI_SCALE_MIN &&
+                      setReviewCorrectionButtonScale(
+                        reviewCorrectionButtonScale - REVIEW_PAUSED_UI_SCALE_STEP,
+                      )
+                    }
+                    disabled={reviewCorrectionButtonScale <= REVIEW_PAUSED_UI_SCALE_MIN}
+                    accessibilityRole="button"
+                    accessibilityLabel="Decrease correction button size"
+                  >
+                    <Ionicons
+                      name="remove"
+                      size={18}
+                      color={
+                        reviewCorrectionButtonScale <= REVIEW_PAUSED_UI_SCALE_MIN
+                          ? theme.textSecondary
+                          : theme.textColor
+                      }
+                    />
+                  </TouchableOpacity>
+                  <Text
+                    style={[
+                      styles.batchSizeValue,
+                      styles.reviewCharacterSizeValue,
+                      { color: theme.textColor },
+                    ]}
+                  >
+                    {formatReviewFontScale(reviewCorrectionButtonScale)}
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.batchSizeButton,
+                      { backgroundColor: theme.border },
+                      reviewCorrectionButtonScale >= REVIEW_PAUSED_UI_SCALE_MAX &&
+                        styles.batchSizeButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      reviewCorrectionButtonScale < REVIEW_PAUSED_UI_SCALE_MAX &&
+                      setReviewCorrectionButtonScale(
+                        reviewCorrectionButtonScale + REVIEW_PAUSED_UI_SCALE_STEP,
+                      )
+                    }
+                    disabled={reviewCorrectionButtonScale >= REVIEW_PAUSED_UI_SCALE_MAX}
+                    accessibilityRole="button"
+                    accessibilityLabel="Increase correction button size"
+                  >
+                    <Ionicons
+                      name="add"
+                      size={18}
+                      color={
+                        reviewCorrectionButtonScale >= REVIEW_PAUSED_UI_SCALE_MAX
+                          ? theme.textSecondary
+                          : theme.textColor
                       }
                     />
                   </TouchableOpacity>

@@ -203,7 +203,8 @@ it("shrinks review characters to 30% from the basic settings without changing ot
   await act(async () => {});
   fireEvent.press(screen.getByLabelText("Prompt & display"));
   const decrease = () => screen.getByLabelText("Decrease review character size");
-  expect(screen.getByText("100%")).toBeTruthy();
+  // Answer reveal and correction button sizes also start at 100%.
+  expect(screen.getAllByText("100%")).toHaveLength(3);
   for (const percentage of [90, 80, 70, 60, 50, 40, 30]) {
     fireEvent.press(decrease());
     expect(screen.getByText(`${percentage}%`)).toBeTruthy();

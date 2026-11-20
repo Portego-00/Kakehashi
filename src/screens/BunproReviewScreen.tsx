@@ -1620,6 +1620,7 @@ export default function BunproReviewScreen({
     }
   };
   const wrapUpSize = useSettingsStore(state => state.reviewWrapUpTargetSubjects) || 10;
+  const hideWrapUpButton = useSettingsStore(state => state.hideReviewWrapUpButton) === true;
   const wrapUp = (limit = wrapUpSize) => {
     const open = new Set(masteryRepeatReviewIds);
     if (currentItem && isActive) open.add(currentReviewIdString);
@@ -2126,7 +2127,7 @@ export default function BunproReviewScreen({
           <Text accessibilityLabel={mixed ? "Mixed review progress" : "Bunpro review progress"} style={[styles.headerStatsText, { color: mutedColor }]}>
             {mixed ? `${mixed.progress.completed}/${mixed.progress.total}` : `${displayCurrentItem}/${displayTotalItems}`}
           </Text>
-          {submissionContext !== "learn" && !wrappedUp && !mixed?.wrapUpRequest && (mixed ? mixed.progress.total - mixed.progress.completed : queue.length - currentIndex) > wrapUpSize ? (
+          {submissionContext !== "learn" && !hideWrapUpButton && !wrappedUp && !mixed?.wrapUpRequest && (mixed ? mixed.progress.total - mixed.progress.completed : queue.length - currentIndex) > wrapUpSize ? (
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={mixed ? "Wrap up mixed reviews" : `Wrap up ${wrapUpSize} Bunpro reviews`} disabled={isSubmitting} style={styles.iconButton} onPress={() => mixed ? mixed.onWrapUp() : wrapUp()}>
               <Ionicons name="stop-circle-outline" size={24} color={theme.textColor} />
             </TouchableOpacity>

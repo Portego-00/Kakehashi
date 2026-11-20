@@ -127,6 +127,21 @@ function isLowLuminanceColor(value: string): boolean {
   return luminance < 0.2;
 }
 
+// WaniKani mnemonic illustrations draw most of their detail on 25% and 50% opacity
+// layers. Black at those opacities reads clearly on white, but the recolored light
+// strokes sink into a dark card. Lifting the opacity along a square-root curve
+// (25% -> 50%, 50% -> ~71%, 100% unchanged) restores legibility while keeping the
+// faint / medium / solid layer hierarchy.
+export function liftOpacityForDarkTheme(value: string): string {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d*\.?\d+)(%?)$/);
+  if (!match) return trimmed;
+  const raw = Number(match[1]);
+  const opacity = match[2] ? raw / 100 : raw;
+  if (!(opacity > 0 && opacity < 1)) return trimmed;
+  return String(Math.round(Math.sqrt(opacity) * 1000) / 1000);
+}
+
 function normalizeSvgCssValue(
   property: string,
   value: string,
@@ -266,6 +281,13 @@ export function inlineSvgClassStyles(
       );
       return ` ${property}="${normalizedValue}"`;
     });
+
+    // Runs after class styles are inlined, so each opacity is lifted exactly once.
+    svg = svg.replace(
+      /\s(opacity|fill-opacity|stroke-opacity)="([^"]+)"/gi,
+      (_match, property, rawValue) =>
+        ` ${property}="${liftOpacityForDarkTheme(String(rawValue))}"`
+    );
 
     svg = svg.replace(
       /<(path|circle|ellipse|rect|polygon|polyline|line)([^>]*?)(\/?)>/gi,

@@ -172,6 +172,12 @@ export const DEFAULT_REVIEW_INPUT_FONT_SCALE = 1;
 export const REVIEW_INPUT_FONT_SCALE_MIN = 0.7;
 export const REVIEW_INPUT_FONT_SCALE_MAX = 1.2;
 export const REVIEW_INPUT_FONT_SCALE_STEP = 0.1;
+// Scales for the paused-answer card (correct answer + verdict) and the
+// Mark Wrong / Skip / Mark Correct buttons shown under it.
+export const DEFAULT_REVIEW_PAUSED_UI_SCALE = 1;
+export const REVIEW_PAUSED_UI_SCALE_MIN = 1;
+export const REVIEW_PAUSED_UI_SCALE_MAX = 2;
+export const REVIEW_PAUSED_UI_SCALE_STEP = 0.25;
 const AUTH_STORE_SCHEMA_VERSION = 1;
 const SETTINGS_STORE_SCHEMA_VERSION = 24;
 const LEGACY_DEFAULT_HOME_EXTRA_STUDY_MODE_ORDER_V5: ExtraStudyModeId[] = [
@@ -291,6 +297,23 @@ function normalizeReviewCharacterFontScale(value: unknown): number {
     Math.min(
       REVIEW_CHARACTER_FONT_SCALE_MAX,
       Math.max(REVIEW_CHARACTER_FONT_SCALE_MIN, normalizedToStep)
+    ).toFixed(2)
+  );
+}
+
+export function normalizeReviewPausedUiScale(value: unknown): number {
+  const numericValue =
+    typeof value === "number" && Number.isFinite(value)
+      ? value
+      : DEFAULT_REVIEW_PAUSED_UI_SCALE;
+  const normalizedToStep =
+    Math.round(numericValue / REVIEW_PAUSED_UI_SCALE_STEP) *
+    REVIEW_PAUSED_UI_SCALE_STEP;
+
+  return Number(
+    Math.min(
+      REVIEW_PAUSED_UI_SCALE_MAX,
+      Math.max(REVIEW_PAUSED_UI_SCALE_MIN, normalizedToStep)
     ).toFixed(2)
   );
 }
@@ -555,6 +578,10 @@ type SettingsState = {
   activeLearningPageId: string | null; // null (or a deleted page) shows the unfiltered Home
   reviewWrapUpTargetSubjects: number; // Subjects left after tapping Wrap Up (5-20, step 5)
   reviewSearchButtonEnabled: boolean; // Show quick search button below Wrap Up during reviews
+  hideReviewWrapUpButton: boolean; // Hide the floating Wrap Up button during reviews
+  reviewAnswerRevealScale: number; // Scale for the correct answer and verdict shown when paused on an answer
+  reviewCorrectionButtonScale: number; // Scale for Mark Wrong / Skip / Mark Correct buttons
+  allowMarkingCorrectAnswersWrong: boolean; // Pause after correct answers and offer Mark Wrong
   reviewLeftHandedMode: boolean; // Mirror review controls for left-handed use
   bunproHideFurigana: boolean;
   showDetailsOnWrongAnswer: boolean;
@@ -765,6 +792,10 @@ type SettingsState = {
   setLearningPages: (pages: LearningPage[]) => void;
   setActiveLearningPageId: (id: string | null) => void;
   setReviewWrapUpTargetSubjects: (target: number) => void;
+  setHideReviewWrapUpButton: (hidden: boolean) => void;
+  setReviewAnswerRevealScale: (scale: number) => void;
+  setReviewCorrectionButtonScale: (scale: number) => void;
+  setAllowMarkingCorrectAnswersWrong: (enabled: boolean) => void;
   setReviewSearchButtonEnabled: (enabled: boolean) => void;
   setReviewLeftHandedMode: (enabled: boolean) => void;
   setBunproHideFurigana: (hidden: boolean) => void;
@@ -957,6 +988,10 @@ export const useSettingsStore = create<SettingsState>()(
       activeLearningPageId: null,
       reviewWrapUpTargetSubjects: 10, // Default to wrap up after 10 subjects
       reviewSearchButtonEnabled: false, // Default to disabled - keep review header focused unless enabled
+      hideReviewWrapUpButton: false,
+      reviewAnswerRevealScale: DEFAULT_REVIEW_PAUSED_UI_SCALE,
+      reviewCorrectionButtonScale: DEFAULT_REVIEW_PAUSED_UI_SCALE,
+      allowMarkingCorrectAnswersWrong: false,
       reviewLeftHandedMode: false,
       bunproHideFurigana: false,
       showDetailsOnWrongAnswer: false,
@@ -1191,6 +1226,16 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       setReviewSearchButtonEnabled: (enabled) =>
         set({ reviewSearchButtonEnabled: enabled }),
+      setHideReviewWrapUpButton: (hidden) =>
+        set({ hideReviewWrapUpButton: hidden }),
+      setReviewAnswerRevealScale: (scale) =>
+        set({ reviewAnswerRevealScale: normalizeReviewPausedUiScale(scale) }),
+      setReviewCorrectionButtonScale: (scale) =>
+        set({
+          reviewCorrectionButtonScale: normalizeReviewPausedUiScale(scale),
+        }),
+      setAllowMarkingCorrectAnswersWrong: (enabled) =>
+        set({ allowMarkingCorrectAnswersWrong: enabled }),
       setReviewLeftHandedMode: (enabled) => set({ reviewLeftHandedMode: enabled }),
       setBunproHideFurigana: (hidden) => set({ bunproHideFurigana: hidden }),
       setReviewPromptTextColor: (color) => set({ reviewPromptTextColor: normalizeReviewPromptTextColor(color) }),
@@ -1535,6 +1580,15 @@ export const useSettingsStore = create<SettingsState>()(
           reviewPresetsEnabled: persisted.reviewPresetsEnabled === true,
           reviewPresets: normalizeReviewPresets(persisted.reviewPresets),
           learningPages: normalizeLearningPages(persisted.learningPages),
+          hideReviewWrapUpButton: persisted.hideReviewWrapUpButton === true,
+          reviewAnswerRevealScale: normalizeReviewPausedUiScale(
+            persisted.reviewAnswerRevealScale
+          ),
+          reviewCorrectionButtonScale: normalizeReviewPausedUiScale(
+            persisted.reviewCorrectionButtonScale
+          ),
+          allowMarkingCorrectAnswersWrong:
+            persisted.allowMarkingCorrectAnswersWrong === true,
         };
       },
       migrate: (persistedState, version) => {
