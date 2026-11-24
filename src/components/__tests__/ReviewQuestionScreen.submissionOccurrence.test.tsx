@@ -126,6 +126,7 @@ const mockSettings = {
   showOnyomiInKatakana: false,
   jitaiEnabled: false,
   jitaiCycleAllFonts: false,
+  jitaiMatchContextSentenceFont: false,
   jitaiSelectedFontIds: [] as string[],
   autoSwitchKeyboard: false,
   voiceReviewAnswersEnabled: false,
@@ -839,7 +840,8 @@ describe("ReviewQuestionScreen question occurrences", () => {
 
     const currentFont = (screen: ReturnType<typeof render>) => {
       const prompt = within(screen.UNSAFE_getByType(ReviewPromptCharacters));
-      return StyleSheet.flatten(prompt.getByText("猫").props.style).fontFamily;
+      const character = prompt.getAllByText("猫").find((node) => node.props.adjustsFontSizeToFit);
+      return StyleSheet.flatten(character?.props.style)?.fontFamily;
     };
     const nextFont = (screen: ReturnType<typeof render>) =>
       fireEvent.press(screen.getByRole("button", {
@@ -860,6 +862,35 @@ describe("ReviewQuestionScreen question occurrences", () => {
 
     afterEach(() => {
       random.mockRestore();
+    });
+
+    it.each([false, true])("respects context font matching before and after reveal (%s)", (enabled) => {
+      mockSettings.ankiCardMode = true;
+      mockSettings.jitaiMatchContextSentenceFont = enabled;
+      const screen = render(
+        <ReviewQuestionScreen
+          item={item}
+          questionType="meaning"
+          onAnswer={jest.fn()}
+          contextSentencesHint={[{ ja: "庭に猫がいる。", en: "A cat is in the garden." }]}
+          contextHintDisplayMode="visible"
+          contextHintTranslationMode="visible"
+        />,
+      );
+      const hintFont = () =>
+        StyleSheet.flatten(screen.getByText("• 庭に猫がいる。").props.style).fontFamily;
+
+      expect(currentFont(screen)).toBe("ZenKurenaido-Regular");
+      expect(hintFont()).toBe(enabled ? currentFont(screen) : "SourceHanSansJP-Regular");
+      expect(StyleSheet.flatten(screen.getByText("• A cat is in the garden.").props.style).fontFamily)
+        .not.toBe("ZenKurenaido-Regular");
+      nextFont(screen);
+      nextFont(screen);
+      expect(currentFont(screen)).toBe("ReggaeOne-Regular");
+      expect(hintFont()).toBe(enabled ? currentFont(screen) : "SourceHanSansJP-Regular");
+      fireEvent.press(screen.getByLabelText("Reveal answer"));
+      expect(currentFont(screen)).toBe("ReggaeOne-Regular");
+      expect(hintFont()).toBe(enabled ? currentFont(screen) : "SourceHanSansJP-Regular");
     });
 
     it("cycles through every selected font, with Source Han Sans second, before repeating", () => {

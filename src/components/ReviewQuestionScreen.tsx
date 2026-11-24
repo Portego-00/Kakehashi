@@ -1090,6 +1090,7 @@ export default function ReviewQuestionScreen({
     acceptAnyKanjiOnyomiReading,
     showOnyomiInKatakana,
     jitaiEnabled,
+    jitaiMatchContextSentenceFont,
     jitaiCycleAllFonts,
     autoSwitchKeyboard,
     voiceReviewAnswersEnabled,
@@ -5762,7 +5763,7 @@ export default function ReviewQuestionScreen({
     setShowContextHint((current) => !current);
   };
 
-  const renderContextHintJapaneseSentence = (sentenceText: string) => {
+  const renderContextHintJapaneseSentence = (sentenceText: string, matchesPromptFont: boolean) => {
     const highlightTerm = contextHintHighlightTerms.find((term) =>
       sentenceText.includes(term),
     );
@@ -5771,11 +5772,164 @@ export default function ReviewQuestionScreen({
     return chunks.map((chunk, index) => (
       <Text
         key={`${chunk.text}-${index}`}
-        style={chunk.highlighted && styles.contextHintSentenceHighlight}
+        style={chunk.highlighted && [
+          styles.contextHintSentenceHighlight,
+          matchesPromptFont && { fontWeight: "400" },
+        ]}
       >
         {chunk.text}
       </Text>
     ));
+  };
+
+  const renderOverridePrompt = () => (
+    <>
+      <Text
+        style={[
+          styles.placeholderText,
+          { fontSize: Math.min(windowWidth * 0.09, 36) },
+          overridePromptUsesJapaneseFont && fontStyles.japaneseText,
+          reviewPromptTextColor ? { color: reviewPromptTextColor } : undefined,
+        ]}
+        numberOfLines={2}
+        adjustsFontSizeToFit
+      >
+        {overridePromptText}
+      </Text>
+      {!!overridePromptSubtext && (
+        <Text
+          style={[styles.placeholderSubtext, { fontSize: Math.min(windowWidth * 0.05, 18) }]}
+          numberOfLines={3}
+          adjustsFontSizeToFit
+        >
+          {overridePromptSubtext}
+        </Text>
+      )}
+    </>
+  );
+
+  const renderPromptContent = (prompt: React.ReactNode, promptFont?: string) => {
+    const fontFamily =
+      jitaiMatchContextSentenceFont &&
+      canToggleJitaiFont &&
+      effectiveAnkiCardMode &&
+      (subject.object === "vocabulary" || subject.object === "kana_vocabulary")
+        ? promptFont
+        : undefined;
+
+    return (
+      <>
+        <View style={styles.characterContainer}>
+          {prompt}
+        </View>
+
+        {!audioPrompt &&
+          !isLessonFlow &&
+          (subject.object === "vocabulary" ||
+            subject.object === "kana_vocabulary") && (
+            <VocabularyFrequencyBadge subject={subject} />
+          )}
+
+        {/* Context Hint - review mode can show Japanese text immediately. */}
+        {hasContextHint && (
+          <View style={styles.contextHintContainer}>
+            {shouldShowContextHintControls && (
+              <View style={styles.contextHintButtonRow}>
+                {shouldShowContextHintToggle && (
+                  <TouchableOpacity
+                    style={styles.contextHintButton}
+                    onPress={handleContextHintToggle}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={
+                        showContextHint ? "chevron-up" : "help-circle-outline"
+                      }
+                      size={18}
+                      color="rgba(255, 255, 255, 0.8)"
+                    />
+                    <Text style={styles.contextHintButtonText}>
+                      {showContextHint ? "Hide Hint" : "Show Context Hint"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {isContextHintVisible && canToggleContextHintTranslations && (
+                  <TouchableOpacity
+                    style={styles.contextHintButton}
+                    onPress={() =>
+                      setShowContextHintTranslations((current) => !current)
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={
+                        showContextHintTranslations
+                          ? "eye-off-outline"
+                          : "language-outline"
+                      }
+                      size={18}
+                      color="rgba(255, 255, 255, 0.8)"
+                    />
+                    <Text style={styles.contextHintButtonText}>
+                      {showContextHintTranslations
+                        ? "Hide Translation"
+                        : "Translate"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {isContextHintVisible && (
+              <View style={styles.contextHintContent}>
+                <View style={styles.contextHintContentInner}>
+                  {displayedContextSentencesHint.map((sentence, index) => (
+                    <View
+                      key={`${index}-${sentence.ja ?? ""}-${sentence.en ?? ""}`}
+                      style={styles.contextHintSentenceGroup}
+                    >
+                      {!!sentence.ja && (
+                        <Text
+                          selectable
+                          style={[
+                            styles.contextHintSentence,
+                            styles.contextHintSentenceJapanese,
+                            fontStyles.japaneseText,
+                            fontFamily && { fontFamily, fontWeight: "400" },
+                          ]}
+                        >
+                          <Text>• </Text>
+                          {renderContextHintJapaneseSentence(sentence.ja, !!fontFamily)}
+                        </Text>
+                      )}
+                      {shouldShowContextHintTranslations && !!sentence.en && (
+                        <Text
+                          selectable
+                          style={styles.contextHintSentence}
+                        >
+                          • {sentence.en}
+                        </Text>
+                      )}
+                      {shouldShowContextHintTranslations &&
+                        !!sentence.ja &&
+                        !!sentence.en && (
+                          <AnkiDroidExportButton
+                            japanese={sentence.ja}
+                            english={sentence.en}
+                            compact
+                            style={styles.contextHintAnkiButton}
+                          />
+                        )}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+      </>
+    );
   };
 
   // Animation style for Anki button section
@@ -6258,146 +6412,18 @@ export default function ReviewQuestionScreen({
           scrollEnabled={isContextHintVisible || useCompactTypedLayout}
           showsVerticalScrollIndicator={isContextHintVisible}
         >
-          <View style={styles.characterContainer}>
-            {audioPrompt ? (
-              audioPrompt
-            ) : overridePromptText ? (
-              <>
-                <Text
-                  style={[
-                    styles.placeholderText,
-                    { fontSize: Math.min(windowWidth * 0.09, 36) },
-                    overridePromptUsesJapaneseFont && fontStyles.japaneseText,
-                    reviewPromptTextColor ? { color: reviewPromptTextColor } : undefined,
-                  ]}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                >
-                  {overridePromptText}
-                </Text>
-                {!!overridePromptSubtext && (
-                  <Text
-                    style={[styles.placeholderSubtext, { fontSize: Math.min(windowWidth * 0.05, 18) }]}
-                    numberOfLines={3}
-                    adjustsFontSizeToFit
-                  >
-                    {overridePromptSubtext}
-                  </Text>
-                )}
-              </>
-            ) : (
-              <ReviewPromptCharacters
-                subject={subject}
-                size={useCompactTypedLayout ? Math.min(contextHintPromptSize, 64) : contextHintPromptSize}
-                fontCycleIndex={jitaiFontCycleIndex}
-              />
-            )}
-          </View>
-
-          {!audioPrompt &&
-            !isLessonFlow &&
-            (subject.object === "vocabulary" ||
-              subject.object === "kana_vocabulary") && (
-              <VocabularyFrequencyBadge subject={subject} />
-            )}
-
-          {/* Context Hint - review mode can show Japanese text immediately. */}
-          {hasContextHint && (
-            <View style={styles.contextHintContainer}>
-              {shouldShowContextHintControls && (
-                <View style={styles.contextHintButtonRow}>
-                  {shouldShowContextHintToggle && (
-                    <TouchableOpacity
-                      style={styles.contextHintButton}
-                      onPress={handleContextHintToggle}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name={
-                          showContextHint ? "chevron-up" : "help-circle-outline"
-                        }
-                        size={18}
-                        color="rgba(255, 255, 255, 0.8)"
-                      />
-                      <Text style={styles.contextHintButtonText}>
-                        {showContextHint ? "Hide Hint" : "Show Context Hint"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {isContextHintVisible && canToggleContextHintTranslations && (
-                    <TouchableOpacity
-                      style={styles.contextHintButton}
-                      onPress={() =>
-                        setShowContextHintTranslations((current) => !current)
-                      }
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name={
-                          showContextHintTranslations
-                            ? "eye-off-outline"
-                            : "language-outline"
-                        }
-                        size={18}
-                        color="rgba(255, 255, 255, 0.8)"
-                      />
-                      <Text style={styles.contextHintButtonText}>
-                        {showContextHintTranslations
-                          ? "Hide Translation"
-                          : "Translate"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+          {audioPrompt
+            ? renderPromptContent(audioPrompt)
+            : overridePromptText
+              ? renderPromptContent(renderOverridePrompt())
+              : (
+                <ReviewPromptCharacters
+                  subject={subject}
+                  size={useCompactTypedLayout ? Math.min(contextHintPromptSize, 64) : contextHintPromptSize}
+                  fontCycleIndex={jitaiFontCycleIndex}
+                  renderContent={renderPromptContent}
+                />
               )}
-
-              {isContextHintVisible && (
-                <View style={styles.contextHintContent}>
-                  <View style={styles.contextHintContentInner}>
-                    {displayedContextSentencesHint.map((sentence, index) => (
-                      <View
-                        key={`${index}-${sentence.ja ?? ""}-${sentence.en ?? ""}`}
-                        style={styles.contextHintSentenceGroup}
-                      >
-                        {!!sentence.ja && (
-                          <Text
-                            selectable
-                            style={[
-                              styles.contextHintSentence,
-                              styles.contextHintSentenceJapanese,
-                              fontStyles.japaneseText,
-                            ]}
-                          >
-                            <Text>• </Text>
-                            {renderContextHintJapaneseSentence(sentence.ja)}
-                          </Text>
-                        )}
-                        {shouldShowContextHintTranslations && !!sentence.en && (
-                          <Text
-                            selectable
-                            style={styles.contextHintSentence}
-                          >
-                            • {sentence.en}
-                          </Text>
-                        )}
-                        {shouldShowContextHintTranslations &&
-                          !!sentence.ja &&
-                          !!sentence.en && (
-                            <AnkiDroidExportButton
-                              japanese={sentence.ja}
-                              english={sentence.en}
-                              compact
-                              style={styles.contextHintAnkiButton}
-                            />
-                          )}
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
         </PromptScrollView>
 
         {effectiveAnkiCardMode ? (

@@ -25,10 +25,12 @@ const ReviewPromptCharacters = React.memo(
     subject,
     size = Math.min(width * 0.25, 120),
     fontCycleIndex = 0,
+    renderContent,
   }: {
     subject: WKSubject;
     size?: number;
     fontCycleIndex?: number;
+    renderContent?: (prompt: React.ReactNode, fontFamily?: string) => React.ReactNode;
   }) {
     const { jitaiEnabled, jitaiSelectedFontIds, jitaiCycleAllFonts, reviewPromptTextColor } = useSettingsStore();
     const promptColor = normalizeReviewPromptTextColor(reviewPromptTextColor) || "#ffffff";
@@ -163,50 +165,57 @@ const ReviewPromptCharacters = React.memo(
         ? DEFAULT_JITAI_FONT_FAMILY
         : fontCycle?.[0] ?? null;
 
-    if (subject.data.characters) {
-      // Only show a fallback while fonts load if the user explicitly cycles.
-      if (fontToUse === null) return null;
+    const renderPrompt = () => {
+      if (subject.data.characters) {
+        // Only show a fallback while fonts load if the user explicitly cycles.
+        if (fontToUse === null) return null;
+        return (
+          <Text
+            key={`${subject.id}-${subject.data.characters}-${fontToUse}-${size}`}
+            // Android selectable TextView clips auto-fitted Japanese prompts (#54).
+            selectable={Platform.OS !== "android"}
+            style={[
+              styles.characterText,
+              fontStyles.japaneseText,
+              { color: promptColor, fontFamily: fontToUse, fontSize: size },
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.5}
+          >
+            {subject.data.characters}
+          </Text>
+        );
+      }
+
+      if (svgXml) {
+        return <SvgXml xml={svgXml} width={size} height={size} />;
+      }
+
+      if (svgUrl) {
+        return null; // loading svg
+      }
+
       return (
         <Text
-          key={`${subject.id}-${subject.data.characters}-${fontToUse}-${size}`}
-          // Android selectable TextView clips auto-fitted Japanese prompts (#54).
-          selectable={Platform.OS !== "android"}
-          style={[
-            styles.characterText,
-            fontStyles.japaneseText,
-            { color: promptColor, fontFamily: fontToUse, fontSize: size },
-          ]}
+          style={[styles.placeholderText, { color: promptColor }]}
           numberOfLines={1}
           adjustsFontSizeToFit
-          minimumFontScale={0.5}
         >
-          {subject.data.characters}
+          {subject.data.meanings[0]?.meaning || ""}
         </Text>
       );
-    }
+    };
 
-    if (svgXml) {
-      return <SvgXml xml={svgXml} width={size} height={size} />;
-    }
-
-    if (svgUrl) {
-      return null; // loading svg
-    }
-
-    return (
-      <Text
-        style={[styles.placeholderText, { color: promptColor }]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {subject.data.meanings[0]?.meaning || ""}
-      </Text>
-    );
+    const prompt = renderPrompt();
+    const fontFamily = subject.data.characters ? fontToUse ?? undefined : undefined;
+    return renderContent ? renderContent(prompt, fontFamily) : prompt;
   },
   (prev, next) =>
     prev.subject.id === next.subject.id &&
     prev.size === next.size &&
-    prev.fontCycleIndex === next.fontCycleIndex,
+    prev.fontCycleIndex === next.fontCycleIndex &&
+    prev.renderContent === next.renderContent,
 );
 
 export default ReviewPromptCharacters;
