@@ -24,6 +24,12 @@ import { ReviewPresetsSetting } from "../components/review-presets-setting";
 import { ReviewPromptColorSetting } from "../components/review-prompt-color-setting";
 
 export function ReviewSettingsSection() {
+  const jitaiMatchContextSentenceFont = useSettingsStore(
+    (state) => state.jitaiMatchContextSentenceFont,
+  );
+  const setJitaiMatchContextSentenceFont = useSettingsStore(
+    (state) => state.setJitaiMatchContextSentenceFont,
+  );
   const reviewLeftHandedMode = useSettingsStore(
     (state) => state.reviewLeftHandedMode,
   );
@@ -1530,6 +1536,26 @@ export function ReviewSettingsSection() {
                   color={theme.textSecondary}
                 />
               </TouchableOpacity>
+            )}
+            {jitaiEnabled && (
+              <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
+                <SettingsRowIcon setting="font-cycle" color={theme.primary} />
+                <View style={styles.settingTextContainer}>
+                  <SettingsLabel style={[styles.settingText, { color: theme.textColor }]}>
+                    Match context sentence font
+                  </SettingsLabel>
+                  <Text style={[styles.settingSubtext, { color: theme.textSecondary }]}>
+                    Use the same Jitai font for the vocabulary and its Japanese context sentences.
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Match context sentence font"
+                  value={jitaiMatchContextSentenceFont}
+                  onValueChange={setJitaiMatchContextSentenceFont}
+                  trackColor={{ false: "#767577", true: theme.primary }}
+                  thumbColor="#f4f3f4"
+                />
+              </View>
             )}
             {jitaiEnabled && (
               <AdvancedSetting>
